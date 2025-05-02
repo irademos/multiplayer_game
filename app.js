@@ -20,27 +20,35 @@ async function main() {
   document.getElementById('game-container').appendChild(renderer.domElement);
 
   const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 2, 5);
+  let cameraAngle = 0;
+  let cameraHeightAngle = 0.3; // vertical tilt angle in radians
+  const cameraDistance = 5;
 
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
   scene.add(ambientLight);
 
   const dirLight = new THREE.DirectionalLight(0xffffff, 1);
   dirLight.position.set(5, 10, 5);
+  dirLight.castShadow = true;
   scene.add(dirLight);
 
   const playerModel = createPlayerModel(THREE, playerName);
   scene.add(playerModel);
-
-  const otherPlayers = {};
-  const chatMessages = {};
 
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(150, 150),
     new THREE.MeshStandardMaterial({ color: 0x55aa55 })
   );
   ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
   scene.add(ground);
+
+  const otherPlayers = {};
+  const chatMessages = {};
+  const keys = new Set();
+
+  document.addEventListener('keydown', e => keys.add(e.key.toLowerCase()));
+  document.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
 
   const chatInput = document.getElementById("chat-input");
   const chatButton = document.getElementById("chat-button");
@@ -78,18 +86,51 @@ async function main() {
     }
   }
 
+  const speed = 0.05;
+
   function animate() {
     requestAnimationFrame(animate);
 
-    // Send own position
-    const pos = playerModel.position;
+    const moveDir = new THREE.Vector3();
+    if (keys.has('w')) moveDir.z -= 1;
+    if (keys.has('s')) moveDir.z += 1;
+    if (keys.has('a')) moveDir.x -= 1;
+    if (keys.has('d')) moveDir.x += 1;
+
+    // Camera rotation with arrow keys
+    if (keys.has('arrowleft')) cameraAngle += 0.03;
+    if (keys.has('arrowright')) cameraAngle -= 0.03;
+    if (keys.has('arrowup')) cameraHeightAngle = Math.min(Math.PI / 2, cameraHeightAngle + 0.02);
+    if (keys.has('arrowdown')) cameraHeightAngle = Math.max(0.05, cameraHeightAngle - 0.02);
+
+    if (moveDir.length() > 0) {
+      moveDir.normalize().multiplyScalar(speed);
+      const moveRotated = new THREE.Vector3(
+        moveDir.x * Math.cos(cameraAngle) - moveDir.z * Math.sin(cameraAngle),
+        0,
+        moveDir.x * Math.sin(cameraAngle) + moveDir.z * Math.cos(cameraAngle)
+      );
+      playerModel.position.add(moveRotated);
+      playerModel.rotation.y = Math.atan2(moveRotated.x, moveRotated.z);
+    }
+
+    const target = playerModel.position.clone();
+    const offset = new THREE.Vector3(
+      cameraDistance * Math.sin(cameraAngle) * Math.cos(cameraHeightAngle),
+      cameraDistance * Math.sin(cameraHeightAngle),
+      cameraDistance * Math.cos(cameraAngle) * Math.cos(cameraHeightAngle)
+    );
+
+    camera.position.copy(target).add(offset);
+    camera.lookAt(target);
+
     multiplayer.send({
       type: "presence",
       id: multiplayer.getId(),
       name: playerName,
-      x: pos.x,
-      y: pos.y,
-      z: pos.z,
+      x: playerModel.position.x,
+      y: playerModel.position.y,
+      z: playerModel.position.z,
       rotation: playerModel.rotation.y
     });
 
@@ -99,4 +140,4 @@ async function main() {
   animate();
 }
 
-main();
+window.addEventListener('DOMContentLoaded', main);

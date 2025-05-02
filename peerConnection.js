@@ -1,5 +1,5 @@
 
-import Peer from 'peerjs';
+const Peer = window.Peer;
 
 export class Multiplayer {
   constructor(playerName, onPeerData) {
