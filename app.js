@@ -21,7 +21,7 @@ async function main() {
 
   const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
   let cameraAngle = 0;
-  let cameraHeightAngle = 0.3; // vertical tilt angle in radians
+  let cameraHeightAngle = 0.3;
   const cameraDistance = 5;
 
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -61,6 +61,15 @@ async function main() {
     }
   };
 
+  // Manual connection
+  const connectInput = document.getElementById("connect-id");
+  const connectButton = document.getElementById("connect-button");
+
+  connectButton.onclick = () => {
+    const peerId = connectInput.value.trim();
+    if (peerId) multiplayer.connectToPeer(peerId);
+  };
+
   function handleIncomingData(peerId, data) {
     if (data.type === "presence") {
       if (!otherPlayers[data.id]) {
@@ -97,7 +106,6 @@ async function main() {
     if (keys.has('a')) moveDir.x -= 1;
     if (keys.has('d')) moveDir.x += 1;
 
-    // Camera rotation with arrow keys
     if (keys.has('arrowleft')) cameraAngle += 0.03;
     if (keys.has('arrowright')) cameraAngle -= 0.03;
     if (keys.has('arrowup')) cameraHeightAngle = Math.min(Math.PI / 2, cameraHeightAngle + 0.02);

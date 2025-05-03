@@ -220,6 +220,24 @@ body {
   background-color: rgba(255, 0, 0, 0.5);
 }
 
+#chat-ui {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  display: flex;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 8px;
+  border-radius: 6px;
+  z-index: 10;
+}
+
+#chat-ui input,
+#chat-ui button {
+  font-size: 14px;
+  padding: 6px;
+}
+
 .audio-indicator {
   position: absolute;
   width: 30px;

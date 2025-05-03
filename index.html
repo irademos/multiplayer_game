@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -16,16 +17,34 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.10.1/dist/nipplejs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
-  <!-- <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script> -->
 </head>
 <body>
   <div id="game-container">
     <div class="crosshair"></div>
   </div>
   <div id="chat-ui">
+    <input id="connect-id" placeholder="Enter Peer ID">
+    <button id="connect-button">Connect</button>
     <input id="chat-input" type="text" placeholder="Type a message..." />
     <button id="chat-button">Send</button>
   </div>  
+  <!-- Firebase App -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <!-- Firebase Database -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyA00qTjGBMT7R7577VK7aQyrWFOJ_EpEfo",
+      authDomain: "griffon-ridge.firebaseapp.com",
+      databaseURL: "https://griffon-ridge-default-rtdb.firebaseio.com",
+      projectId: "griffon-ridge",
+      storageBucket: "griffon-ridge.firebasestorage.app",
+      messagingSenderId: "10955840562",
+      appId: "1:10955840562:web:f1ab90cf2ecfff1bc3302b"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+  </script>
   <script src="app.js" type="module"></script>
 </body>
 </html>
