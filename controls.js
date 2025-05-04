@@ -387,7 +387,7 @@ export class PlayerControls {
         const angle = Math.atan2(movement.x, movement.z);
         this.playerModel.rotation.y = angle;
         if (this.isMobile) {
-          this.yaw = angle + Math.PI; // Align camera yaw to match player direction
+          this.yaw = angle - Math.PI; // Align camera yaw to match player direction
         }        
         
         const leftLeg = this.playerModel.getObjectByName("leftLeg");
