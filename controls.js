@@ -201,7 +201,10 @@ export class PlayerControls {
       const angle = data.angle.radian;
       this.joystickAngle = angle;
       this.joystickForce = Math.min(data.force, 1);
-    });    
+    
+      this.yaw = -angle; // Flip joystick angle to align with world yaw
+    });
+    
     
     this.joystick.on('end', () => {
       this.joystickForce = 0;
@@ -258,7 +261,9 @@ export class PlayerControls {
         const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
         
         moveDirection.addScaledVector(forward, this.joystickForce * SPEED);
-        this.playerModel.rotation.y = this.joystickAngle;
+        if (this.joystickForce > 0.1) {
+          this.playerModel.rotation.y = this.yaw;
+        }        
         // this.yaw = this.joystickAngle + Math.PI; // orbit camera behind
 
         // forward.y = 0;
