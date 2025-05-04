@@ -199,6 +199,9 @@ export class PlayerControls {
     
     // Joystick move event with better movement handling
     this.joystick.on('move', (evt, data) => {
+
+      this.yaw = data.angle.radian + Math.PI; // face direction of joystick
+
       const force = Math.min(data.force, 1); // Normalize force between 0 and 1
       const angle = data.angle.radian;
       
