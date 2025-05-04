@@ -402,9 +402,9 @@ export class PlayerControls {
       const rotationY = this.playerModel.rotation.y;
     
       const rotatedOffset = new THREE.Vector3(
-        this.cameraOffset.x * Math.cos(rotationY + Math.PI) - this.cameraOffset.z * Math.sin(rotationY + Math.PI),
+        this.cameraOffset.x * Math.cos(rotationY) - this.cameraOffset.z * Math.sin(rotationY),
         this.cameraOffset.y,
-        this.cameraOffset.x * Math.sin(rotationY + Math.PI) + this.cameraOffset.z * Math.cos(rotationY + Math.PI)
+        this.cameraOffset.x * Math.sin(rotationY) + this.cameraOffset.z * Math.cos(rotationY)
       );
     
       this.camera.position.copy(orbitCenter).add(rotatedOffset);
