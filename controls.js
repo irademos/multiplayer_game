@@ -9,17 +9,18 @@ const JUMP_FORCE = 0.25;
 const MOBILE_SPEED_MULTIPLIER = 1.0;
 
 export class PlayerControls {
-  constructor({ scene, playerModel, camera, domElement, multiplayer }) {
+  constructor({ scene, camera, playerModel, renderer, multiplayer }) {
+    this.yaw = 0;
+    this.pitch = 0;
+    this.pointerLocked = false;
+    this.renderer = renderer;
+    this.domElement = this.renderer.domElement;
     this.scene = scene;
     this.playerModel = playerModel;
     this.camera = camera;
-    this.domElement = domElement;
     this.multiplayer = multiplayer;
     
-    // this.camera = options.camera || new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    // this.renderer = options.renderer;
     // this.domElement = this.renderer ? this.renderer.domElement : document.body;
-    // this.playerModel = options.playerModel;
     this.lastPosition = new THREE.Vector3();
     this.isMoving = false;
     
@@ -84,42 +85,53 @@ export class PlayerControls {
     if (this.isMobile) {
       this.initializeMobileControls();
     } else {
-      this.initializeDesktopControls();
+      this.setupPointerLock(); // leave pointer lock in PlayerControls
+      // this.initializeDesktopControls();
     }
-  }
+  }  
   
   initializeDesktopControls() {
-    // Use OrbitControls for third-person view
-    this.controls = new OrbitControls(this.camera, this.domElement);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.1;
-    this.controls.maxPolarAngle = Math.PI * 0.9; // Prevent going below ground
-    this.controls.minDistance = 3; // Minimum zoom distance
-    this.controls.maxDistance = 10; // Maximum zoom distance
-    
-    // Increase sensitivity for Safari
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    if (isSafari) {
-      this.controls.rotateSpeed = 2.0; // Double sensitivity for Safari
+    if (this.controls) return;
+    // Ensure domElement is still in the DOM
+    if (!document.body.contains(this.domElement)) {
+      console.warn("renderer.domElement not attached to DOM, OrbitControls may fail.");
+      return;
     }
-    
-    // Add instructions for desktop
-    const instructionsDiv = document.createElement("div");
-    instructionsDiv.className = "instructions";
-    instructionsDiv.innerHTML = "Click to begin. <br>Use WASD to move, Space to jump.";
-    document.getElementById('game-container').appendChild(instructionsDiv);
-    
-    // Hide instructions on first click
-    document.addEventListener('click', () => {
-      if (document.querySelector(".instructions")) {
-        document.querySelector(".instructions").style.display = 'none';
+
+    try {
+      this.controls = new OrbitControls(this.camera, this.domElement);
+      this.controls.enableDamping = true;
+      this.controls.dampingFactor = 0.1;
+      this.controls.maxPolarAngle = Math.PI * 0.9; // Prevent going below ground
+      this.controls.minDistance = 3; // Minimum zoom distance
+      this.controls.maxDistance = 10; // Maximum zoom distance
+      
+      // Increase sensitivity for Safari
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      if (isSafari) {
+        this.controls.rotateSpeed = 2.0; // Double sensitivity for Safari
       }
-    }, { once: true });
-    
-    // Update camera offset when controls change
-    this.controls.addEventListener('change', () => {
-      this.cameraOffset.copy(this.camera.position).sub(this.controls.target);
-    });
+      
+      // Add instructions for desktop
+      const instructionsDiv = document.createElement("div");
+      instructionsDiv.className = "instructions";
+      instructionsDiv.innerHTML = "Click to begin. <br>Use WASD to move, Space to jump.";
+      document.getElementById('game-container').appendChild(instructionsDiv);
+      
+      // Hide instructions on first click
+      document.addEventListener('click', () => {
+        if (document.querySelector(".instructions")) {
+          document.querySelector(".instructions").style.display = 'none';
+        }
+      }, { once: true });
+      
+      // Update camera offset when controls change
+      this.controls.addEventListener('change', () => {
+        this.cameraOffset.copy(this.camera.position).sub(this.controls.target);
+      });
+    } catch (e) {
+      console.error("Failed to create OrbitControls:", e);
+    }
   }
   
   initializeMobileControls() {
@@ -223,9 +235,9 @@ export class PlayerControls {
     window.addEventListener('resize', () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
       this.camera.updateProjectionMatrix();
-      // if (this.renderer) {
-      //   this.renderer.setSize(window.innerWidth, window.innerHeight);
-      // }
+      if (this.renderer) {
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+      }
     });
   }
   
@@ -255,15 +267,15 @@ export class PlayerControls {
         moveDirection.normalize().multiplyScalar(SPEED * MOBILE_SPEED_MULTIPLIER); // Standardized speed
       }
     } else {
-      if (this.keysPressed.has("w") || this.keysPressed.has("arrowup")) {
+      if (this.keysPressed.has("w")) {
         moveDirection.z = 1; 
-      } else if (this.keysPressed.has("s") || this.keysPressed.has("arrowdown")) {
+      } else if (this.keysPressed.has("s")) {
         moveDirection.z = -1; 
       }
       
-      if (this.keysPressed.has("a") || this.keysPressed.has("arrowleft")) {
+      if (this.keysPressed.has("a")) {
         moveDirection.x = 1; 
-      } else if (this.keysPressed.has("d") || this.keysPressed.has("arrowright")) {
+      } else if (this.keysPressed.has("d")) {
         moveDirection.x = -1; 
       }
     }
@@ -374,6 +386,9 @@ export class PlayerControls {
       if (movement.length() > 0) {
         const angle = Math.atan2(movement.x, movement.z);
         this.playerModel.rotation.y = angle;
+        if (this.isMobile) {
+          this.yaw = angle; // Align camera yaw to match player direction
+        }        
         
         const leftLeg = this.playerModel.getObjectByName("leftLeg");
         const rightLeg = this.playerModel.getObjectByName("rightLeg");
@@ -398,7 +413,7 @@ export class PlayerControls {
       if (this.controls) {
         this.controls.target.copy(newTarget);
       }
-      this.camera.position.copy(newTarget).add(this.cameraOffset);
+      // this.camera.position.copy(newTarget).add(this.cameraOffset);
       
       if (this.multiplayer && (
           Math.abs(this.lastPosition.x - newX) > 0.01 ||
@@ -430,6 +445,37 @@ export class PlayerControls {
   }
   
   update() {
+    if (!this.keys) {
+      this.keys = new Set();
+      document.addEventListener('keydown', (e) => this.keys.add(e.key));
+      document.addEventListener('keyup', (e) => this.keys.delete(e.key));
+    }
+
+    const rotateSpeed = 0.03;
+    if (this.keys.has('ArrowLeft')) this.yaw += rotateSpeed;
+    if (this.keys.has('ArrowRight')) this.yaw -= rotateSpeed;
+
+    const maxPitch = Math.PI / 3;   // ~60° upward
+    const minPitch = -Math.PI / 8;  // ~30° downward
+
+    if (this.keys.has('ArrowUp')) {
+      this.pitch = Math.min(maxPitch, this.pitch + 0.02);
+    }
+    if (this.keys.has('ArrowDown')) {
+      this.pitch = Math.max(minPitch, this.pitch - 0.02);
+    }
+
+    const orbitCenter = this.playerModel.position.clone().add(new THREE.Vector3(0, 1, 0)); // target above the player's head
+
+    const rotatedOffset = new THREE.Vector3(
+      this.cameraOffset.x * Math.cos(this.yaw) - this.cameraOffset.z * Math.sin(this.yaw),
+      this.cameraOffset.y + 5 * Math.sin(this.pitch), // optional tilt factor
+      this.cameraOffset.x * Math.sin(this.yaw) + this.cameraOffset.z * Math.cos(this.yaw)
+    );
+
+    this.camera.position.copy(orbitCenter).add(rotatedOffset);
+    this.camera.lookAt(orbitCenter);
+
     const now = performance.now();
     this.time = (now * 0.01) % 1000; // Use performance.now() for consistent timing
     
@@ -450,4 +496,36 @@ export class PlayerControls {
   getPlayerModel() {
     return this.playerModel;
   }
+
+  setupPointerLock() {
+    this.domElement.addEventListener('click', () => {
+      this.domElement.requestPointerLock();
+    });
+  
+    document.addEventListener('pointerlockchange', () => {
+      this.pointerLocked = document.pointerLockElement === this.domElement;
+    });
+  
+    document.addEventListener('mousemove', (event) => {
+      if (this.pointerLocked) {
+        const sensitivity = 0.002;
+        this.yaw -= event.movementX * sensitivity;
+        this.pitch -= event.movementY * sensitivity;
+    
+        // Clamp pitch to stay above ground
+        const maxPitch = Math.PI / 3;    // ~60° upward
+        const minPitch = -Math.PI / 8;   // ~30° downward
+        this.pitch = Math.max(minPitch, Math.min(maxPitch, this.pitch));
+      }
+    });
+    
+  
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        document.exitPointerLock();
+      }
+    });
+  }
+
 }
+
