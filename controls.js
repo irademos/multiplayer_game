@@ -197,18 +197,11 @@ export class PlayerControls {
       size: 120
     });
     
-    // Joystick move event with better movement handling
     this.joystick.on('move', (evt, data) => {
-
-      this.yaw = data.angle.radian + Math.PI; // face direction of joystick
-
-      const force = Math.min(data.force, 1); // Normalize force between 0 and 1
       const angle = data.angle.radian;
-      
-      // Calculate movement values using the joystick - fixed direction mapping
-      this.moveForward = -Math.sin(angle) * force * SPEED * 5; 
-      this.moveRight = Math.cos(angle) * force * SPEED * 5;    
-    });
+      this.joystickAngle = angle;
+      this.joystickForce = Math.min(data.force, 1);
+    });    
     
     // Joystick end event
     this.joystick.on('end', () => {
@@ -257,24 +250,27 @@ export class PlayerControls {
     const moveDirection = new THREE.Vector3(0, 0, 0);
     
     if (this.isMobile) {
-      if (this.moveForward !== 0 || this.moveRight !== 0) {
+      if (this.joystickForce > 0.1) {
         // const forward = new THREE.Vector3();
         // this.camera.getWorldDirection(forward);
-        const forward = new THREE.Vector3(0, 0, 1); // World forward
-
-        const yawQuat = new THREE.Quaternion();
-        yawQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
+        const forward = new THREE.Vector3(0, 0, 1);
+        const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.joystickAngle + Math.PI);
         forward.applyQuaternion(yawQuat);
+        
         const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+        
+        moveDirection.addScaledVector(forward, this.joystickForce * SPEED);
+        this.playerModel.rotation.y = this.joystickAngle;
+        this.yaw = this.joystickAngle + Math.PI; // orbit camera behind
 
         // forward.y = 0;
         // forward.normalize();
         
         // const right = new THREE.Vector3(-forward.z, 0, forward.x);
         
-        moveDirection.addScaledVector(forward, -this.moveForward); // Reversed direction
-        moveDirection.addScaledVector(right, this.moveRight);
-        moveDirection.normalize().multiplyScalar(SPEED * MOBILE_SPEED_MULTIPLIER); // Standardized speed
+        // moveDirection.addScaledVector(forward, -this.moveForward); // Reversed direction
+        // moveDirection.addScaledVector(right, this.moveRight);
+        // moveDirection.normalize().multiplyScalar(SPEED * MOBILE_SPEED_MULTIPLIER); // Standardized speed
       }
     } else {
       if (this.keysPressed.has("w")) {
