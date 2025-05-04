@@ -255,12 +255,19 @@ export class PlayerControls {
     
     if (this.isMobile) {
       if (this.moveForward !== 0 || this.moveRight !== 0) {
-        const forward = new THREE.Vector3();
-        this.camera.getWorldDirection(forward);
-        forward.y = 0;
-        forward.normalize();
+        // const forward = new THREE.Vector3();
+        // this.camera.getWorldDirection(forward);
+        const forward = new THREE.Vector3(0, 0, 1); // World forward
+
+        const yawQuat = new THREE.Quaternion();
+        yawQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
+        forward.applyQuaternion(yawQuat);
+        const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+        // forward.y = 0;
+        // forward.normalize();
         
-        const right = new THREE.Vector3(-forward.z, 0, forward.x);
+        // const right = new THREE.Vector3(-forward.z, 0, forward.x);
         
         moveDirection.addScaledVector(forward, -this.moveForward); // Reversed direction
         moveDirection.addScaledVector(right, this.moveRight);
