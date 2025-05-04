@@ -191,7 +191,7 @@ export class PlayerControls {
         const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
         forward.applyQuaternion(yawQuat);
       
-        const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
+        const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
       
         moveDirection.addScaledVector(forward, this.joystickForce * SPEED);
       
