@@ -202,13 +202,13 @@ export class PlayerControls {
       this.joystickAngle = angle;
       this.joystickForce = Math.min(data.force, 1);
     
-      this.yaw = -angle; // Flip joystick angle to align with world yaw
+      // this.yaw = -angle; // Flip joystick angle to align with world yaw
     });
     
     
     this.joystick.on('end', () => {
       this.joystickForce = 0;
-    });
+    });    
     
   }
   
@@ -381,10 +381,12 @@ export class PlayerControls {
       this.playerModel.position.set(newX, newY, newZ);
       
       if (movement.length() > 0) {
-        if (!this.isMobile) {
-          const angle = Math.atan2(movement.x, movement.z);
-          this.playerModel.rotation.y = angle;
-        }              
+        // if (!this.isMobile) {
+        //   const angle = Math.atan2(movement.x, movement.z);
+        //   this.playerModel.rotation.y = angle;
+        // }    
+        const angle = Math.atan2(movement.x, movement.z);
+        this.playerModel.rotation.y = angle; 
         
         const leftLeg = this.playerModel.getObjectByName("leftLeg");
         const rightLeg = this.playerModel.getObjectByName("rightLeg");
@@ -463,10 +465,12 @@ export class PlayerControls {
 
     if (this.isMobile) {
       const orbitCenter = this.playerModel.position.clone().add(new THREE.Vector3(0, 1, 0));
+      const rotationY = this.playerModel.rotation.y;
+    
       const rotatedOffset = new THREE.Vector3(
-        this.cameraOffset.x * Math.cos(this.playerModel.rotation.y + Math.PI) - this.cameraOffset.z * Math.sin(this.playerModel.rotation.y + Math.PI),
+        this.cameraOffset.x * Math.cos(rotationY + Math.PI) - this.cameraOffset.z * Math.sin(rotationY + Math.PI),
         this.cameraOffset.y,
-        this.cameraOffset.x * Math.sin(this.playerModel.rotation.y + Math.PI) + this.cameraOffset.z * Math.cos(this.playerModel.rotation.y + Math.PI)
+        this.cameraOffset.x * Math.sin(rotationY + Math.PI) + this.cameraOffset.z * Math.cos(rotationY + Math.PI)
       );
     
       this.camera.position.copy(orbitCenter).add(rotatedOffset);
