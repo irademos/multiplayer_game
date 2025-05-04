@@ -203,12 +203,10 @@ export class PlayerControls {
       this.joystickForce = Math.min(data.force, 1);
     });    
     
-    // Joystick end event
     this.joystick.on('end', () => {
-      console.log('Joystick released');
-      this.moveForward = 0;
-      this.moveRight = 0;
+      this.joystickForce = 0;
     });
+    
   }
   
   setupEventListeners() {
@@ -254,7 +252,7 @@ export class PlayerControls {
         // const forward = new THREE.Vector3();
         // this.camera.getWorldDirection(forward);
         const forward = new THREE.Vector3(0, 0, 1);
-        const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.joystickAngle + Math.PI);
+        const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.joystickAngle);
         forward.applyQuaternion(yawQuat);
         
         const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
@@ -470,16 +468,27 @@ export class PlayerControls {
       this.pitch = Math.max(minPitch, this.pitch - 0.02);
     }
 
-    const orbitCenter = this.playerModel.position.clone().add(new THREE.Vector3(0, 1, 0)); // target above the player's head
+    if (this.isMobile) {
+      const orbitCenter = this.playerModel.position.clone().add(new THREE.Vector3(0, 1, 0));
+      const rotatedOffset = new THREE.Vector3(
+        this.cameraOffset.x * Math.cos(this.playerModel.rotation.y + Math.PI) - this.cameraOffset.z * Math.sin(this.playerModel.rotation.y + Math.PI),
+        this.cameraOffset.y,
+        this.cameraOffset.x * Math.sin(this.playerModel.rotation.y + Math.PI) + this.cameraOffset.z * Math.cos(this.playerModel.rotation.y + Math.PI)
+      );
+    
+      this.camera.position.copy(orbitCenter).add(rotatedOffset);
+      this.camera.lookAt(orbitCenter);
+    } else {
+      const orbitCenter = this.playerModel.position.clone().add(new THREE.Vector3(0, 1, 0)); // target above the player's head
+      const rotatedOffset = new THREE.Vector3(
+        this.cameraOffset.x * Math.cos(this.yaw) - this.cameraOffset.z * Math.sin(this.yaw),
+        this.cameraOffset.y + 5 * Math.sin(this.pitch), // optional tilt factor
+        this.cameraOffset.x * Math.sin(this.yaw) + this.cameraOffset.z * Math.cos(this.yaw)
+      );
 
-    const rotatedOffset = new THREE.Vector3(
-      this.cameraOffset.x * Math.cos(this.yaw) - this.cameraOffset.z * Math.sin(this.yaw),
-      this.cameraOffset.y + 5 * Math.sin(this.pitch), // optional tilt factor
-      this.cameraOffset.x * Math.sin(this.yaw) + this.cameraOffset.z * Math.cos(this.yaw)
-    );
-
-    this.camera.position.copy(orbitCenter).add(rotatedOffset);
-    this.camera.lookAt(orbitCenter);
+      this.camera.position.copy(orbitCenter).add(rotatedOffset);
+      this.camera.lookAt(orbitCenter);
+    }
 
     const now = performance.now();
     this.time = (now * 0.01) % 1000; // Use performance.now() for consistent timing
