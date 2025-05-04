@@ -6,7 +6,6 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 const SPEED = 0.08;
 const GRAVITY = 0.01;
 const JUMP_FORCE = 0.25;
-const MOBILE_SPEED_MULTIPLIER = 1.0;
 
 export class PlayerControls {
   constructor({ scene, camera, playerModel, renderer, multiplayer }) {
@@ -41,11 +40,10 @@ export class PlayerControls {
     this.moveRight = 0;
     
     // Initial player position
-    const initialPos = { x: 0, y: 0.5, z: 0 };
-    // const initialPos = options.initialPosition || {};
-    this.playerX = initialPos.x || (Math.random() * 10) - 5;
-    this.playerY = initialPos.y || 0.5;
-    this.playerZ = initialPos.z || (Math.random() * 10) - 5;
+    // const initialPos = { x: 0, y: 0.5, z: 0 };
+    this.playerX = (Math.random() * 10) - 5;
+    this.playerY = 0.5;
+    this.playerZ = (Math.random() * 10) - 5;
     
     // Set initial player model position if it exists
     if (this.playerModel) {
@@ -86,59 +84,10 @@ export class PlayerControls {
       this.initializeMobileControls();
     } else {
       this.setupPointerLock(); // leave pointer lock in PlayerControls
-      // this.initializeDesktopControls();
     }
   }  
   
-  initializeDesktopControls() {
-    if (this.controls) return;
-    // Ensure domElement is still in the DOM
-    if (!document.body.contains(this.domElement)) {
-      console.warn("renderer.domElement not attached to DOM, OrbitControls may fail.");
-      return;
-    }
-
-    try {
-      this.controls = new OrbitControls(this.camera, this.domElement);
-      this.controls.enableDamping = true;
-      this.controls.dampingFactor = 0.1;
-      this.controls.maxPolarAngle = Math.PI * 0.9; // Prevent going below ground
-      this.controls.minDistance = 3; // Minimum zoom distance
-      this.controls.maxDistance = 10; // Maximum zoom distance
-      
-      // Increase sensitivity for Safari
-      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-      if (isSafari) {
-        this.controls.rotateSpeed = 2.0; // Double sensitivity for Safari
-      }
-      
-      // Add instructions for desktop
-      const instructionsDiv = document.createElement("div");
-      instructionsDiv.className = "instructions";
-      instructionsDiv.innerHTML = "Click to begin. <br>Use WASD to move, Space to jump.";
-      document.getElementById('game-container').appendChild(instructionsDiv);
-      
-      // Hide instructions on first click
-      document.addEventListener('click', () => {
-        if (document.querySelector(".instructions")) {
-          document.querySelector(".instructions").style.display = 'none';
-        }
-      }, { once: true });
-      
-      // Update camera offset when controls change
-      this.controls.addEventListener('change', () => {
-        this.cameraOffset.copy(this.camera.position).sub(this.controls.target);
-      });
-    } catch (e) {
-      console.error("Failed to create OrbitControls:", e);
-    }
-  }
-  
-  initializeMobileControls() {
-    // Setup camera position first with safe values
-    this.camera.position.set(this.playerX, this.playerY + 2, this.playerZ + 5);
-    this.camera.lookAt(this.playerX, this.playerY + 1, this.playerZ);
-    
+  initializeMobileControls() {    
     // Initialize OrbitControls for camera rotation (similar to desktop)
     this.controls = new OrbitControls(this.camera, this.domElement);
     this.controls.enableDamping = true;
@@ -147,14 +96,10 @@ export class PlayerControls {
     this.controls.minDistance = 3; // Minimum zoom distance
     this.controls.maxDistance = 10; // Maximum zoom distance
     
-    // Store the initial camera offset for mobile too
-    this.cameraOffset = new THREE.Vector3();
-    this.cameraOffset.copy(this.camera.position).sub(new THREE.Vector3(this.playerX, this.playerY + 1, this.playerZ));
-    
     // Update camera offset when controls change
-    this.controls.addEventListener('change', () => {
-      this.cameraOffset.copy(this.camera.position).sub(this.controls.target);
-    });
+    // this.controls.addEventListener('change', () => {
+    //   this.cameraOffset.copy(this.camera.position).sub(this.controls.target);
+    // });
     
     // Add joystick container for mobile
     const joystickContainer = document.getElementById('joystick-container');
