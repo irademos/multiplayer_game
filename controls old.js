@@ -9,15 +9,15 @@ const JUMP_FORCE = 0.25;
 const MOBILE_SPEED_MULTIPLIER = 1.0;
 
 export class PlayerControls {
-  constructor({ scene, playerModel, camera, domElement, multiplayer }) {
+  constructor({ scene, playerModel, camera, domElement }) {
     this.scene = scene;
     this.playerModel = playerModel;
     this.camera = camera;
     this.domElement = domElement;
-    this.multiplayer = multiplayer;
     
+    this.room = room;
     // this.camera = options.camera || new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    // this.renderer = options.renderer;
+    this.renderer = options.renderer;
     // this.domElement = this.renderer ? this.renderer.domElement : document.body;
     // this.playerModel = options.playerModel;
     this.lastPosition = new THREE.Vector3();
@@ -40,8 +40,7 @@ export class PlayerControls {
     this.moveRight = 0;
     
     // Initial player position
-    const initialPos = { x: 0, y: 0.5, z: 0 };
-    // const initialPos = options.initialPosition || {};
+    const initialPos = options.initialPosition || {};
     this.playerX = initialPos.x || (Math.random() * 10) - 5;
     this.playerY = initialPos.y || 0.5;
     this.playerZ = initialPos.z || (Math.random() * 10) - 5;
@@ -66,9 +65,9 @@ export class PlayerControls {
     this.setupEventListeners();
     
     // If room is provided, initialize multiplayer presence
-    if (this.multiplayer) {
+    if (this.room) {
       // Initialize player presence in the room
-      this.multiplayer.send({
+      this.room.updatePresence({
         x: this.playerX,
         y: this.playerY,
         z: this.playerZ,
@@ -223,9 +222,9 @@ export class PlayerControls {
     window.addEventListener('resize', () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
       this.camera.updateProjectionMatrix();
-      // if (this.renderer) {
-      //   this.renderer.setSize(window.innerWidth, window.innerHeight);
-      // }
+      if (this.renderer) {
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+      }
     });
   }
   
@@ -302,9 +301,9 @@ export class PlayerControls {
     let newY = y + this.velocity.y;
     let newZ = z + movement.z;
 
-    if (!this.scene || !(this.scene && this.scene.children ? this.scene.children : [])) return;
+    if (!this.scene || !this.scene.children) return;
     
-    const blockMeshes = (this.scene && this.scene.children ? this.scene.children : []).filter(child => 
+    const blockMeshes = this.scene.children.filter(child => 
       child.userData.isBlock || child.userData.isBarrier || 
       (child.type === "Group" && child.userData.isTree));
     
@@ -400,13 +399,13 @@ export class PlayerControls {
       }
       this.camera.position.copy(newTarget).add(this.cameraOffset);
       
-      if (this.multiplayer && (
+      if (this.room && (
           Math.abs(this.lastPosition.x - newX) > 0.01 ||
           Math.abs(this.lastPosition.y - newY) > 0.01 ||
           Math.abs(this.lastPosition.z - newZ) > 0.01 ||
           this.isMoving !== this.wasMoving
         )) {
-        this.multiplayer.send({
+        this.room.updatePresence({
           x: newX,
           y: newY,
           z: newZ,
