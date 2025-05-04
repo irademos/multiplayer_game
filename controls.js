@@ -410,10 +410,10 @@ export class PlayerControls {
       const angle = this.playerModel.rotation.y;
     
       const rotatedOffset = new THREE.Vector3(
-        desiredDistance * Math.sin(angle),
-        this.cameraOffset.y, // Keep the same height
-        desiredDistance * Math.cos(angle)
-      );
+        -desiredDistance * Math.sin(angle),
+        this.cameraOffset.y,
+        -desiredDistance * Math.cos(angle)
+      );      
     
       this.camera.position.copy(orbitCenter).add(rotatedOffset);
       this.camera.lookAt(orbitCenter);
