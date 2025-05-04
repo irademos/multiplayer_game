@@ -200,8 +200,7 @@ export class PlayerControls {
         moveDirection.addScaledVector(forward, dz * this.joystickForce * SPEED);
         moveDirection.addScaledVector(right, dx * this.joystickForce * SPEED);
 
-      
-        this.playerModel.rotation.y = -this.yaw + Math.PI/2; // Use computed yaw instead of raw angle
+        this.playerModel.rotation.y = -this.yaw; // Use computed yaw instead of raw angle
       }      
     } else {
       if (this.keysPressed.has("w")) {
