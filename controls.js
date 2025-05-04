@@ -193,7 +193,13 @@ export class PlayerControls {
       
         const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
       
-        moveDirection.addScaledVector(forward, this.joystickForce * SPEED);
+        // Decompose joystick input into directional components
+        const dx = Math.cos(this.joystickAngle); // right-left
+        const dz = Math.sin(this.joystickAngle); // forward-back
+
+        moveDirection.addScaledVector(forward, dz * this.joystickForce * SPEED);
+        moveDirection.addScaledVector(right, dx * this.joystickForce * SPEED);
+
       
         this.playerModel.rotation.y = this.yaw; // Use computed yaw instead of raw angle
       }      
