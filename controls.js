@@ -261,7 +261,7 @@ export class PlayerControls {
         
         moveDirection.addScaledVector(forward, this.joystickForce * SPEED);
         this.playerModel.rotation.y = this.joystickAngle;
-        this.yaw = this.joystickAngle + Math.PI; // orbit camera behind
+        // this.yaw = this.joystickAngle + Math.PI; // orbit camera behind
 
         // forward.y = 0;
         // forward.normalize();
