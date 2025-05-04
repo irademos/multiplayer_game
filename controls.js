@@ -137,7 +137,7 @@ export class PlayerControls {
       this.joystickAngle = angle;
       this.joystickForce = Math.min(data.force, 1);
     
-      this.yaw = angle - 3*Math.PI/2; // Flip joystick angle to align with world yaw
+      this.yaw = - (angle + 3*Math.PI/2); // Flip joystick angle to align with world yaw
     });
     
     this.joystick.on('end', () => {
