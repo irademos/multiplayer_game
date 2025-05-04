@@ -200,7 +200,7 @@ export class PlayerControls {
         moveDirection.addScaledVector(forward, dz * this.joystickForce * SPEED);
         moveDirection.addScaledVector(right, dx * this.joystickForce * SPEED);
 
-        this.playerModel.rotation.y = this.joystickAngle + Math.PI/2; // Use computed yaw instead of raw angle
+        this.playerModel.rotation.y = this.yaw; // Use computed yaw instead of raw angle
       }      
     } else {
       if (this.keysPressed.has("w")) {
@@ -404,12 +404,15 @@ export class PlayerControls {
 
     if (this.isMobile) {
       const orbitCenter = this.playerModel.position.clone().add(new THREE.Vector3(0, 1, 0));
-      const rotationY = this.playerModel.rotation.y;
+    
+      // Define desired offset relative to player (e.g. 5 units behind)
+      const desiredDistance = this.cameraOffset.length(); // Keep original distance
+      const angle = this.playerModel.rotation.y;
     
       const rotatedOffset = new THREE.Vector3(
-        this.cameraOffset.x * Math.cos(rotationY) - this.cameraOffset.z * Math.sin(rotationY),
-        this.cameraOffset.y,
-        this.cameraOffset.x * Math.sin(rotationY) + this.cameraOffset.z * Math.cos(rotationY)
+        desiredDistance * Math.sin(angle),
+        this.cameraOffset.y, // Keep the same height
+        desiredDistance * Math.cos(angle)
       );
     
       this.camera.position.copy(orbitCenter).add(rotatedOffset);
