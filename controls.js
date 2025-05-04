@@ -252,29 +252,17 @@ export class PlayerControls {
     
     if (this.isMobile) {
       if (this.joystickForce > 0.1) {
-        // const forward = new THREE.Vector3();
-        // this.camera.getWorldDirection(forward);
+        // Define direction from yaw
         const forward = new THREE.Vector3(0, 0, 1);
-        const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.joystickAngle);
+        const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
         forward.applyQuaternion(yawQuat);
-        
+      
         const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
-        
+      
         moveDirection.addScaledVector(forward, this.joystickForce * SPEED);
-        if (this.joystickForce > 0.1) {
-          this.playerModel.rotation.y = this.yaw;
-        }        
-        // this.yaw = this.joystickAngle + Math.PI; // orbit camera behind
-
-        // forward.y = 0;
-        // forward.normalize();
-        
-        // const right = new THREE.Vector3(-forward.z, 0, forward.x);
-        
-        // moveDirection.addScaledVector(forward, -this.moveForward); // Reversed direction
-        // moveDirection.addScaledVector(right, this.moveRight);
-        // moveDirection.normalize().multiplyScalar(SPEED * MOBILE_SPEED_MULTIPLIER); // Standardized speed
-      }
+      
+        this.playerModel.rotation.y = this.yaw; // Use computed yaw instead of raw angle
+      }      
     } else {
       if (this.keysPressed.has("w")) {
         moveDirection.z = 1; 
