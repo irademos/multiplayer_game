@@ -90,16 +90,6 @@ export class PlayerControls {
   initializeMobileControls() {    
     // Initialize OrbitControls for camera rotation (similar to desktop)
     this.controls = new OrbitControls(this.camera, this.domElement);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.1;
-    this.controls.maxPolarAngle = Math.PI * 0.9; // Prevent going below ground
-    this.controls.minDistance = 3; // Minimum zoom distance
-    this.controls.maxDistance = 10; // Maximum zoom distance
-    
-    // Update camera offset when controls change
-    // this.controls.addEventListener('change', () => {
-    //   this.cameraOffset.copy(this.camera.position).sub(this.controls.target);
-    // });
     
     // Add joystick container for mobile
     const joystickContainer = document.getElementById('joystick-container');
@@ -147,7 +137,7 @@ export class PlayerControls {
       this.joystickAngle = angle;
       this.joystickForce = Math.min(data.force, 1);
     
-      // this.yaw = -angle; // Flip joystick angle to align with world yaw
+      this.yaw = -angle; // Flip joystick angle to align with world yaw
     });
     
     
