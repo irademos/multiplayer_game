@@ -44,10 +44,6 @@ async function main() {
     renderer,
     multiplayer
   });
-
-  // move to here
-  // playerControls.initializeDesktopControls();
-
   
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(150, 150),
@@ -59,30 +55,6 @@ async function main() {
 
   const otherPlayers = {};
   const chatMessages = {};
-
-
-  // PlayerControls handles keyboard input
-  
-
-  // const chatInput = document.getElementById("chat-input");
-  // const chatButton = document.getElementById("chat-button");
-
-  // chatButton.onclick = () => {
-  //   const message = chatInput.value.trim();
-  //   if (message) {
-  //     multiplayer.send({ type: "chat", id: multiplayer.getId(), name: playerName, message });
-  //     chatInput.value = "";
-  //   }
-  // };
-
-  // Manual connection
-  // const connectInput = document.getElementById("connect-id");
-  // const connectButton = document.getElementById("connect-button");
-
-  // connectButton.onclick = () => {
-  //   const peerId = connectInput.value.trim();
-  //   if (peerId) multiplayer.connectToPeer(peerId);
-  // };
 
   function handleIncomingData(peerId, data) {
     if (data.type === "presence") {
@@ -114,8 +86,6 @@ async function main() {
   function animate() {
     requestAnimationFrame(animate);
     playerControls.update();
-
-    // Movement handled via PlayerControls
 
     multiplayer.send({
       type: "presence",

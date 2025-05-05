@@ -1,3 +1,13 @@
+import { db } from './firebase-init.js';
+import {
+  ref,
+  set,
+  remove,
+  onValue,
+  get,
+  child
+} from 'firebase/database';
+
 const Peer = window.Peer;
 
 export class Multiplayer {
@@ -6,18 +16,16 @@ export class Multiplayer {
     this.connections = {};
     this.onPeerData = onPeerData;
     this.playerName = playerName;
-    this.db = firebase.database();  // use compat global object
 
-    // Step 1: Assign to a room
     this.peer.on('open', async id => {
       this.id = id;
-    
-      const roomsRef = this.db.ref('rooms');
-      const snapshot = await roomsRef.get();
-    
+
+      const roomsRef = ref(db, 'rooms');
+      const snapshot = await get(roomsRef);
+
       let assignedRoom = null;
       let roomIndex = 0;
-    
+
       if (snapshot.exists()) {
         const rooms = snapshot.val();
         for (const roomName in rooms) {
@@ -29,30 +37,30 @@ export class Multiplayer {
           roomIndex++;
         }
       }
-    
+
       if (!assignedRoom) {
         assignedRoom = `room-${roomIndex}`;
       }
-    
-      // Step 2: Register peer in room and general list
-      const roomRef = this.db.ref(`rooms/${assignedRoom}/${id}`);
-      await roomRef.set(true);
-    
-      const peerRef = this.db.ref(`peers/${id}`);
-      await peerRef.set({
+
+      // Register peer
+      const roomRef = ref(db, `rooms/${assignedRoom}/${id}`);
+      await set(roomRef, true);
+
+      const peerRef = ref(db, `peers/${id}`);
+      await set(peerRef, {
         name: this.playerName,
         roomId: assignedRoom,
         timestamp: Date.now()
       });
-    
-      // Cleanup on exit
+
+      // Cleanup on unload
       window.addEventListener('beforeunload', () => {
-        roomRef.remove();
-        peerRef.remove();
+        remove(roomRef);
+        remove(peerRef);
       });
-    
-      // Step 3: Listen to peers in the same room
-      this.db.ref(`rooms/${assignedRoom}`).on('value', snapshot => {
+
+      // Connect to peers in room
+      onValue(ref(db, `rooms/${assignedRoom}`), snapshot => {
         const roomPeers = snapshot.val() || {};
         for (const peerId in roomPeers) {
           if (peerId !== this.id && !this.connections[peerId]) {
@@ -62,16 +70,13 @@ export class Multiplayer {
       });
     });
 
-    
-
     this.peer.on('connection', conn => {
       this.setupConnection(conn);
     });
 
-    // List all peers in Firebase
-    this.db.ref('peers').on('value', snapshot => {
+    onValue(ref(db, 'peers'), snapshot => {
       const peers = snapshot.val() || {};
-      console.log("Available peers:", peers);
+      // console.log('All peers:', peers);
     });
   }
 
@@ -83,9 +88,7 @@ export class Multiplayer {
   setupConnection(conn) {
     conn.on('open', () => {
       this.connections[conn.peer] = conn;
-      conn.on('data', data => {
-        this.onPeerData(conn.peer, data);
-      });
+      conn.on('data', data => this.onPeerData(conn.peer, data));
     });
 
     conn.on('close', () => {
