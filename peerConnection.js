@@ -4,7 +4,8 @@ import {
   set,
   remove,
   onValue,
-  get
+  get,
+  onDisconnect
 } from 'firebase/database';
 
 export class Multiplayer {
@@ -45,6 +46,7 @@ export class Multiplayer {
           const peersInRoom = Object.keys(rooms[roomName]);
           if (peersInRoom.length < 20) {
             assignedRoom = roomName;
+            console.log("Entered room: ", assignedRoom)
             break;
           }
           roomIndex++;
@@ -65,6 +67,11 @@ export class Multiplayer {
         timestamp: Date.now()
       });
 
+      // Setup server-side disconnection cleanup
+      onDisconnect(roomRef).remove();
+      onDisconnect(peerRef).remove();
+
+      // Still use beforeunload for graceful exit (optional)
       window.addEventListener('beforeunload', () => {
         remove(roomRef);
         remove(peerRef);
@@ -75,6 +82,7 @@ export class Multiplayer {
         for (const peerId in roomPeers) {
           if (peerId !== this.id && !this.connections[peerId]) {
             this.connectToPeer(peerId);
+            console.log("Connected to peer: ", peerId)
           }
         }
       });
@@ -98,16 +106,39 @@ export class Multiplayer {
     conn.on('open', () => {
       this.connections[conn.peer] = conn;
       conn.on('data', data => this.onPeerData(conn.peer, data));
+  
+      // Attempt to access the internal peer connection
+      try {
+        const interval = setInterval(async () => {
+          // PeerJS sometimes delays access to the connection internals
+          const pc = conn._pc || conn.peerConnection || conn._connection?.peerConnection;
+          if (pc && pc.connectionState === 'connected') {
+            clearInterval(interval);
+  
+            const stats = await pc.getStats();
+            stats.forEach(report => {
+              if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+                console.log(`🎯 Connected to peer ${conn.peer}`);
+                console.log('Selected candidate pair:');
+                console.log(`🔹 Local: ${report.localCandidateId}`);
+                console.log(`🔸 Remote: ${report.remoteCandidateId}`);
+              }
+            });
+          }
+        }, 1000);
+      } catch (err) {
+        console.warn(`Could not access RTCPeerConnection for peer ${conn.peer}`, err);
+      }
     });
-
+  
     conn.on('close', () => {
       delete this.connections[conn.peer];
     });
-
+  
     conn.on('error', err => {
       console.error('Peer error:', err);
     });
-  }
+  }    
 
   send(data) {
     Object.values(this.connections).forEach(conn => conn.send(data));
