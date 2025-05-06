@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 // Movement constants
@@ -18,8 +17,6 @@ export class PlayerControls {
     this.playerModel = playerModel;
     this.camera = camera;
     this.multiplayer = multiplayer;
-    
-    // this.domElement = this.renderer ? this.renderer.domElement : document.body;
     this.lastPosition = new THREE.Vector3();
     this.isMoving = false;
     
@@ -320,10 +317,6 @@ export class PlayerControls {
       this.playerModel.position.set(newX, newY, newZ);
       
       if (movement.length() > 0) {
-        // if (!this.isMobile) {
-        //   const angle = Math.atan2(movement.x, movement.z);
-        //   this.playerModel.rotation.y = angle;
-        // }    
         const angle = Math.atan2(movement.x, movement.z);
         this.playerModel.rotation.y = angle; 
         
@@ -350,7 +343,6 @@ export class PlayerControls {
       if (this.controls) {
         this.controls.target.copy(newTarget);
       }
-      // this.camera.position.copy(newTarget).add(this.cameraOffset);
       
       if (this.multiplayer && (
           Math.abs(this.lastPosition.x - newX) > 0.01 ||

@@ -4,18 +4,31 @@ import {
   set,
   remove,
   onValue,
-  get,
-  child
+  get
 } from 'firebase/database';
-
-const Peer = window.Peer;
 
 export class Multiplayer {
   constructor(playerName, onPeerData) {
-    this.peer = new Peer();
     this.connections = {};
     this.onPeerData = onPeerData;
     this.playerName = playerName;
+
+    this.initPeer(); // Start async setup
+  }
+
+  async initPeer() {
+    // Fetch TURN credentials
+    const response = await fetch(`https://multiplayer-game.metered.live/api/v1/turn/credentials?apiKey=${import.meta.env.VITE_METERED_API_KEY}`);
+    const dynamic = await response.json();
+
+    const iceServers = [
+      { urls: "stun:stun.l.google.com:19302" },
+      ...dynamic
+    ];
+
+    this.peer = new Peer({
+      config: { iceServers }
+    });
 
     this.peer.on('open', async id => {
       this.id = id;
@@ -42,7 +55,6 @@ export class Multiplayer {
         assignedRoom = `room-${roomIndex}`;
       }
 
-      // Register peer
       const roomRef = ref(db, `rooms/${assignedRoom}/${id}`);
       await set(roomRef, true);
 
@@ -53,13 +65,11 @@ export class Multiplayer {
         timestamp: Date.now()
       });
 
-      // Cleanup on unload
       window.addEventListener('beforeunload', () => {
         remove(roomRef);
         remove(peerRef);
       });
 
-      // Connect to peers in room
       onValue(ref(db, `rooms/${assignedRoom}`), snapshot => {
         const roomPeers = snapshot.val() || {};
         for (const peerId in roomPeers) {
@@ -76,7 +86,6 @@ export class Multiplayer {
 
     onValue(ref(db, 'peers'), snapshot => {
       const peers = snapshot.val() || {};
-      // console.log('All peers:', peers);
     });
   }
 

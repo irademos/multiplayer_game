@@ -4,7 +4,6 @@ import { createPlayerModel } from "./player.js";
 import { createBarriers, createTrees, createClouds } from "./worldGeneration.js";
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
-import { createJoystick } from './joystick.js';
 
 async function main() {
   const playerName = `Player${Math.floor(Math.random() * 1000)}`;
