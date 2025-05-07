@@ -89,6 +89,18 @@ export function createPlayerModel(three, username) {
     chatMesh.visible = false;
     chatMesh.name = "chatBillboard";
     playerGroup.add(chatMesh);
-    
-    return playerGroup;
+
+    // Create HTML name label
+    const label = document.createElement('div');
+    label.className = 'name-label';
+    label.innerText = username;
+    label.style.position = 'absolute';
+    label.style.color = 'white';
+    label.style.fontSize = '14px';
+    label.style.pointerEvents = 'none';
+    label.style.textShadow = '0 0 4px black';
+
+    // Return both the model and the label
+    return { model: playerGroup, nameLabel: label };
+    // return playerGroup;
 }

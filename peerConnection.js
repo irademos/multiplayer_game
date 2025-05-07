@@ -89,8 +89,20 @@ export class Multiplayer {
     });
 
     this.peer.on('connection', conn => {
-      this.setupConnection(conn);
+      try {
+        this.setupConnection(conn);
+      } catch (err) {
+        console.error("Error in setupConnection:", err);
+      }
     });
+
+    this.peer.on('call', call => {
+      call.answer(); // We don't send audio back
+    
+      call.on('stream', remoteStream => {
+        this.handleIncomingVoice(call.peer, remoteStream);
+      });
+    });  
 
     onValue(ref(db, 'peers'), snapshot => {
       const peers = snapshot.val() || {};
@@ -112,6 +124,10 @@ export class Multiplayer {
         const interval = setInterval(async () => {
           // PeerJS sometimes delays access to the connection internals
           const pc = conn._pc || conn.peerConnection || conn._connection?.peerConnection;
+          if (!pc) {
+            console.warn("RTCPeerConnection not ready for", conn.peer);
+            return;
+          }
           if (pc && pc.connectionState === 'connected') {
             clearInterval(interval);
   
@@ -138,7 +154,33 @@ export class Multiplayer {
     conn.on('error', err => {
       console.error('Peer error:', err);
     });
-  }    
+  }
+
+  startVoice(stream) {
+    for (const peerId in this.connections) {
+      const conn = this.connections[peerId];
+      if (!conn.callActive) {
+        const call = this.peer.call(peerId, stream);
+        conn.callActive = true;
+      }
+    }
+  }
+  
+  stopVoice() {
+    // PeerJS doesn't support call close well, just mark as inactive
+    for (const peerId in this.connections) {
+      this.connections[peerId].callActive = false;
+    }
+  }
+  
+  handleIncomingVoice(peerId, stream) {
+    const audio = new Audio();
+    audio.srcObject = stream;
+    audio.autoplay = true;
+    audio.volume = 0; // Start muted
+    this.voiceAudios = this.voiceAudios || {};
+    this.voiceAudios[peerId] = { audio, stream };
+  }  
 
   send(data) {
     Object.values(this.connections).forEach(conn => conn.send(data));

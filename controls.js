@@ -7,7 +7,7 @@ const GRAVITY = 0.01;
 const JUMP_FORCE = 0.25;
 
 export class PlayerControls {
-  constructor({ scene, camera, playerModel, renderer, multiplayer }) {
+  constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile }) {
     this.yaw = 0;
     this.pitch = 0;
     this.pointerLocked = false;
@@ -19,12 +19,14 @@ export class PlayerControls {
     this.multiplayer = multiplayer;
     this.lastPosition = new THREE.Vector3();
     this.isMoving = false;
+    this.spawnProjectile = spawnProjectile;
     
     // Player state
     this.velocity = new THREE.Vector3();
     this.canJump = true;
     this.keysPressed = new Set();
     this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    this.projectileKeyPressed = false;
     
     // Mobile control variables
     this.joystick = null;
@@ -157,7 +159,10 @@ export class PlayerControls {
 
     document.addEventListener("keyup", (e) => {
       this.keysPressed.delete(e.key.toLowerCase());
-    });
+      if (e.key.toLowerCase() === 'e') {
+        this.projectileKeyPressed = false;
+      }
+    });    
     
     // Handle window resize
     window.addEventListener('resize', () => {
@@ -210,6 +215,17 @@ export class PlayerControls {
         moveDirection.x = 1; 
       } else if (this.keysPressed.has("d")) {
         moveDirection.x = -1; 
+      } else if (this.keysPressed.has("e") && !this.projectileKeyPressed) {
+        this.projectileKeyPressed = true;
+        const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
+        const direction = new THREE.Vector3(0, 0, 1).applyEuler(this.playerModel.rotation);
+        this.multiplayer.send({
+          type: 'projectile',
+          id: this.multiplayer.getId(),
+          position: position.toArray(),
+          direction: direction.toArray()
+        });
+        this.spawnProjectile(position, direction);
       }
     }
     
