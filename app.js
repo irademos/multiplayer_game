@@ -6,6 +6,7 @@ import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 
 async function main() {
+  document.body.addEventListener('touchstart', () => {}, { once: true });
   const playerName = prompt("Enter your name") || `Player${Math.floor(Math.random() * 1000)}`;
   const multiplayer = new Multiplayer(playerName, handleIncomingData);
 
@@ -129,8 +130,6 @@ async function main() {
     }
   });
 
-  
-
   function animate() {
     requestAnimationFrame(animate);
     playerControls.update();
@@ -146,17 +145,15 @@ async function main() {
     });
 
     Object.entries(multiplayer.voiceAudios || {}).forEach(([peerId, { audio }]) => {
-      const peerModel = otherPlayers[peerId];
-      if (!peerModel) return;
-    
+      const peerModel = otherPlayers[peerId]?.model;
+      if (!peerModel || !peerModel.position) return;
+
       const dist = playerModel.position.distanceTo(peerModel.position);
-      const maxDist = 30; // Max voice distance
+      const maxDist = 30;
       const rawVolume = 1 - dist / maxDist;
-      const volume = Math.max(0, rawVolume * rawVolume); // smoother falloff
-    
+      const volume = Math.max(0, rawVolume * rawVolume);
+
       audio.volume = volume;
-    
-      console.log(`🎧 [${peerId}] Distance: ${dist.toFixed(2)} | Volume: ${volume.toFixed(2)}`);
     });
       
     Object.entries(otherPlayers).forEach(([id, { model, nameLabel }]) => {

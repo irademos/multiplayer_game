@@ -97,12 +97,24 @@ export class Multiplayer {
     });
 
     this.peer.on('call', call => {
-      call.answer(); // We don't send audio back
-    
+      call.answer(); // no stream sent
+
       call.on('stream', remoteStream => {
         this.handleIncomingVoice(call.peer, remoteStream);
       });
-    });  
+
+      call.on('close', () => {
+        if (this.voiceAudios?.[call.peer]) {
+          this.voiceAudios[call.peer].audio.pause();
+          delete this.voiceAudios[call.peer];
+        }
+      });
+
+      call.on('error', err => {
+        console.warn(`Call error from ${call.peer}:`, err);
+      });
+    });
+ 
 
     onValue(ref(db, 'peers'), snapshot => {
       const peers = snapshot.val() || {};
@@ -167,20 +179,50 @@ export class Multiplayer {
   }
   
   stopVoice() {
-    // PeerJS doesn't support call close well, just mark as inactive
-    for (const peerId in this.connections) {
-      this.connections[peerId].callActive = false;
+    for (const peerId in this.voiceAudios || {}) {
+      const { audio, stream } = this.voiceAudios[peerId];
+      if (audio) {
+        audio.pause();
+        audio.srcObject = null;
+      }
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+      }
     }
+    this.voiceAudios = {};
   }
   
+  // handleIncomingVoice(peerId, stream) {
+  //   const audio = new Audio();
+  //   audio.srcObject = stream;
+  //   audio.autoplay = true;
+  //   audio.volume = 0; // Start muted
+  //   this.voiceAudios = this.voiceAudios || {};
+  //   this.voiceAudios[peerId] = { audio, stream };
+  // }  
+
   handleIncomingVoice(peerId, stream) {
     const audio = new Audio();
-    audio.srcObject = stream;
     audio.autoplay = true;
-    audio.volume = 0; // Start muted
+    audio.srcObject = stream;
+    audio.playsInline = true; // iOS-specific
+
+    // Ensure audio can play (especially on mobile)
+    audio.onloadedmetadata = () => {
+      audio.play().catch(err => {
+        console.warn(`Audio play failed for ${peerId}:`, err);
+      });
+    };
+
+    // Prevent memory leaks from duplicates
+    if (this.voiceAudios?.[peerId]?.audio) {
+      this.voiceAudios[peerId].audio.pause();
+      this.voiceAudios[peerId].audio.srcObject = null;
+    }
+
     this.voiceAudios = this.voiceAudios || {};
     this.voiceAudios[peerId] = { audio, stream };
-  }  
+  }
 
   send(data) {
     Object.values(this.connections).forEach(conn => conn.send(data));

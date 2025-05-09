@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { pass } from "three/tsl";
 
 // Movement constants
 const SPEED = 0.08;
@@ -82,7 +83,8 @@ export class PlayerControls {
     if (this.isMobile) {
       this.initializeMobileControls();
     } else {
-      this.setupPointerLock(); // leave pointer lock in PlayerControls
+      pass
+      // this.setupPointerLock(); // leave pointer lock in PlayerControls
     }
   }  
   
@@ -141,8 +143,43 @@ export class PlayerControls {
     
     this.joystick.on('end', () => {
       this.joystickForce = 0;
-    });    
-    
+    });
+
+    // Add fire button for mobile
+    const fireButton = document.getElementById('fire-button');
+    if (!fireButton) {
+      const newFireButton = document.createElement('div');
+      newFireButton.id = 'fire-button';
+      newFireButton.innerText = 'FIRE';
+      newFireButton.style.position = 'absolute';
+      newFireButton.style.bottom = '80px';
+      newFireButton.style.right = '20px';
+      newFireButton.style.padding = '12px 20px';
+      newFireButton.style.background = '#ff4e4e';
+      newFireButton.style.color = 'white';
+      newFireButton.style.borderRadius = '10px';
+      newFireButton.style.fontWeight = 'bold';
+      newFireButton.style.zIndex = '10';
+      newFireButton.style.opacity = '0.9';
+      document.body.appendChild(newFireButton);
+    }
+
+    // Fire button logic
+    document.getElementById('fire-button').addEventListener('touchstart', (event) => {
+      const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
+      const direction = new THREE.Vector3(0, 0, 1).applyEuler(this.playerModel.rotation);
+
+      this.multiplayer.send({
+        type: 'projectile',
+        id: this.multiplayer.getId(),
+        position: position.toArray(),
+        direction: direction.toArray()
+      });
+
+      this.spawnProjectile(position, direction);
+
+      event.preventDefault();
+    });
   }
   
   setupEventListeners() {
