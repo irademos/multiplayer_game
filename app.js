@@ -217,7 +217,7 @@ async function main() {
       nameLabel.style.opacity = opacity.toFixed(2);
     });
 
-    const gravity = -0.01; // Simulated gravity
+    const gravity = -0.0008; // Simulated gravity
 
     for (let i = projectiles.length - 1; i >= 0; i--) {
       const proj = projectiles[i];

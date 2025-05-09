@@ -152,7 +152,7 @@ export class PlayerControls {
       newFireButton.id = 'fire-button';
       newFireButton.innerText = 'FIRE';
       newFireButton.style.position = 'absolute';
-      newFireButton.style.bottom = '80px';
+      newFireButton.style.bottom = '100px';
       newFireButton.style.right = '70px';
       newFireButton.style.padding = '12px 20px';
       newFireButton.style.background = '#ff4e4e';
