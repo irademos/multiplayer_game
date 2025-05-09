@@ -7,7 +7,24 @@ import { PlayerControls } from './controls.js';
 
 async function main() {
   document.body.addEventListener('touchstart', () => {}, { once: true });
-  const playerName = prompt("Enter your name") || `Player${Math.floor(Math.random() * 1000)}`;
+  function getCookie(name) {
+    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+    console.log(match);
+    return match ? decodeURIComponent(match[2]) : null;
+  }
+
+  function setCookie(name, value, days = 365) {
+    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
+  }
+
+  // Get from cookie or ask
+  let playerName = getCookie("playerName");
+  if (!playerName) {
+    playerName = prompt("Enter your name") || `Player${Math.floor(Math.random() * 1000)}`;
+    setCookie("playerName", playerName);
+  }
+
   const multiplayer = new Multiplayer(playerName, handleIncomingData);
 
   const scene = new THREE.Scene();
@@ -128,6 +145,26 @@ async function main() {
       micActive = false;
       voiceButton.textContent = "Unmute";
     }
+  });
+
+  const settingsBtn = document.getElementById('settings-button');
+  const overlay = document.getElementById('settings-overlay');
+  const nameInput = document.getElementById('name-input');
+  const saveBtn = document.getElementById('save-settings');
+
+  settingsBtn.addEventListener('click', () => {
+    nameInput.value = playerName;
+    overlay.style.display = 'flex';
+  });
+
+  saveBtn.addEventListener('click', () => {
+    playerName = nameInput.value.trim() || playerName;
+    setCookie("playerName", playerName);
+    overlay.style.display = 'none';
+  });
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.style.display = 'none';
   });
 
   function animate() {
