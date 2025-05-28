@@ -13,7 +13,8 @@ export class Multiplayer {
     this.connections = {};
     this.onPeerData = onPeerData;
     this.playerName = playerName;
-
+    this.isMonsterOwner = false;
+    
     this.initPeer(); // Start async setup
   }
 
@@ -21,12 +22,15 @@ export class Multiplayer {
     // Fetch TURN credentials
     const response = await fetch(`https://multiplayer-game.metered.live/api/v1/turn/credentials?apiKey=${import.meta.env.VITE_METERED_API_KEY}`);
     const dynamic = await response.json();
-
+  
+    // Select only the first two TURN entries (after filtering out STUNs, just in case)
+    const turnServers = dynamic.filter(server => server.urls.startsWith("turn")).slice(0, 2);
+  
     const iceServers = [
       { urls: "stun:stun.l.google.com:19302" },
-      ...dynamic
+      ...turnServers
     ];
-
+  
     this.peer = new Peer({
       config: { iceServers }
     });
@@ -78,23 +82,59 @@ export class Multiplayer {
       });
 
       onValue(ref(db, `rooms/${assignedRoom}`), snapshot => {
-        const roomPeers = snapshot.val() || {};
-        for (const peerId in roomPeers) {
+        const roomPeersObj = snapshot.val() || {};
+        const sortedPeerIds = Object.keys(roomPeersObj).sort();
+
+        // Determine monster owner
+        if (sortedPeerIds.length > 0 && sortedPeerIds[0] === this.id) {
+          this.isMonsterOwner = true;
+          console.log("👹 I am the monster owner");
+        }
+
+        // Connect to new peers
+        for (const peerId of sortedPeerIds) {
           if (peerId !== this.id && !this.connections[peerId]) {
             this.connectToPeer(peerId);
-            console.log("Connected to peer: ", peerId)
+            console.log("Connected to peer: ", peerId);
           }
+        }
+      });
+
+    });
+
+    this.peer.on('connection', conn => {
+      this.setupConnection(conn);
+
+      // Add to connected players list
+      const list = document.getElementById('connected-players-list');
+      const item = document.createElement('li');
+      item.id = `peer-${conn.peer}`;
+      
+      // Wait for name to come through "presence"
+      item.textContent = `Connected to (waiting...)`;
+      this.connections[conn.peer].listItem = item;
+      list.appendChild(item);
+
+      // Setup basic ping test
+      const pingStart = Date.now();
+      conn.send({ type: "ping" });
+
+      conn.on('data', data => {
+        console.log("on data happening");
+        if (data.type === "pong") {
+          const rtt = Date.now() - pingStart;
+          document.getElementById("ping-display").textContent = rtt;
+        }
+      });
+
+      // Reply to ping
+      conn.on('data', data => {
+        if (data.type === "ping") {
+          conn.send({ type: "pong" });
         }
       });
     });
 
-    this.peer.on('connection', conn => {
-      try {
-        this.setupConnection(conn);
-      } catch (err) {
-        console.error("Error in setupConnection:", err);
-      }
-    });
 
     this.peer.on('call', call => {
       call.answer(); // no stream sent
@@ -108,11 +148,20 @@ export class Multiplayer {
           this.voiceAudios[call.peer].audio.pause();
           delete this.voiceAudios[call.peer];
         }
+
+        delete this.connections[conn.peer];
+        const item = document.getElementById(`peer-${conn.peer}`);
+        if (item) item.remove();
       });
 
-      call.on('error', err => {
-        console.warn(`Call error from ${call.peer}:`, err);
+      conn.on('error', err => {
+        console.error('Peer error:', err);
+        const errList = document.getElementById('connection-errors-list');
+        const item = document.createElement('li');
+        item.textContent = `❌ ${conn.peer || 'Unknown peer'}: ${err.message}`;
+        errList.appendChild(item);
       });
+
     });
  
 

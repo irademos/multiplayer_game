@@ -1,6 +1,4 @@
-import * as THREE from 'three';
-
-export function createPlayerModel(three, username) {
+export function createPlayerModel(THREE, username) {
     const playerGroup = new THREE.Group();
     
     // Create a rectangular body instead of capsule

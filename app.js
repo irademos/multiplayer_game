@@ -1,7 +1,7 @@
 
 import * as THREE from "three";
 import { createPlayerModel } from "./player.js";
-import { createBarriers, createTrees, createClouds } from "./worldGeneration.js";
+import { createBarriers, createTrees, createClouds, createMonster } from "./worldGeneration.js";
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 
@@ -24,6 +24,7 @@ async function main() {
     playerName = prompt("Enter your name") || `Player${Math.floor(Math.random() * 1000)}`;
     setCookie("playerName", playerName);
   }
+  let isMonsterOwner = false;
 
   const multiplayer = new Multiplayer(playerName, handleIncomingData);
 
@@ -33,15 +34,13 @@ async function main() {
   createBarriers(scene);
   createTrees(scene);
   createClouds(scene);
+  const monster = createMonster(scene);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   document.getElementById('game-container').appendChild(renderer.domElement);
 
   const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  let cameraAngle = 0;
-  let cameraHeightAngle = 0.3;
-  const cameraDistance = 5;
 
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
   scene.add(ambientLight);
@@ -65,9 +64,29 @@ async function main() {
     sphere.userData.velocity = direction.clone().multiplyScalar(0.1); // speed
     sphere.userData.lifetime = 4000; // ms
 
+    const now = Date.now();                      // ← ADD THIS
+    sphere.userData.spawnTime = now;
+
     scene.add(sphere);
     projectiles.push(sphere);
-  }  
+  }
+
+  function updateMonster(monster) {
+    const now = Date.now();
+    const data = monster.userData;
+
+    if (now - data.lastDirectionChange > 5000) {
+      data.direction.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+      data.lastDirectionChange = now;
+    }
+
+    monster.position.add(data.direction.clone().multiplyScalar(data.speed));
+
+    // Simple bounds check
+    if (Math.abs(monster.position.x) > 70 || Math.abs(monster.position.z) > 70) {
+      data.direction.negate();
+    }
+  }
 
   const playerControls = new PlayerControls({
     scene,
@@ -87,39 +106,47 @@ async function main() {
   scene.add(ground);
 
   const otherPlayers = {};
-  const chatMessages = {};
 
   function handleIncomingData(peerId, data) {
     if (data.type === "presence") {
       if (!otherPlayers[data.id]) {
-        const { model: model, nameLabel: nameLabel } = createPlayerModel(THREE, data.name);
+        const { model, nameLabel } = createPlayerModel(THREE, data.name);
         scene.add(model);
         document.body.appendChild(nameLabel);
-        otherPlayers[data.id] = { model, nameLabel };
+        otherPlayers[data.id] = { model, nameLabel, name: data.name };
       }
+
       const player = otherPlayers[data.id];
+      player.name = data.name;
       player.model.position.set(data.x, data.y, data.z);
       player.model.rotation.y = data.rotation;
-    }
 
-    if (data.type === "chat") {
-      if (!chatMessages[data.id]) {
-        const msg = document.createElement('div');
-        msg.className = 'chat-message';
-        document.getElementById('game-container').appendChild(msg);
-        chatMessages[data.id] = msg;
+      // Ensure we can update the player list UI
+      if (!multiplayer.connections[peerId]) {
+        multiplayer.connections[peerId] = {};
       }
-      const chatBox = chatMessages[data.id];
-      chatBox.textContent = `${data.name}: ${data.message}`;
-      chatBox.style.display = 'block';
-      setTimeout(() => { chatBox.style.display = 'none'; }, 5000);
+      const conn = multiplayer.connections[peerId];
+      if (!conn.listItem) {
+        const list = document.getElementById('connected-players-list');
+        const item = document.createElement('li');
+        item.id = `peer-${peerId}`;
+        conn.listItem = item;
+        list.appendChild(item);
+      }
+      conn.listItem.textContent = `Connected to ${data.name}`;
     }
 
     if (data.type === 'projectile') {
+      console.log('incoming projectile.')
       const position = new THREE.Vector3(...data.position);
       const direction = new THREE.Vector3(...data.direction);
       spawnProjectile(position, direction);
-    }    
+    }
+
+    if (data.type === "monster" && monster) {
+      const target = new THREE.Vector3(data.x, data.y, data.z);
+      monster.position.lerp(target, 0.2); // smooth transition
+    }
   }
 
   let localStream = null;
@@ -151,6 +178,8 @@ async function main() {
   const overlay = document.getElementById('settings-overlay');
   const nameInput = document.getElementById('name-input');
   const saveBtn = document.getElementById('save-settings');
+  const toggleBtn = document.getElementById("toggle-console");
+  const consoleDiv = document.getElementById("console-log");
 
   settingsBtn.addEventListener('click', () => {
     nameInput.value = playerName;
@@ -166,6 +195,24 @@ async function main() {
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) overlay.style.display = 'none';
   });
+
+  toggleBtn.addEventListener("click", () => {
+    const visible = consoleDiv.style.display === "block";
+    consoleDiv.style.display = visible ? "none" : "block";
+    toggleBtn.textContent = visible ? "Show Console" : "Hide Console";
+  });
+
+  (function() {
+    const originalLog = console.log;
+    console.log = function(...args) {
+      originalLog(...args);
+      const msg = document.createElement("div");
+      msg.textContent = args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(" ");
+      consoleDiv.appendChild(msg);
+      consoleDiv.scrollTop = consoleDiv.scrollHeight; // auto-scroll
+    };
+  })();
+
 
   function animate() {
     requestAnimationFrame(animate);
@@ -229,6 +276,10 @@ async function main() {
       // Move projectile
       proj.position.add(vel);
 
+      // After adding the projectile to the scene
+      // proj.geometry.computeBoundingBox();
+      // proj.updateMatrixWorld(true);
+
       // Ground bounce
       if (proj.position.y <= 0.3) { // assuming projectile radius
         proj.position.y = 0.3;
@@ -262,7 +313,10 @@ async function main() {
       }
 
       // Collision with players
+      const age = Date.now() - proj.userData.spawnTime;
       for (const [id, { model }] of Object.entries(otherPlayers)) {
+        if (age < 80) continue; // Skip collisions in first 100ms
+
         const projBox = new THREE.Box3().setFromObject(proj);
         const playerBox = new THREE.Box3().setFromObject(model);
 
@@ -273,7 +327,27 @@ async function main() {
           break;
         }
       }
-    }   
+
+      const projBox = new THREE.Box3().setFromObject(proj);
+      const localBox = new THREE.Box3().setFromObject(playerModel);
+
+      if (projBox.intersectsBox(localBox) && age >= 80) {
+        console.log(`💥 You were hit`);
+        scene.remove(proj);
+        projectiles.splice(i, 1);
+      }
+
+      if (isMonsterOwner) {
+        updateMonster(monster);
+
+        multiplayer.send({
+          type: "monster",
+          x: monster.position.x,
+          y: monster.position.y,
+          z: monster.position.z
+        });
+      }
+    }      
 
     renderer.render(scene, camera);
   }

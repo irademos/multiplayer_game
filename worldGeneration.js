@@ -333,3 +333,21 @@ export function createClouds(scene) {
     scene.add(cloudGroup);
   }
 }
+
+export function createMonster(scene) {
+  const monster = new THREE.Mesh(
+    new THREE.BoxGeometry(2, 4, 2),
+    new THREE.MeshStandardMaterial({ color: 0x550000 })
+  );
+  monster.position.set(0, 2, 0); // Adjust position as needed
+  scene.add(monster);
+
+  // Attach movement info
+  monster.userData = {
+    direction: new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize(),
+    speed: 0.01,
+    lastDirectionChange: Date.now()
+  };
+
+  return monster;
+}
