@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // Simple seeded random number generator
 class MathRandom {
@@ -334,20 +335,48 @@ export function createClouds(scene) {
   }
 }
 
-export function createMonster(scene) {
-  const monster = new THREE.Mesh(
-    new THREE.BoxGeometry(2, 4, 2),
-    new THREE.MeshStandardMaterial({ color: 0x550000 })
-  );
-  monster.position.set(0, 2, 0); // Adjust position as needed
-  scene.add(monster);
+// export function createMonster(scene) {
+//   const monster = new THREE.Mesh(
+//     new THREE.BoxGeometry(2, 4, 2),
+//     new THREE.MeshStandardMaterial({ color: 0x550000 })
+//   );
+//   monster.position.set(0, 2, 0); // Adjust position as needed
+//   scene.add(monster);
 
-  // Attach movement info
-  monster.userData = {
-    direction: new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize(),
-    speed: 0.01,
-    lastDirectionChange: Date.now()
-  };
+//   // Attach movement info
+//   monster.userData = {
+//     direction: new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize(),
+//     speed: 0.01,
+//     lastDirectionChange: Date.now()
+//   };
 
-  return monster;
+//   return monster;
+// }
+
+export function createMonster(scene, onLoadCallback = () => {}) {
+  const loader = new GLTFLoader();
+
+  loader.load('/models/Orc.glb', gltf => {
+    const monster = gltf.scene;
+    monster.scale.set(2, 2, 2);
+    monster.position.set(0, 0, 0);
+    scene.add(monster);
+
+    const mixer = new THREE.AnimationMixer(monster);
+    if (gltf.animations.length > 0) {
+      const action = mixer.clipAction(gltf.animations[0]);
+      action.play();
+    }
+
+    monster.userData = {
+      direction: new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize(),
+      speed: 0.01,
+      lastDirectionChange: Date.now(),
+      mixer
+    };
+
+    onLoadCallback(monster);
+  }, undefined, error => {
+    console.error("Failed to load monster model:", error);
+  });
 }

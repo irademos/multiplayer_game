@@ -34,7 +34,11 @@ async function main() {
   createBarriers(scene);
   createTrees(scene);
   createClouds(scene);
-  const monster = createMonster(scene);
+
+  let monster = null;
+  createMonster(scene, loadedMonster => {
+    monster = loadedMonster;
+  });
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -85,6 +89,10 @@ async function main() {
     // Simple bounds check
     if (Math.abs(monster.position.x) > 70 || Math.abs(monster.position.z) > 70) {
       data.direction.negate();
+    }
+
+    if (monster && data.mixer) {
+      monster.userData.mixer.update(1 / 60); // or use deltaTime for accuracy
     }
   }
 
@@ -337,16 +345,19 @@ async function main() {
         projectiles.splice(i, 1);
       }
 
-      if (isMonsterOwner) {
-        updateMonster(monster);
+      // if (isMonsterOwner) {
+      updateMonster(monster);
 
-        multiplayer.send({
-          type: "monster",
-          x: monster.position.x,
-          y: monster.position.y,
-          z: monster.position.z
-        });
-      }
+        // multiplayer.send({
+        //   type: "monster",
+        //   x: monster.position.x,
+        //   y: monster.position.y,
+        //   z: monster.position.z
+        // });
+      // }
+
+      
+
     }      
 
     renderer.render(scene, camera);

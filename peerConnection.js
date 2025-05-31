@@ -62,9 +62,11 @@ export class Multiplayer {
       }
 
       const roomRef = ref(db, `rooms/${assignedRoom}/${id}`);
+      await remove(roomRef);
       await set(roomRef, true);
 
       const peerRef = ref(db, `peers/${id}`);
+      await remove(peerRef);
       await set(peerRef, {
         name: this.playerName,
         roomId: assignedRoom,
@@ -81,9 +83,23 @@ export class Multiplayer {
         remove(peerRef);
       });
 
-      onValue(ref(db, `rooms/${assignedRoom}`), snapshot => {
+      onValue(ref(db, `rooms/${assignedRoom}`), async snapshot => {
         const roomPeersObj = snapshot.val() || {};
-        const sortedPeerIds = Object.keys(roomPeersObj).sort();
+
+        const allPeerIds = Object.keys(roomPeersObj);
+
+        // Cross-check with /peers to see who's still connected
+        const peersSnapshot = await get(ref(db, `peers`));
+        const activePeers = peersSnapshot.exists() ? peersSnapshot.val() : {};
+
+        const validPeerIds = allPeerIds.filter(pid => activePeers[pid]);
+
+        // Sort valid peers
+        const sortedPeerIds = validPeerIds.sort();
+        // const sortedPeerIds = Object.keys(roomPeersObj).sort();
+
+        console.log("My ID:", this.id);
+        console.log("Sorted Peer IDs:", sortedPeerIds);
 
         // Determine monster owner
         if (sortedPeerIds.length > 0 && sortedPeerIds[0] === this.id) {
@@ -93,6 +109,7 @@ export class Multiplayer {
 
         // Connect to new peers
         for (const peerId of sortedPeerIds) {
+          if (!activePeers[peerId]) continue;
           if (peerId !== this.id && !this.connections[peerId]) {
             this.connectToPeer(peerId);
             console.log("Connected to peer: ", peerId);
