@@ -8,7 +8,7 @@ const GRAVITY = 0.01;
 const JUMP_FORCE = 0.25;
 
 export class PlayerControls {
-  constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile }) {
+  constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles }) {
     this.yaw = 0;
     this.pitch = 0;
     this.pointerLocked = false;
@@ -21,6 +21,7 @@ export class PlayerControls {
     this.lastPosition = new THREE.Vector3();
     this.isMoving = false;
     this.spawnProjectile = spawnProjectile;
+    this.projectiles = projectiles;
     
     // Player state
     this.velocity = new THREE.Vector3();
@@ -176,7 +177,7 @@ export class PlayerControls {
         direction: direction.toArray()
       });
 
-      this.spawnProjectile(position, direction);
+      this.spawnProjectile(this.scene, this.projectiles, position, direction);
 
       event.preventDefault();
     });
@@ -262,7 +263,7 @@ export class PlayerControls {
           position: position.toArray(),
           direction: direction.toArray()
         });
-        this.spawnProjectile(position, direction);
+        this.spawnProjectile(this.scene, this.projectiles, position, direction);
       }
     }
     

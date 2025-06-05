@@ -85,34 +85,36 @@ export class Multiplayer {
 
       onValue(ref(db, `rooms/${assignedRoom}`), async snapshot => {
         const roomPeersObj = snapshot.val() || {};
-
         const allPeerIds = Object.keys(roomPeersObj);
 
-        // Cross-check with /peers to see who's still connected
-        const peersSnapshot = await get(ref(db, `peers`));
+        // Get all active peers
+        const peersSnapshot = await get(ref(db, 'peers'));
         const activePeers = peersSnapshot.exists() ? peersSnapshot.val() : {};
 
+        // Filter for only currently active peer IDs
         const validPeerIds = allPeerIds.filter(pid => activePeers[pid]);
 
-        // Sort valid peers
-        const sortedPeerIds = validPeerIds.sort();
-        // const sortedPeerIds = Object.keys(roomPeersObj).sort();
+        // Sort by join timestamp to find the most recent
+        validPeerIds.sort((a, b) => {
+          return activePeers[b]?.timestamp - activePeers[a]?.timestamp;
+        });
 
         console.log("My ID:", this.id);
-        console.log("Sorted Peer IDs:", sortedPeerIds);
+        console.log("Valid Peers (latest first):", validPeerIds);
 
-        // Determine monster owner
-        if (sortedPeerIds.length > 0 && sortedPeerIds[0] === this.id) {
-          this.isMonsterOwner = true;
+        // The last joined player becomes the monster owner
+        const latestPeerId = validPeerIds[0];
+        this.isMonsterOwner = (latestPeerId === this.id);
+
+        if (this.isMonsterOwner) {
           console.log("👹 I am the monster owner");
         }
 
-        // Connect to new peers
-        for (const peerId of sortedPeerIds) {
-          if (!activePeers[peerId]) continue;
+        // Connect to any valid peers we haven't yet connected to
+        for (const peerId of validPeerIds) {
           if (peerId !== this.id && !this.connections[peerId]) {
             this.connectToPeer(peerId);
-            console.log("Connected to peer: ", peerId);
+            console.log("Connected to peer:", peerId);
           }
         }
       });
@@ -126,9 +128,13 @@ export class Multiplayer {
       const list = document.getElementById('connected-players-list');
       const item = document.createElement('li');
       item.id = `peer-${conn.peer}`;
-      
+
+
       // Wait for name to come through "presence"
       item.textContent = `Connected to (waiting...)`;
+      if (!this.connections[conn.peer]) {
+        this.connections[conn.peer] = {};
+      }
       this.connections[conn.peer].listItem = item;
       list.appendChild(item);
 
@@ -137,7 +143,6 @@ export class Multiplayer {
       conn.send({ type: "ping" });
 
       conn.on('data', data => {
-        console.log("on data happening");
         if (data.type === "pong") {
           const rtt = Date.now() - pingStart;
           document.getElementById("ping-display").textContent = rtt;
@@ -291,8 +296,20 @@ export class Multiplayer {
   }
 
   send(data) {
-    Object.values(this.connections).forEach(conn => conn.send(data));
+    Object.values(this.connections).forEach(conn => {
+      if (conn && typeof conn.send === 'function') {
+        if (conn.open) {
+          conn.send(data);
+        } else if (typeof conn.once === 'function') {
+          conn.once('open', () => conn.send(data));
+        } else {
+          console.warn("Invalid connection object", conn);
+        }
+      }
+    });
   }
+
+
 
   getId() {
     return this.id;
