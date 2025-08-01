@@ -67,6 +67,7 @@ async function main() {
     spawnProjectile,
     projectiles
   });
+  window.playerControls = playerControls;
   
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(150, 150),
@@ -79,6 +80,7 @@ async function main() {
   const otherPlayers = {};
 
   function handleIncomingData(peerId, data) {
+    console.log('📡 Incoming data:', data);
     if (data.type === "presence") {
       if (!otherPlayers[data.id]) {
         const { model, nameLabel } = createPlayerModel(THREE, data.name);
@@ -116,7 +118,10 @@ async function main() {
 
     if (data.type === "monster" && monster) {
       const target = new THREE.Vector3(data.x, data.y, data.z);
-      monster.position.lerp(target, 0.2); // smooth transition
+      if (!window.playerControls?.isKnocked || monster.position.distanceTo(target) > 2) {
+        monster.position.lerp(target, 0.2);
+      }
+
     }
   }
 

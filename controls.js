@@ -22,6 +22,9 @@ export class PlayerControls {
     this.isMoving = false;
     this.spawnProjectile = spawnProjectile;
     this.projectiles = projectiles;
+    this.isKnocked = false;
+    this.knockbackVelocity = new THREE.Vector3();
+    this.knockbackRotationAxis = new THREE.Vector3(1, 0, 0);
     
     // Player state
     this.velocity = new THREE.Vector3();
@@ -271,19 +274,6 @@ export class PlayerControls {
       } else if (this.keysPressed.has("d")) {
         moveDirection.x = -1; 
       } 
-      
-      // else if (this.keysPressed.has("e") && !this.projectileKeyPressed) {
-      //   this.projectileKeyPressed = true;
-      //   const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
-      //   const direction = new THREE.Vector3(0, 0, 1).applyEuler(this.playerModel.rotation);
-      //   this.multiplayer.send({
-      //     type: 'projectile',
-      //     id: this.multiplayer.getId(),
-      //     position: position.toArray(),
-      //     direction: direction.toArray()
-      //   });
-      //   this.spawnProjectile(this.scene, this.projectiles, position, direction);
-      // }
     }
     
     if (!this.isMobile && moveDirection.length() > 0) {
@@ -315,6 +305,21 @@ export class PlayerControls {
     }
     
     this.velocity.y -= GRAVITY;
+
+    if (this.isKnocked) {
+      // Apply knockback
+      this.velocity.copy(this.knockbackVelocity);
+      this.knockbackVelocity.multiplyScalar(0.95); // damping
+      this.playerModel.setRotationFromAxisAngle(this.knockbackRotationAxis || new THREE.Vector3(-1, 0, 0), Math.PI / 2);
+
+      if (this.knockbackVelocity.length() < 0.01) {
+        this.isKnocked = false;
+        this.velocity.set(0, 0, 0);
+        // this.playerModel.rotation.x = 0; // Stand up
+        this.playerModel.setRotationFromAxisAngle(new THREE.Vector3(0, 1, 0), this.playerModel.rotation.y);
+        console.log("🤕 Got up");
+      }
+    }
     
     let newX = x + movement.x;
     let newY = y + this.velocity.y;
