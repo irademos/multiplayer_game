@@ -210,6 +210,23 @@ export class PlayerControls {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
       }
     });
+
+    this.domElement.addEventListener("click", (event) => {
+      // Don't fire if chat or settings are open
+      if (!this.enabled || this.isMobile) return;
+
+        const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
+        const direction = new THREE.Vector3(0, 0, 1).applyEuler(this.playerModel.rotation);
+
+        this.multiplayer.send({
+          type: 'projectile',
+          id: this.multiplayer.getId(),
+          position: position.toArray(),
+          direction: direction.toArray()
+        });
+
+        this.spawnProjectile(this.scene, this.projectiles, position, direction);
+    });
   }
   
   processMovement() {
@@ -253,18 +270,20 @@ export class PlayerControls {
         moveDirection.x = 1; 
       } else if (this.keysPressed.has("d")) {
         moveDirection.x = -1; 
-      } else if (this.keysPressed.has("e") && !this.projectileKeyPressed) {
-        this.projectileKeyPressed = true;
-        const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
-        const direction = new THREE.Vector3(0, 0, 1).applyEuler(this.playerModel.rotation);
-        this.multiplayer.send({
-          type: 'projectile',
-          id: this.multiplayer.getId(),
-          position: position.toArray(),
-          direction: direction.toArray()
-        });
-        this.spawnProjectile(this.scene, this.projectiles, position, direction);
-      }
+      } 
+      
+      // else if (this.keysPressed.has("e") && !this.projectileKeyPressed) {
+      //   this.projectileKeyPressed = true;
+      //   const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
+      //   const direction = new THREE.Vector3(0, 0, 1).applyEuler(this.playerModel.rotation);
+      //   this.multiplayer.send({
+      //     type: 'projectile',
+      //     id: this.multiplayer.getId(),
+      //     position: position.toArray(),
+      //     direction: direction.toArray()
+      //   });
+      //   this.spawnProjectile(this.scene, this.projectiles, position, direction);
+      // }
     }
     
     if (!this.isMobile && moveDirection.length() > 0) {

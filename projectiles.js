@@ -59,7 +59,11 @@ export function updateProjectiles({
       const projBox = new THREE.Box3().setFromObject(proj);
       const playerBox = new THREE.Box3().setFromObject(model);
       if (projBox.intersectsBox(playerBox)) {
-        console.log(`💥 Hit player: ${id}`);
+        const player = otherPlayers[id];
+        if (player) {
+          player.health = Math.max(0, (player.health || 100) - 10);
+          console.log(`💥 Hit player: ${id}, Health: ${player.health}`);
+        }
         scene.remove(proj);
         projectiles.splice(i, 1);
         break;
@@ -72,11 +76,30 @@ export function updateProjectiles({
       console.log(`💥 You were hit`);
       scene.remove(proj);
       projectiles.splice(i, 1);
+
+      if (typeof window.localHealth === 'number') {
+        window.localHealth = Math.max(0, window.localHealth - 10);
+        console.log(`❤️ Your Health: ${window.localHealth}`);
+      }
+    }
+
+    if (monster) {
+      const monsterBox = new THREE.Box3().setFromObject(monster);
+      if (projBox.intersectsBox(monsterBox) && age >= 80) {
+        console.log(`💥 Monster was hit`);
+        scene.remove(proj);
+        projectiles.splice(i, 1);
+        
+        if (typeof window.monsterHealth === 'number') {
+          window.monsterHealth = Math.max(0, window.monsterHealth - 10);
+          console.log(`👹 Monster Health: ${window.monsterHealth}`);
+        }
+      }
     }
   }
 
   if (multiplayer?.isMonsterOwner && monster) {
-    updateMonster(monster, clock);
+    updateMonster(monster, clock, playerModel, otherPlayers); // pass in new args
     multiplayer.send({
       type: "monster",
       x: monster.position.x,
@@ -84,4 +107,5 @@ export function updateProjectiles({
       z: monster.position.z
     });
   }
+
 }

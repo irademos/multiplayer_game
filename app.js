@@ -48,6 +48,13 @@ async function main() {
 
   const { model: playerModel, nameLabel: myNameLabel } = createPlayerModel(THREE, playerName);
   scene.add(playerModel);
+  window.playerModel = playerModel;
+
+  let localHealth = 100;
+  let monsterHealth = 100;
+
+  window.localHealth = localHealth;
+  window.monsterHealth = monsterHealth;
 
   const projectiles = [];
 
@@ -77,7 +84,7 @@ async function main() {
         const { model, nameLabel } = createPlayerModel(THREE, data.name);
         scene.add(model);
         document.body.appendChild(nameLabel);
-        otherPlayers[data.id] = { model, nameLabel, name: data.name };
+        otherPlayers[data.id] = { model, nameLabel, name: data.name, health: 100 };
       }
 
       const player = otherPlayers[data.id];

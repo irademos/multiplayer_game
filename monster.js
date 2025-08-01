@@ -38,6 +38,7 @@ export function createMonster(scene, onLoadCallback = () => {}) {
 
 export function switchMonsterAnimation(monster, newName) {
   const { actions, currentAction } = monster.userData;
+  // console.log(actions);
   if (newName === currentAction || !actions[newName]) return;
 
   actions[currentAction]?.fadeOut(0.3);
@@ -45,33 +46,61 @@ export function switchMonsterAnimation(monster, newName) {
   monster.userData.currentAction = newName;
 }
 
-export function updateMonster(monster, clock) {
-    const now = Date.now();
-    const data = monster.userData;
+export function updateMonster(monster, clock, playerModel, otherPlayers) {
+  const now = Date.now();
+  const data = monster.userData;
 
-    // Change direction periodically
-    if (now - data.lastDirectionChange > 5000) {
-      data.direction.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
-      data.lastDirectionChange = now;
+  const allPlayers = [
+    { id: 'local', model: playerModel },
+    ...Object.entries(otherPlayers).map(([id, p]) => ({ id, model: p.model }))
+  ];
+
+  let closestPlayer = null;
+  let closestDistance = Infinity;
+
+  for (const player of allPlayers) {
+    const dist = monster.position.distanceTo(player.model.position);
+    if (dist < closestDistance) {
+      closestDistance = dist;
+      closestPlayer = player;
     }
+  }
 
-    // Move the monster
-    const movement = data.direction.clone().multiplyScalar(data.speed);
+  if (!closestPlayer) {
+    switchMonsterAnimation(monster, "Idle");
+    return;
+  }
+
+  const targetPos = closestPlayer.model.position.clone();
+  const distance = monster.position.distanceTo(targetPos);
+  const isInAttackRange = distance < 2.0;
+
+  if (!isInAttackRange) {
+    const direction = targetPos.sub(monster.position).normalize();
+    data.direction.copy(direction);
+    const movement = data.direction.clone().multiplyScalar(data.speed * 3); // faster chase
     monster.position.add(movement);
+    monster.lookAt(closestPlayer.model.position);
 
-    // Bounds check and reverse direction
-    if (Math.abs(monster.position.x) > 70 || Math.abs(monster.position.z) > 70) {
-      data.direction.negate();
+    switchMonsterAnimation(monster, "Walk");
+  } else {
+    switchMonsterAnimation(monster, "Weapon");
+
+    if (!data.lastAttackTime || now - data.lastAttackTime > 2000) {
+      data.lastAttackTime = now;
+      console.log(`👹 Monster attacked ${closestPlayer.id}`);
+      if (window.playerModel?.position) {
+        const dist = monster.position.distanceTo(window.playerModel.position);
+        if (dist < 3.2) {
+          window.localHealth = Math.max(0, window.localHealth - 5);
+          console.log(`👹 Monster attacks you! Distance: ${dist.toFixed(2)} | Health: ${window.localHealth.toFixed(1)}`);
+        }
+      }
     }
+  }
 
-    // Animation switching based on movement magnitude
-    const isMoving = movement.length() > 0.001;
-    const targetAnim = isMoving ? "Walk" : "Idle";
-    switchMonsterAnimation(monster, targetAnim); // <- this is the function from earlier
-
-    // Update animation mixer
-    const delta = clock.getDelta();
-    if (data.mixer) {
-      data.mixer.update(delta);
-    }
+  const delta = clock.getDelta();
+  if (data.mixer) {
+    data.mixer.update(delta);
+  }
 }
