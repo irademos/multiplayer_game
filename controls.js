@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { getTerrainHeightAt } from "./worldGeneration.js"
 import { pass } from "three/tsl";
 
 // Movement constants
@@ -46,8 +47,9 @@ export class PlayerControls {
     // Initial player position
     // const initialPos = { x: 0, y: 0.5, z: 0 };
     this.playerX = (Math.random() * 10) - 5;
-    this.playerY = 0.5;
     this.playerZ = (Math.random() * 10) - 5;
+    this.playerY = getTerrainHeightAt(this.playerX, this.playerZ) + 0.5;
+
     
     // Set initial player model position if it exists
     if (this.playerModel) {
@@ -311,6 +313,7 @@ export class PlayerControls {
       this.velocity.copy(this.knockbackVelocity);
       this.knockbackVelocity.multiplyScalar(0.95); // damping
       this.playerModel.setRotationFromAxisAngle(this.knockbackRotationAxis || new THREE.Vector3(-1, 0, 0), Math.PI / 2);
+      this.playerModel.position.add(this.velocity);
 
       if (this.knockbackVelocity.length() < 0.01) {
         this.isKnocked = false;
@@ -382,11 +385,15 @@ export class PlayerControls {
       }
     }
     
-    if (newY <= 0 && !standingOnBlock) {
-      newY = 0;
-      this.velocity.y = 0;
-      this.canJump = true;
+    if (!standingOnBlock) {
+      const terrainY = getTerrainHeightAt(newX, newZ);
+      if (newY <= terrainY + 0.01) {
+        newY = terrainY;
+        this.velocity.y = 0;
+        this.canJump = true;
+      }
     }
+
     
     const isMovingNow = movement.length() > 0;
     this.isMoving = isMovingNow;

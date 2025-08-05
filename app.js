@@ -1,17 +1,18 @@
+// app.js
 import * as THREE from "three";
-import { createPlayerModel } from "./player.js";
-import { createBarriers, createTrees, createClouds } from "./worldGeneration.js";
+import { PlayerCharacter } from "./characters/PlayerCharacter.js";
+import { loadMonsterModel } from "./models/monsterModel.js";
+import { createBarriers, createTrees, createClouds, generateTerrainChunk } from "./worldGeneration.js";
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
 import { spawnProjectile, updateProjectiles } from './projectiles.js';
-import { createMonster, switchMonsterAnimation } from './monster.js';
+
 const clock = new THREE.Clock();
 
 async function main() {
   document.body.addEventListener('touchstart', () => {}, { once: true });
 
-  // Get from cookie or ask
   let playerName = getCookie("playerName");
   if (!playerName) {
     playerName = prompt("Enter your name") || `Player${Math.floor(Math.random() * 1000)}`;
@@ -28,8 +29,14 @@ async function main() {
   createClouds(scene);
 
   let monster = null;
-  createMonster(scene, loadedMonster => {
-    monster = loadedMonster;
+  loadMonsterModel(scene, data => {
+    monster = data.model;
+    monster.userData.mixer = data.mixer;
+    monster.userData.actions = data.actions;
+    monster.userData.currentAction = "Idle";
+    monster.userData.direction = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+    monster.userData.speed = 0.01;
+    monster.userData.lastDirectionChange = Date.now();
   });
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -46,15 +53,14 @@ async function main() {
   dirLight.castShadow = true;
   scene.add(dirLight);
 
-  const { model: playerModel, nameLabel: myNameLabel } = createPlayerModel(THREE, playerName);
+  const player = new PlayerCharacter(playerName);
+  const playerModel = player.model;
   scene.add(playerModel);
+  document.body.appendChild(player.nameLabel);
   window.playerModel = playerModel;
 
-  let localHealth = 100;
-  let monsterHealth = 100;
-
-  window.localHealth = localHealth;
-  window.monsterHealth = monsterHealth;
+  window.localHealth = 100;
+  window.monsterHealth = 100;
 
   const projectiles = [];
 
@@ -68,14 +74,38 @@ async function main() {
     projectiles
   });
   window.playerControls = playerControls;
-  
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(150, 150),
-    new THREE.MeshStandardMaterial({ color: 0x55aa55 })
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
-  scene.add(ground);
+
+  // const ground = new THREE.Mesh(
+  //   new THREE.PlaneGeometry(150, 150),
+  //   new THREE.MeshStandardMaterial({ color: 0x55aa55 })
+  // );
+  // ground.rotation.x = -Math.PI / 2;
+  // ground.receiveShadow = true;
+  // scene.add(ground);
+
+  const generatedChunks = new Set();
+  const chunkSize = 50;
+
+  function getChunkCoord(x, z) {
+    return `${Math.floor(x / chunkSize)},${Math.floor(z / chunkSize)}`;
+  }
+
+  function updateTerrain() {
+    const playerPos = playerModel.position;
+    const cx = Math.floor(playerPos.x / chunkSize);
+    const cz = Math.floor(playerPos.z / chunkSize);
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const key = `${cx + dx},${cz + dz}`;
+        if (!generatedChunks.has(key)) {
+          generateTerrainChunk(scene, cx + dx, cz + dz, chunkSize);
+          generatedChunks.add(key);
+        }
+      }
+    }
+  }
+
 
   const otherPlayers = {};
 
@@ -83,10 +113,10 @@ async function main() {
     console.log('📡 Incoming data:', data);
     if (data.type === "presence") {
       if (!otherPlayers[data.id]) {
-        const { model, nameLabel } = createPlayerModel(THREE, data.name);
-        scene.add(model);
-        document.body.appendChild(nameLabel);
-        otherPlayers[data.id] = { model, nameLabel, name: data.name, health: 100 };
+        const other = new PlayerCharacter(data.name);
+        scene.add(other.model);
+        document.body.appendChild(other.nameLabel);
+        otherPlayers[data.id] = { model: other.model, nameLabel: other.nameLabel, name: data.name, health: 100 };
       }
 
       const player = otherPlayers[data.id];
@@ -94,7 +124,6 @@ async function main() {
       player.model.position.set(data.x, data.y, data.z);
       player.model.rotation.y = data.rotation;
 
-      // Ensure we can update the player list UI
       if (!multiplayer.connections[peerId]) {
         multiplayer.connections[peerId] = {};
       }
@@ -110,7 +139,6 @@ async function main() {
     }
 
     if (data.type === 'projectile') {
-      console.log('incoming projectile.')
       const position = new THREE.Vector3(...data.position);
       const direction = new THREE.Vector3(...data.direction);
       spawnProjectile(scene, projectiles, position, direction);
@@ -121,7 +149,6 @@ async function main() {
       if (!window.playerControls?.isKnocked || monster.position.distanceTo(target) > 2) {
         monster.position.lerp(target, 0.2);
       }
-
     }
   }
 
@@ -185,14 +212,14 @@ async function main() {
       const msg = document.createElement("div");
       msg.textContent = args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(" ");
       consoleDiv.appendChild(msg);
-      consoleDiv.scrollTop = consoleDiv.scrollHeight; // auto-scroll
+      consoleDiv.scrollTop = consoleDiv.scrollHeight;
     };
   })();
-
 
   function animate() {
     requestAnimationFrame(animate);
     playerControls.update();
+    updateTerrain();
 
     multiplayer.send({
       type: "presence",
@@ -207,32 +234,25 @@ async function main() {
     Object.entries(multiplayer.voiceAudios || {}).forEach(([peerId, { audio }]) => {
       const peerModel = otherPlayers[peerId]?.model;
       if (!peerModel || !peerModel.position) return;
-
       const dist = playerModel.position.distanceTo(peerModel.position);
       const maxDist = 30;
       const rawVolume = 1 - dist / maxDist;
       const volume = Math.max(0, rawVolume * rawVolume);
-
       audio.volume = volume;
     });
-      
+
     Object.entries(otherPlayers).forEach(([id, { model, nameLabel }]) => {
       const pos = model.position.clone().add(new THREE.Vector3(0, 2, 0));
       pos.project(camera);
-    
-      // Skip rendering label if behind the camera or off frustum
       if (pos.z < 0 || pos.z > 1) {
         nameLabel.style.display = "none";
         return;
       }
-    
       const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
       const y = (-pos.y * 0.5 + 0.5) * window.innerHeight;
-    
       const cameraDist = camera.position.distanceTo(model.position);
       const scale = Math.max(0.5, 1.5 - cameraDist / 30);
       const opacity = Math.max(0, 1 - cameraDist / 40);
-    
       nameLabel.style.display = "block";
       nameLabel.style.left = `${x}px`;
       nameLabel.style.top = `${y}px`;

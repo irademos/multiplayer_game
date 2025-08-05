@@ -157,7 +157,6 @@ export class Multiplayer {
       });
     });
 
-
     this.peer.on('call', call => {
       call.answer(); // no stream sent
 
@@ -186,7 +185,6 @@ export class Multiplayer {
 
     });
  
-
     onValue(ref(db, 'peers'), snapshot => {
       const peers = snapshot.val() || {};
     });
@@ -261,16 +259,7 @@ export class Multiplayer {
       }
     }
     this.voiceAudios = {};
-  }
-  
-  // handleIncomingVoice(peerId, stream) {
-  //   const audio = new Audio();
-  //   audio.srcObject = stream;
-  //   audio.autoplay = true;
-  //   audio.volume = 0; // Start muted
-  //   this.voiceAudios = this.voiceAudios || {};
-  //   this.voiceAudios[peerId] = { audio, stream };
-  // }  
+  } 
 
   handleIncomingVoice(peerId, stream) {
     const audio = new Audio();
@@ -308,8 +297,6 @@ export class Multiplayer {
       }
     });
   }
-
-
 
   getId() {
     return this.id;

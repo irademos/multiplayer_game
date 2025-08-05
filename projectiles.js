@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { updateMonster } from './monster.js';
+import { updateMonster, switchMonsterAnimation } from './characters/MonsterCharacter.js';
 
 export function spawnProjectile(scene, projectiles, position, direction) {
   const geometry = new THREE.SphereGeometry(0.1, 16, 16);
@@ -93,6 +93,19 @@ export function updateProjectiles({
         if (typeof window.monsterHealth === 'number') {
           window.monsterHealth = Math.max(0, window.monsterHealth - 10);
           console.log(`👹 Monster Health: ${window.monsterHealth}`);
+
+          if (window.monsterHealth > 0 && !monster.userData.hitReacting) {
+            console.log("🎯 Triggering HitReact");
+            switchMonsterAnimation(monster, "Death");
+
+            monster.userData.hitReacting = true;
+
+            // Set duration to match your HitReact animation lengthd
+            setTimeout(() => {
+              monster.userData.hitReacting = false;
+            }, 100); // Adjust timing based on actual animation duration
+          }
+
         }
       }
     }
