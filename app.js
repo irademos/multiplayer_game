@@ -75,14 +75,6 @@ async function main() {
   });
   window.playerControls = playerControls;
 
-  // const ground = new THREE.Mesh(
-  //   new THREE.PlaneGeometry(150, 150),
-  //   new THREE.MeshStandardMaterial({ color: 0x55aa55 })
-  // );
-  // ground.rotation.x = -Math.PI / 2;
-  // ground.receiveShadow = true;
-  // scene.add(ground);
-
   const generatedChunks = new Set();
   const chunkSize = 50;
 
