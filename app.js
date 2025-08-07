@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
-import { createBarriers, createTrees, createClouds, generateTerrainChunk } from "./worldGeneration.js";
+import { createClouds, createCity, generateTerrainChunk } from "./worldGeneration.js";
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -24,8 +24,7 @@ async function main() {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87CEEB);
 
-  createBarriers(scene);
-  createTrees(scene);
+  await createCity(scene);
   createClouds(scene);
 
   let monster = null;

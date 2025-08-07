@@ -393,7 +393,6 @@ export class PlayerControls {
         this.canJump = true;
       }
     }
-
     
     const isMovingNow = movement.length() > 0;
     this.isMoving = isMovingNow;
@@ -558,4 +557,3 @@ export class PlayerControls {
   }
 
 }
-
