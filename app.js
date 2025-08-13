@@ -7,6 +7,8 @@ import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
 import { spawnProjectile, updateProjectiles } from './projectiles.js';
+import { LevelLoader } from './levelLoader.js';
+import { BreakManager } from './breakManager.js';
 
 const clock = new THREE.Clock();
 
@@ -26,6 +28,13 @@ async function main() {
 
   await createCity(scene);
   createClouds(scene);
+
+  // Load additional level data (destructible props, etc.)
+  const breakManager = new BreakManager(scene);
+  const levelLoader = new LevelLoader(scene, { breakManager });
+  await levelLoader.loadManifest('/areas/demo/area_manifest.json');
+  // Expose to window for debugging
+  window.breakManager = breakManager;
 
   let monster = null;
   loadMonsterModel(scene, data => {

@@ -70,6 +70,20 @@ export function updateProjectiles({
       }
     }
 
+    // Check destructible props loaded via LevelLoader
+    if (window.breakManager) {
+      for (const [id, data] of window.breakManager.registry.entries()) {
+        const targetBox = new THREE.Box3().setFromObject(data.object);
+        const projBox = new THREE.Box3().setFromObject(proj);
+        if (projBox.intersectsBox(targetBox)) {
+          window.breakManager.onHit(id, 25, proj.userData.velocity.clone());
+          scene.remove(proj);
+          projectiles.splice(i, 1);
+          break;
+        }
+      }
+    }
+
     const projBox = new THREE.Box3().setFromObject(proj);
     const localBox = new THREE.Box3().setFromObject(playerModel);
     if (projBox.intersectsBox(localBox) && age >= 80) {
