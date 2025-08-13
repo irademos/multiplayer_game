@@ -9,10 +9,12 @@ export function createPlayerModel(THREE, username, onLoad) {
     (gltf) => {
       const model = gltf.scene;
 
-      // Center the model at the origin so it appears at player coordinates
+      // Scale and center the model so it rotates around its midpoint
+      const scale = 0.01;
+      model.scale.set(scale, scale, scale);
       const box = new THREE.Box3().setFromObject(model);
       const center = box.getCenter(new THREE.Vector3());
-      model.position.set(-center.x, -box.min.y + 200, -center.z);
+      model.position.set(-center.x, -box.min.y, -center.z);
       playerGroup.add(model);
 
       const mixer = new THREE.AnimationMixer(model);
