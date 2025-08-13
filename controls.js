@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { getTerrainHeightAt } from "./worldGeneration.js"
-import { pass } from "three/tsl";
+import { getTerrainHeightAt } from "./worldGeneration.js";
 
 // Movement constants
 const SPEED = 0.08;
@@ -400,28 +399,26 @@ export class PlayerControls {
     if (this.playerModel) {
       this.playerModel.position.set(newX, newY, newZ);
       
-      if (movement.length() > 0) {
-        const angle = Math.atan2(movement.x, movement.z);
-        this.playerModel.rotation.y = angle; 
-        
-        const leftLeg = this.playerModel.getObjectByName("leftLeg");
-        const rightLeg = this.playerModel.getObjectByName("rightLeg");
-        
-        if (leftLeg && rightLeg) {
-          const walkSpeed = 5; 
-          const walkAmplitude = 0.3;
-          leftLeg.rotation.x = Math.sin(this.time * walkSpeed) * walkAmplitude;
-          rightLeg.rotation.x = Math.sin(this.time * walkSpeed + Math.PI) * walkAmplitude;
+        if (movement.length() > 0) {
+          const angle = Math.atan2(movement.x, movement.z);
+          this.playerModel.rotation.y = angle;
         }
-      } else {
-        const leftLeg = this.playerModel.getObjectByName("leftLeg");
-        const rightLeg = this.playerModel.getObjectByName("rightLeg");
-        
-        if (leftLeg && rightLeg) {
-          leftLeg.rotation.x = 0;
-          rightLeg.rotation.x = 0;
+
+        const actions = this.playerModel.userData.actions;
+        if (actions) {
+          let actionName = 'idle';
+          if (!this.canJump) {
+            actionName = 'jump';
+          } else if (isMovingNow) {
+            actionName = 'walk';
+          }
+          const current = this.playerModel.userData.currentAction;
+          if (actionName && current !== actionName) {
+            actions[current]?.fadeOut(0.2);
+            actions[actionName].reset().fadeIn(0.2).play();
+            this.playerModel.userData.currentAction = actionName;
+          }
         }
-      }
       
       const newTarget = new THREE.Vector3(this.playerModel.position.x, this.playerModel.position.y + 1, this.playerModel.position.z);
       if (this.controls) {
@@ -505,12 +502,19 @@ export class PlayerControls {
       this.camera.lookAt(orbitCenter);
     }
 
-    const now = performance.now();
-    this.time = (now * 0.01) % 1000; // Use performance.now() for consistent timing
-    
-    if (this.enabled) {
-      this.processMovement();
-    }
+      const now = performance.now();
+      if (!this.lastUpdate) this.lastUpdate = now;
+      const delta = (now - this.lastUpdate) / 1000;
+      this.lastUpdate = now;
+      this.time = (now * 0.01) % 1000; // Use performance.now() for consistent timing
+
+      if (this.playerModel && this.playerModel.userData.mixer) {
+        this.playerModel.userData.mixer.update(delta);
+      }
+
+      if (this.enabled) {
+        this.processMovement();
+      }
     
     // Always update controls even when movement is disabled
     if (this.controls) {

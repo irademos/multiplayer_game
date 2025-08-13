@@ -1,50 +1,56 @@
 // /models/playerModel.js
-export function createPlayerModel(THREE, username) {
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+export function createPlayerModel(THREE, username, onLoad) {
   const playerGroup = new THREE.Group();
 
-  const hash = username.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0);
-  const color = new THREE.Color(Math.abs(hash) % 0xffffff);
+  const loader = new GLTFLoader();
+  loader.load(
+    '/models/animated_old_man_character.glb',
+    (gltf) => {
+      const model = gltf.scene;
 
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(0.42, 0.98, 0.21),
-    new THREE.MeshStandardMaterial({ color })
+      // Center the model at the origin so it appears at player coordinates
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      model.position.set(-center.x, -box.min.y, -center.z);
+      playerGroup.add(model);
+
+      const mixer = new THREE.AnimationMixer(model);
+      const actions = {};
+      const baseClip = gltf.animations[0];
+      if (baseClip) {
+        const ranges = [
+          ['idle', 0, 74],
+          ['walk', 75, 149],
+          ['run', 150, 224],
+          ['jump', 225, 299],
+          ['ledge', 300, 374],
+        ];
+        ranges.forEach(([name, start, end]) => {
+          const clip = THREE.AnimationUtils.subclip(baseClip, name, start, end);
+          const action = mixer.clipAction(clip);
+          if (name === 'jump' || name === 'ledge') {
+            action.loop = THREE.LoopOnce;
+            action.clampWhenFinished = true;
+          }
+          actions[name] = action;
+          console.log('Player animation:', name);
+        });
+        actions.idle?.play();
+        playerGroup.userData.currentAction = 'idle';
+      }
+
+      playerGroup.userData.mixer = mixer;
+      playerGroup.userData.actions = actions;
+
+      if (onLoad) onLoad({ mixer, actions });
+    },
+    undefined,
+    (err) => {
+      console.error('Failed to load player model:', err);
+    }
   );
-  body.position.y = 0.77;
-  body.castShadow = true;
-  playerGroup.add(body);
-
-  const eyeGeo = new THREE.SphereGeometry(0.056, 8, 8);
-  const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-  const pupilMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
-
-  const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-  leftEye.position.set(-0.105, 1.12, 0.105);
-  const leftPupil = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), pupilMat);
-  leftPupil.position.z = 0.035;
-  leftEye.add(leftPupil);
-  playerGroup.add(leftEye);
-
-  const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-  rightEye.position.set(0.105, 1.12, 0.105);
-  const rightPupil = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), pupilMat);
-  rightPupil.position.z = 0.035;
-  rightEye.add(rightPupil);
-  playerGroup.add(rightEye);
-
-  const legGeo = new THREE.BoxGeometry(0.14, 0.35, 0.14);
-  const legMat = new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.8) });
-
-  const leftLeg = new THREE.Mesh(legGeo, legMat);
-  leftLeg.position.set(-0.14, 0.42, 0);
-  leftLeg.geometry.translate(0, -0.175, 0);
-  leftLeg.name = "leftLeg";
-  playerGroup.add(leftLeg);
-
-  const rightLeg = new THREE.Mesh(legGeo, legMat);
-  rightLeg.position.set(0.14, 0.42, 0);
-  rightLeg.geometry.translate(0, -0.175, 0);
-  rightLeg.name = "rightLeg";
-  playerGroup.add(rightLeg);
 
   const canvas = document.createElement('canvas');
   canvas.width = 256;
@@ -54,12 +60,17 @@ export function createPlayerModel(THREE, username) {
   context.fillRect(0, 0, canvas.width, canvas.height);
 
   const texture = new THREE.CanvasTexture(canvas);
-  const chatMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  const chatMaterial = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
   const chatPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.25), chatMaterial);
   chatPlane.position.y = 1.61;
   chatPlane.rotation.x = Math.PI / 12;
   chatPlane.visible = false;
-  chatPlane.name = "chatBillboard";
+  chatPlane.name = 'chatBillboard';
   playerGroup.add(chatPlane);
 
   const label = document.createElement('div');
