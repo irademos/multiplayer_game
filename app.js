@@ -270,6 +270,8 @@ async function main() {
       clock
     });
 
+    breakManager.update();
+
     renderer.render(scene, camera);
   }
 
