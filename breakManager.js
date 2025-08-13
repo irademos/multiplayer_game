@@ -59,20 +59,9 @@ export class BreakManager {
       if (child.isMesh) {
         chunkMeshes.push(child);
       }
-
-    // Clone chunk scene and add to world. A physics engine could be integrated
-    // here by iterating over children and creating rigid bodies.
-    const chunks = fractureScene.clone(true);
-    chunks.position.copy(object.position);
-    chunks.rotation.copy(object.rotation);
-    chunks.scale.copy(object.scale);
-    this.scene.add(chunks);
-
-    chunks.traverse(child => {
-      if (!child.isMesh) return;
-      child.userData.velocity = impulse.clone();
-      this.activeChunks.push(child);
     });
+
+      
 
     for (const mesh of chunkMeshes) {
       // Detach mesh to the scene root so physics can control it
@@ -114,20 +103,6 @@ export class BreakManager {
         body.quaternion.z,
         body.quaternion.w
       );
-    }
-  }
-
-  update() {
-    const gravity = -0.0008;
-    for (let i = this.activeChunks.length - 1; i >= 0; i--) {
-      const chunk = this.activeChunks[i];
-      const vel = chunk.userData.velocity || new THREE.Vector3();
-      vel.y += gravity;
-      chunk.position.add(vel);
-      if (chunk.position.y <= 0) {
-        chunk.position.y = 0;
-        vel.y = 0;
-      }
     }
   }
 }
