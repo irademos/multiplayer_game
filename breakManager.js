@@ -8,6 +8,7 @@ export class BreakManager {
   constructor(scene) {
     this.scene = scene;
     this.registry = new Map(); // id -> { object, health, fractureScene }
+    this.activeChunks = [];
   }
 
   // Register a destructible object. `data` expects:
@@ -26,6 +27,7 @@ export class BreakManager {
     const entry = this.registry.get(id);
     if (!entry) return;
     entry.health -= damage;
+    console.log(`🛢️ ${id} health: ${entry.health}`);
     if (entry.health > 0) return;
 
     const { object, fractureScene } = entry;
@@ -45,9 +47,24 @@ export class BreakManager {
     chunks.scale.copy(object.scale);
     this.scene.add(chunks);
 
-    // Placeholder for applying impulse to chunks. Real physics should replace this.
-    chunks.children.forEach(child => {
+    chunks.traverse(child => {
+      if (!child.isMesh) return;
       child.userData.velocity = impulse.clone();
+      this.activeChunks.push(child);
     });
+  }
+
+  update() {
+    const gravity = -0.0008;
+    for (let i = this.activeChunks.length - 1; i >= 0; i--) {
+      const chunk = this.activeChunks[i];
+      const vel = chunk.userData.velocity || new THREE.Vector3();
+      vel.y += gravity;
+      chunk.position.add(vel);
+      if (chunk.position.y <= 0) {
+        chunk.position.y = 0;
+        vel.y = 0;
+      }
+    }
   }
 }
