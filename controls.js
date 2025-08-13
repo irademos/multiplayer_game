@@ -244,6 +244,7 @@ export class PlayerControls {
     }
     this.knockbackRotationAxis.copy(axis.normalize());
     this.playerModel.userData.mixer?.stopAllAction();
+    this.playerModel.userData.currentAction = null;
   }
 
   processMovement() {
@@ -328,11 +329,12 @@ export class PlayerControls {
       this.knockbackVelocity.multiplyScalar(0.95); // damping
       this.playerModel.setRotationFromAxisAngle(this.knockbackRotationAxis || new THREE.Vector3(-1, 0, 0), Math.PI / 2);
 
-      if (this.knockbackVelocity.length() < 0.01) {
+      if (this.knockbackVelocity.length() < 0.01 && this.velocity.y === 0) {
         this.isKnocked = false;
         this.velocity.set(0, 0, 0);
         this.playerModel.setRotationFromAxisAngle(new THREE.Vector3(0, 1, 0), this.playerModel.rotation.y);
         this.playerModel.userData.actions?.idle?.play();
+        this.playerModel.userData.currentAction = 'idle';
         console.log("🤕 Got up");
       }
     }
@@ -406,6 +408,10 @@ export class PlayerControls {
         this.canJump = true;
       }
     }
+
+    if (this.isKnocked && this.velocity.y === 0) {
+      this.knockbackVelocity.y = 0;
+    }
     
     const isMovingNow = movement.length() > 0;
     this.isMoving = isMovingNow;
@@ -419,7 +425,7 @@ export class PlayerControls {
         }
 
         const actions = this.playerModel.userData.actions;
-        if (actions) {
+        if (actions && !this.isKnocked) {
           let actionName = 'idle';
           if (!this.canJump) {
             actionName = 'jump';
