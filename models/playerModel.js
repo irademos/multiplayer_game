@@ -12,7 +12,7 @@ export function createPlayerModel(THREE, username, onLoad) {
       // Center the model at the origin so it appears at player coordinates
       const box = new THREE.Box3().setFromObject(model);
       const center = box.getCenter(new THREE.Vector3());
-      model.position.set(-center.x, -box.min.y, -center.z);
+      model.position.set(-center.x, -box.min.y + 200, -center.z);
       playerGroup.add(model);
 
       const mixer = new THREE.AnimationMixer(model);

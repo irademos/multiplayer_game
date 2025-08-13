@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { getTerrainHeightAt } from "./worldGeneration.js";
+import { pass } from "three/tsl";
 
 // Movement constants
 const SPEED = 0.08;
