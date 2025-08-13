@@ -1,14 +1,19 @@
 import * as THREE from 'three';
+import * as CANNON from './miniCannon.js';
 
 // BreakManager handles swapping intact meshes with fractured versions
-// and tracking health of destructible objects. Physics integration is left
-// to the consumer; this class simply swaps meshes and exposes a hook for
-// applying impulses.
+// and tracking health of destructible objects. Chunk pieces are simulated
+// with a tiny built-in physics world so they can react
+// semi-realistically after destruction.
 export class BreakManager {
   constructor(scene) {
     this.scene = scene;
     this.registry = new Map(); // id -> { object, health, fractureScene }
     this.activeChunks = [];
+    this.world = new CANNON.World({
+      gravity: new CANNON.Vec3(0, -9.82, 0)
+    });
+
   }
 
   // Register a destructible object. `data` expects:
@@ -39,6 +44,20 @@ export class BreakManager {
       object.parent.remove(object);
     }
 
+    // Clone chunk scene and convert meshes into independent physics bodies
+    const chunksGroup = fractureScene.clone(true);
+    chunksGroup.position.copy(object.position);
+    chunksGroup.rotation.copy(object.rotation);
+    chunksGroup.scale.copy(object.scale);
+    this.scene.add(chunksGroup);
+    chunksGroup.updateMatrixWorld(true);
+
+    const chunkMeshes = [];
+    chunksGroup.traverse(child => {
+      if (child.isMesh) {
+        chunkMeshes.push(child);
+      }
+
     // Clone chunk scene and add to world. A physics engine could be integrated
     // here by iterating over children and creating rigid bodies.
     const chunks = fractureScene.clone(true);
@@ -52,6 +71,49 @@ export class BreakManager {
       child.userData.velocity = impulse.clone();
       this.activeChunks.push(child);
     });
+
+    for (const mesh of chunkMeshes) {
+      // Detach mesh to the scene root so physics can control it
+      this.scene.attach(mesh);
+
+      // Build a simple box body using the mesh's bounding box
+      const bbox = new THREE.Box3().setFromObject(mesh);
+      const size = bbox.getSize(new THREE.Vector3());
+      const half = new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2);
+      const shape = new CANNON.Box(half);
+      const body = new CANNON.Body({ mass: 1, shape });
+      body.position.set(mesh.position.x, mesh.position.y, mesh.position.z);
+      body.quaternion.set(
+        mesh.quaternion.x,
+        mesh.quaternion.y,
+        mesh.quaternion.z,
+        mesh.quaternion.w
+      );
+      body.applyImpulse(
+        new CANNON.Vec3(impulse.x, impulse.y, impulse.z),
+        new CANNON.Vec3(0, 0, 0)
+      );
+      this.world.addBody(body);
+      this.activeChunks.push({ mesh, body });
+    }
+
+    // Remove the now-empty container group
+    this.scene.remove(chunksGroup);
+  }
+
+  update() {
+    const fixedTimeStep = 1 / 60;
+    this.world.step(fixedTimeStep);
+
+    for (const { mesh, body } of this.activeChunks) {
+      mesh.position.set(body.position.x, body.position.y, body.position.z);
+      mesh.quaternion.set(
+        body.quaternion.x,
+        body.quaternion.y,
+        body.quaternion.z,
+        body.quaternion.w
+      );
+    }
   }
 
   update() {
