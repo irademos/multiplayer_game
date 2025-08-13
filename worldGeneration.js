@@ -80,7 +80,8 @@ export function getTerrainHeightAt(x, z) {
 
 export async function createCity(scene) {
   const loader = new GLTFLoader();
-  const roadGLTF = await loader.loadAsync('/areas/glb_city_pack/Road Bits.glb');
+  const CITY_PACK_PATH = '/areas/glb_city_pack';
+  const roadGLTF = await loader.loadAsync(`${CITY_PACK_PATH}/Road Bits.glb`);
   const road_scale = 90;
   const building_scale = .3;
 
@@ -123,7 +124,7 @@ export async function createCity(scene) {
 
   async function loadBuilding(name) {
     if (buildingCache[name]) return buildingCache[name];
-    const gltf = await loader.loadAsync(`/areas/glb_city_pack/${name}`);
+    const gltf = await loader.loadAsync(`${CITY_PACK_PATH}/${name}`);
     const model = gltf.scene;
     buildingCache[name] = model;
     return model;
