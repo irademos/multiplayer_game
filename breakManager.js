@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import * as CANNON from './miniCannon.js';
-const FIXED_TIME_STEP = 1 / 60;
+const { FIXED_TIME_STEP } = CANNON;
 
 
 // BreakManager handles swapping intact meshes with fractured versions

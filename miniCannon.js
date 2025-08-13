@@ -5,6 +5,9 @@ export class Vec3 {
   set(x,y,z){ this.x=x; this.y=y; this.z=z; return this; }
 }
 
+// Shared physics timestep so simulations advance consistently across modules
+export const FIXED_TIME_STEP = 1 / 60;
+
 export class Box {
   constructor(halfExtents){ this.halfExtents = halfExtents; }
 }
