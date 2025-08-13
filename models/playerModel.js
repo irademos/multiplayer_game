@@ -3,7 +3,6 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 export function createPlayerModel(THREE, username, onLoad) {
   const playerGroup = new THREE.Group();
-
   const loader = new GLTFLoader();
   loader.load(
     '/models/animated_old_man_character.glb',
@@ -43,7 +42,6 @@ export function createPlayerModel(THREE, username, onLoad) {
 
       playerGroup.userData.mixer = mixer;
       playerGroup.userData.actions = actions;
-
       if (onLoad) onLoad({ mixer, actions });
     },
     undefined,

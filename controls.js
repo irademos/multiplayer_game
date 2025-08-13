@@ -412,6 +412,7 @@ export class PlayerControls {
           } else if (isMovingNow) {
             actionName = 'walk';
           }
+
           const current = this.playerModel.userData.currentAction;
           if (actionName && current !== actionName) {
             actions[current]?.fadeOut(0.2);
