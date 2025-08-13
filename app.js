@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
+import { createOrcVoice } from "./orcVoice.js";
 import { createClouds, createCity, generateTerrainChunk } from "./worldGeneration.js";
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
@@ -45,6 +46,14 @@ async function main() {
     monster.userData.direction = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
     monster.userData.speed = 0.01;
     monster.userData.lastDirectionChange = Date.now();
+
+    const orcPhrases = [
+      "Lok'tar ogar!",
+      "Smash them!",
+      "For the Horde!",
+      "You're no match for me!"
+    ];
+    monster.userData.voice = createOrcVoice(orcPhrases);
   });
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });

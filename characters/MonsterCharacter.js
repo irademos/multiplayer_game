@@ -90,6 +90,7 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
       switchMonsterAnimation(monster, "Weapon");
       data.lastAttackTime = now;
       console.log(`👹 Monster attacked ${closestPlayer.id}`);
+      monster.userData.voice?.speakRandom();
 
       if (window.playerModel?.position) {
         const dist = monster.position.distanceTo(window.playerModel.position);
