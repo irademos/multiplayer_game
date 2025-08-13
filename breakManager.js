@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import * as CANNON from './miniCannon.js';
+const FIXED_TIME_STEP = 1 / 60;
+
 
 // BreakManager handles swapping intact meshes with fractured versions
 // and tracking health of destructible objects. Chunk pieces are simulated
@@ -102,8 +104,7 @@ export class BreakManager {
   }
 
   update() {
-    const fixedTimeStep = 1 / 60;
-    this.world.step(fixedTimeStep);
+    this.world.step(FIXED_TIME_STEP);
 
     for (const { mesh, body } of this.activeChunks) {
       mesh.position.set(body.position.x, body.position.y, body.position.z);
