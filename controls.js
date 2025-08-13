@@ -26,6 +26,7 @@ export class PlayerControls {
     this.isKnocked = false;
     this.knockbackVelocity = new THREE.Vector3();
     this.knockbackRotationAxis = new THREE.Vector3(1, 0, 0);
+    this.knockbackRestYaw = 0;
     
     // Player state
     this.velocity = new THREE.Vector3();
@@ -237,6 +238,7 @@ export class PlayerControls {
   applyKnockback(impulse) {
     this.isKnocked = true;
     this.knockbackVelocity.copy(impulse);
+    this.knockbackRestYaw = this.playerModel.rotation.y;
     const up = new THREE.Vector3(0, 1, 0);
     const axis = new THREE.Vector3().crossVectors(up, impulse.clone().normalize());
     if (axis.lengthSq() === 0) {
@@ -329,6 +331,7 @@ export class PlayerControls {
       this.knockbackVelocity.multiplyScalar(0.95); // damping
       this.playerModel.setRotationFromAxisAngle(this.knockbackRotationAxis || new THREE.Vector3(-1, 0, 0), Math.PI / 2);
 
+
       if (this.knockbackVelocity.length() < 0.01 && this.velocity.y === 0) {
         this.isKnocked = false;
         this.velocity.set(0, 0, 0);
@@ -411,6 +414,16 @@ export class PlayerControls {
 
     if (this.isKnocked && this.velocity.y === 0) {
       this.knockbackVelocity.y = 0;
+    }
+
+    if (this.isKnocked && this.knockbackVelocity.length() < 0.05 && this.velocity.y === 0) {
+      this.isKnocked = false;
+      this.knockbackVelocity.set(0, 0, 0);
+      this.velocity.set(0, 0, 0);
+      this.playerModel.rotation.set(0, this.knockbackRestYaw || this.playerModel.rotation.y, 0);
+      this.playerModel.userData.actions?.idle?.play();
+      this.playerModel.userData.currentAction = 'idle';
+      console.log("🤕 Got up");
     }
     
     const isMovingNow = movement.length() > 0;
