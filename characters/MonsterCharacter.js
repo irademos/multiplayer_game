@@ -90,11 +90,14 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
       switchMonsterAnimation(monster, "Weapon");
       data.lastAttackTime = now;
       console.log(`👹 Monster attacked ${closestPlayer.id}`);
-      monster.userData.voice?.speakRandom();
 
       if (window.playerModel?.position) {
-        const dist = monster.position.distanceTo(window.playerModel.position);
-        if (dist < 3.2 && !window.playerControls.isKnocked) {
+        const playerDist = monster.position.distanceTo(window.playerModel.position);
+        const maxHearingDistance = 20;
+        const volume = Math.max(0, 1 - playerDist / maxHearingDistance);
+        monster.userData.voice?.speakRandom(volume);
+
+        if (playerDist < 3.2 && !window.playerControls.isKnocked) {
           window.localHealth = Math.max(0, window.localHealth - 10);
           const knockbackDir = new THREE.Vector3()
             .subVectors(window.playerModel.position, monster.position)
@@ -109,7 +112,7 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
           window.playerControls.knockbackRotation = new THREE.Euler(Math.PI / 2, 0, 0, 'XYZ');
           window.playerControls.knockbackRotationAxis = right;
 
-          console.log(`👹 Monster attacks you! Distance: ${dist.toFixed(2)} | Health: ${window.localHealth.toFixed(1)}`);
+          console.log(`👹 Monster attacks you! Distance: ${playerDist.toFixed(2)} | Health: ${window.localHealth.toFixed(1)}`);
         }
       }
     }
