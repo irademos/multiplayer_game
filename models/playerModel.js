@@ -15,6 +15,7 @@ export function createPlayerModel(THREE, username, onLoad) {
       const box = new THREE.Box3().setFromObject(model);
       const center = box.getCenter(new THREE.Vector3());
       model.position.set(-center.x, -box.min.y, -center.z);
+      model.rotation.y = - Math.PI / 2;
       playerGroup.add(model);
 
       const mixer = new THREE.AnimationMixer(model);
@@ -23,8 +24,8 @@ export function createPlayerModel(THREE, username, onLoad) {
       if (baseClip) {
         const ranges = [
           ['idle', 0, 74],
-          ['walk', 75, 149],
-          ['run', 150, 224],
+          ['walk', 110, 162],
+          ['run', 170, 198],
           ['jump', 225, 299],
           ['ledge', 300, 374],
         ];

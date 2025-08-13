@@ -4,7 +4,7 @@ import { getTerrainHeightAt } from "./worldGeneration.js";
 import { pass } from "three/tsl";
 
 // Movement constants
-const SPEED = 0.08;
+const SPEED = 0.05;
 const GRAVITY = 0.01;
 const JUMP_FORCE = 0.25;
 
@@ -330,6 +330,16 @@ export class PlayerControls {
       this.velocity.y = this.knockbackVelocity.y;
       this.knockbackVelocity.multiplyScalar(0.95); // damping
       this.playerModel.setRotationFromAxisAngle(this.knockbackRotationAxis || new THREE.Vector3(-1, 0, 0), Math.PI / 2);
+
+
+      if (this.knockbackVelocity.length() < 0.01 && this.velocity.y === 0) {
+        this.isKnocked = false;
+        this.velocity.set(0, 0, 0);
+        this.playerModel.setRotationFromAxisAngle(new THREE.Vector3(0, 1, 0), this.playerModel.rotation.y);
+        this.playerModel.userData.actions?.idle?.play();
+        this.playerModel.userData.currentAction = 'idle';
+        console.log("🤕 Got up");
+      }
     }
     
     let newX = x + movement.x;
@@ -433,7 +443,7 @@ export class PlayerControls {
           if (!this.canJump) {
             actionName = 'jump';
           } else if (isMovingNow) {
-            actionName = 'walk';
+            actionName = 'run';
           }
 
           const current = this.playerModel.userData.currentAction;
