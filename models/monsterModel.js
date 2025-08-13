@@ -6,7 +6,8 @@ export function loadMonsterModel(scene, callback) {
   const loader = new GLTFLoader();
   loader.load('/models/Orc.glb', gltf => {
     const model = gltf.scene;
-    model.scale.set(2, 2, 2);
+    const scale = 0.5;
+    model.scale.set(scale, scale, scale);
     scene.add(model);
 
     const mixer = new THREE.AnimationMixer(model);

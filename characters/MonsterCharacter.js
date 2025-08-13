@@ -73,7 +73,7 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
 
   const targetPos = closestPlayer.model.position.clone();
   const distance = monster.position.distanceTo(targetPos);
-  const isInAttackRange = distance < 2.0;
+  const isInAttackRange = distance < 1.0;
 
   if (!isInAttackRange && (!data.lastAttackTime || now - data.lastAttackTime > 2000)) {
     const direction = targetPos.sub(monster.position).normalize();
