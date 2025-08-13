@@ -26,7 +26,7 @@ async function main() {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87CEEB);
 
-  await createCity(scene);
+  // await createCity(scene);
   createClouds(scene);
 
   // Load additional level data (destructible props, etc.)
