@@ -13,8 +13,8 @@ export function createOrcVoice(phrases = []) {
 
   function speak(text) {
     const utter = new SpeechSynthesisUtterance(text);
-    utter.pitch = 0.4; // deep voice for orc
-    utter.rate = 0.9;
+    utter.pitch = 0.001; // deep voice for orc
+    utter.rate = 0.2;
     if (voices.length) {
       utter.voice = voices[0];
     }

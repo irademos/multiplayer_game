@@ -44,7 +44,7 @@ async function main() {
     monster.userData.actions = data.actions;
     monster.userData.currentAction = "Idle";
     monster.userData.direction = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
-    monster.userData.speed = 0.02;
+    monster.userData.speed = 0.025;
     monster.userData.lastDirectionChange = Date.now();
 
     const orcPhrases = [
