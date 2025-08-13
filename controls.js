@@ -233,7 +233,19 @@ export class PlayerControls {
         this.spawnProjectile(this.scene, this.projectiles, position, direction);
     });
   }
-  
+
+  applyKnockback(impulse) {
+    this.isKnocked = true;
+    this.knockbackVelocity.copy(impulse);
+    const up = new THREE.Vector3(0, 1, 0);
+    const axis = new THREE.Vector3().crossVectors(up, impulse.clone().normalize());
+    if (axis.lengthSq() === 0) {
+      axis.set(1, 0, 0);
+    }
+    this.knockbackRotationAxis.copy(axis.normalize());
+    this.playerModel.userData.mixer?.stopAllAction();
+  }
+
   processMovement() {
     // Skip movement processing if controls are disabled (e.g. when chat is open)
     if (!this.enabled) return;
@@ -309,17 +321,18 @@ export class PlayerControls {
     this.velocity.y -= GRAVITY;
 
     if (this.isKnocked) {
-      // Apply knockback
-      this.velocity.copy(this.knockbackVelocity);
+      // Apply knockback with simple physics
+      this.knockbackVelocity.y -= GRAVITY;
+      movement.set(this.knockbackVelocity.x, 0, this.knockbackVelocity.z);
+      this.velocity.y = this.knockbackVelocity.y;
       this.knockbackVelocity.multiplyScalar(0.95); // damping
       this.playerModel.setRotationFromAxisAngle(this.knockbackRotationAxis || new THREE.Vector3(-1, 0, 0), Math.PI / 2);
-      this.playerModel.position.add(this.velocity);
 
       if (this.knockbackVelocity.length() < 0.01) {
         this.isKnocked = false;
         this.velocity.set(0, 0, 0);
-        // this.playerModel.rotation.x = 0; // Stand up
         this.playerModel.setRotationFromAxisAngle(new THREE.Vector3(0, 1, 0), this.playerModel.rotation.y);
+        this.playerModel.userData.actions?.idle?.play();
         console.log("🤕 Got up");
       }
     }

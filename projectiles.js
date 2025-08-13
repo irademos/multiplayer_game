@@ -95,6 +95,11 @@ export function updateProjectiles({
         window.localHealth = Math.max(0, window.localHealth - 10);
         console.log(`❤️ Your Health: ${window.localHealth}`);
       }
+
+      if (window.playerControls) {
+        const impulse = vel.clone().multiplyScalar(5);
+        window.playerControls.applyKnockback(impulse);
+      }
     }
 
     if (monster) {
