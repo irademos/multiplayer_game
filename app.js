@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
 import { createOrcVoice } from "./orcVoice.js";
-import { createClouds, createCity, generateTerrainChunk } from "./worldGeneration.js";
+import { createClouds, generateTerrainChunk } from "./worldGeneration.js";
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -27,7 +27,6 @@ async function main() {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87CEEB);
 
-  // await createCity(scene);
   createClouds(scene);
 
   // Load additional level data (destructible props, etc.)

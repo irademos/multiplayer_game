@@ -4,7 +4,7 @@ import { getTerrainHeightAt } from "./worldGeneration.js";
 import { pass } from "three/tsl";
 
 // Movement constants
-const SPEED = 0.08;
+const SPEED = 0.05;
 const GRAVITY = 0.01;
 const JUMP_FORCE = 0.25;
 
@@ -430,7 +430,7 @@ export class PlayerControls {
           if (!this.canJump) {
             actionName = 'jump';
           } else if (isMovingNow) {
-            actionName = 'walk';
+            actionName = 'run';
           }
 
           const current = this.playerModel.userData.currentAction;
