@@ -3,25 +3,45 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 export function createPlayerModel(THREE, username, onLoad) {
   const playerGroup = new THREE.Group();
-
   const loader = new GLTFLoader();
   loader.load(
     '/models/animated_old_man_character.glb',
     (gltf) => {
       const model = gltf.scene;
+
+      // Center the model at the origin so it appears at player coordinates
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      model.position.set(-center.x, -box.min.y, -center.z);
       playerGroup.add(model);
 
       const mixer = new THREE.AnimationMixer(model);
       const actions = {};
-      gltf.animations.forEach((clip) => {
-        actions[clip.name] = mixer.clipAction(clip);
-        console.log('Player animation:', clip.name);
-      });
+      const baseClip = gltf.animations[0];
+      if (baseClip) {
+        const ranges = [
+          ['idle', 0, 74],
+          ['walk', 75, 149],
+          ['run', 150, 224],
+          ['jump', 225, 299],
+          ['ledge', 300, 374],
+        ];
+        ranges.forEach(([name, start, end]) => {
+          const clip = THREE.AnimationUtils.subclip(baseClip, name, start, end);
+          const action = mixer.clipAction(clip);
+          if (name === 'jump' || name === 'ledge') {
+            action.loop = THREE.LoopOnce;
+            action.clampWhenFinished = true;
+          }
+          actions[name] = action;
+          console.log('Player animation:', name);
+        });
+        actions.idle?.play();
+        playerGroup.userData.currentAction = 'idle';
+      }
 
       playerGroup.userData.mixer = mixer;
       playerGroup.userData.actions = actions;
-      playerGroup.userData.currentAction = null;
-
       if (onLoad) onLoad({ mixer, actions });
     },
     undefined,

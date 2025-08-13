@@ -406,8 +406,13 @@ export class PlayerControls {
 
         const actions = this.playerModel.userData.actions;
         if (actions) {
-          const keys = Object.keys(actions);
-          const actionName = isMovingNow ? keys[1] || keys[0] : keys[0];
+          let actionName = 'idle';
+          if (!this.canJump) {
+            actionName = 'jump';
+          } else if (isMovingNow) {
+            actionName = 'walk';
+          }
+
           const current = this.playerModel.userData.currentAction;
           if (actionName && current !== actionName) {
             actions[current]?.fadeOut(0.2);
