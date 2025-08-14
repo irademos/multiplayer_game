@@ -421,7 +421,12 @@ export class PlayerControls {
         this.velocity.y = 0;
         this.canJump = true;
         this.hasDoubleJumped = false;
-        this.playAction('hurricaneKick');
+        if (this.currentSpecialAction === 'hurricaneKick') {
+          const actions = this.playerModel?.userData?.actions;
+          actions?.hurricaneKick?.stop();
+          this.currentSpecialAction = null;
+        }
+
       } else if (
         Math.abs(newX - block.position.x) < (blockWidth / 2 + playerRadius) &&
         Math.abs(newZ - block.position.z) < (blockDepth / 2 + playerRadius) &&
@@ -444,6 +449,11 @@ export class PlayerControls {
         this.velocity.y = 0;
         this.canJump = true;
         this.hasDoubleJumped = false;
+        if (this.currentSpecialAction === 'hurricaneKick') {
+          const actions = this.playerModel?.userData?.actions;
+          actions?.hurricaneKick?.stop();
+          this.currentSpecialAction = null;
+        }
       }
     }
 
