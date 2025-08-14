@@ -47,10 +47,10 @@ async function main() {
     monster.userData.lastDirectionChange = Date.now();
 
     const orcPhrases = [
-      "Lok'tar ogar!",
-      "Smash them!",
-      "For the Horde!",
-      "You're no match for me!"
+      "Uggghh",
+      "Ooo Goo",
+      "grrreeeoookkk egggh uh uh",
+      "errrga ooogah"
     ];
     monster.userData.voice = createOrcVoice(orcPhrases);
   });
