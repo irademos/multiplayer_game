@@ -238,15 +238,16 @@ export class PlayerControls {
   applyKnockback(impulse) {
     this.isKnocked = true;
     this.knockbackVelocity.copy(impulse);
-    this.knockbackRestYaw = this.playerModel.rotation.y;
+    // this.knockbackRestYaw = this.playerModel.rotation.y;
     const up = new THREE.Vector3(0, 1, 0);
     const axis = new THREE.Vector3().crossVectors(up, impulse.clone().normalize());
     if (axis.lengthSq() === 0) {
       axis.set(1, 0, 0);
     }
-    this.knockbackRotationAxis.copy(axis.normalize());
+    // this.knockbackRotationAxis.copy(axis.normalize());
     this.playerModel.userData.mixer?.stopAllAction();
-    this.playerModel.userData.currentAction = null;
+    this.playerModel.userData.actions?.hit?.play();
+    this.playerModel.userData.currentAction = 'hit';
   }
 
   processMovement() {
@@ -329,7 +330,7 @@ export class PlayerControls {
       movement.set(this.knockbackVelocity.x, 0, this.knockbackVelocity.z);
       this.velocity.y = this.knockbackVelocity.y;
       this.knockbackVelocity.multiplyScalar(0.95); // damping
-      this.playerModel.setRotationFromAxisAngle(this.knockbackRotationAxis || new THREE.Vector3(-1, 0, 0), Math.PI / 2);
+      // this.playerModel.setRotationFromAxisAngle(this.knockbackRotationAxis || new THREE.Vector3(-1, 0, 0), Math.PI / 2);
 
 
       if (this.knockbackVelocity.length() < 0.01 && this.velocity.y === 0) {

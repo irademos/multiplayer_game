@@ -104,7 +104,7 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
             .subVectors(window.playerModel.position, monster.position)
             .normalize();
 
-          knockbackDir.z = 0.4; // optional lift arc
+          // knockbackDir.z = 0.4; // optional lift arc
           window.playerControls.knockbackVelocity.copy(knockbackDir.multiplyScalar(0.3));
 
           window.playerControls.isKnocked = true;
