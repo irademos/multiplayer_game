@@ -10,6 +10,7 @@ import { getCookie, setCookie } from './utils.js';
 import { spawnProjectile, updateProjectiles } from './projectiles.js';
 import { LevelLoader } from './levelLoader.js';
 import { BreakManager } from './breakManager.js';
+import { initSpeechCommands } from './speechCommands.js';
 
 const clock = new THREE.Clock();
 
@@ -90,6 +91,14 @@ async function main() {
     projectiles
   });
   window.playerControls = playerControls;
+
+  // Initialize speech commands for voice-controlled actions
+  const speech = initSpeechCommands({
+    jump: () => playerControls.triggerJump(),
+    fire: () => playerControls.triggerFire(),
+    shoot: () => playerControls.triggerFire()
+  });
+  speech.start();
 
   const generatedChunks = new Set();
   const chunkSize = 50;
