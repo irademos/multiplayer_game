@@ -426,6 +426,7 @@ export class PlayerControls {
           actions?.hurricaneKick?.stop();
           this.currentSpecialAction = null;
         }
+
       } else if (
         Math.abs(newX - block.position.x) < (blockWidth / 2 + playerRadius) &&
         Math.abs(newZ - block.position.z) < (blockDepth / 2 + playerRadius) &&
@@ -608,6 +609,35 @@ export class PlayerControls {
   
   getPlayerModel() {
     return this.playerModel;
+  }
+
+  /**
+   * Trigger a jump action programmatically.
+   * Useful for alternative input methods like voice commands.
+   */
+  triggerJump() {
+    if (this.canJump) {
+      this.velocity.y = JUMP_FORCE;
+      this.canJump = false;
+    }
+  }
+
+  /**
+   * Trigger a projectile fire action programmatically.
+   * Useful for alternative input methods like voice commands.
+   */
+  triggerFire() {
+    const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
+    const direction = new THREE.Vector3(0, 0, 1).applyEuler(this.playerModel.rotation);
+
+    this.multiplayer.send({
+      type: 'projectile',
+      id: this.multiplayer.getId(),
+      position: position.toArray(),
+      direction: direction.toArray()
+    });
+
+    this.spawnProjectile(this.scene, this.projectiles, position, direction);
   }
 
   setupPointerLock() {
