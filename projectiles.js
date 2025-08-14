@@ -6,7 +6,7 @@ export function spawnProjectile(scene, projectiles, position, direction) {
   const geometry = new THREE.SphereGeometry(0.1, 16, 16);
   const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
   const sphere = new THREE.Mesh(geometry, material);
-  sphere.position.copy(position);
+  sphere.position.copy(position.clone().add(direction.clone().normalize().multiplyScalar(1.2)));
   const groundY = getTerrainHeightAt(position.x, position.z) + 0.1;
   if (sphere.position.y < groundY) {
     sphere.position.y = groundY;
