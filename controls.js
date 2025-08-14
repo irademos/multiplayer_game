@@ -33,7 +33,8 @@ export class PlayerControls {
     this.canJump = true;
     this.keysPressed = new Set();
     this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    this.projectileKeyPressed = false;
+    this.hasDoubleJumped = false;
+    this.currentSpecialAction = null;
     
     // Mobile control variables
     this.joystick = null;
@@ -192,21 +193,29 @@ export class PlayerControls {
   setupEventListeners() {
     // Listen for key events (for desktop controls)
     document.addEventListener("keydown", (e) => {
-      this.keysPressed.add(e.key.toLowerCase());
-      
-      // Handle jump with spacebar
-      if (e.key === " " && this.canJump) {
-        this.velocity.y = JUMP_FORCE;
-        this.canJump = false;
+      const key = e.key.toLowerCase();
+      this.keysPressed.add(key);
+
+      if (e.key === " ") {
+        if (this.canJump) {
+          this.velocity.y = JUMP_FORCE;
+          this.canJump = false;
+          this.hasDoubleJumped = false;
+        } else if (!this.hasDoubleJumped) {
+          this.velocity.y = JUMP_FORCE;
+          this.hasDoubleJumped = true;
+          this.playAction('hurricaneKick');
+        }
+      } else if (key === 'e') {
+        this.playAction('mutantPunch');
+      } else if (key === 'r') {
+        this.playAction('mmaKick');
       }
     });
 
     document.addEventListener("keyup", (e) => {
       this.keysPressed.delete(e.key.toLowerCase());
-      if (e.key.toLowerCase() === 'e') {
-        this.projectileKeyPressed = false;
-      }
-    });    
+    });
     
     // Handle window resize
     window.addEventListener('resize', () => {
@@ -233,6 +242,28 @@ export class PlayerControls {
 
         this.spawnProjectile(this.scene, this.projectiles, position, direction);
     });
+  }
+
+  playAction(actionName) {
+    if (!this.playerModel) return;
+    const actions = this.playerModel.userData.actions;
+    if (!actions || !actions[actionName]) return;
+
+    const current = this.playerModel.userData.currentAction;
+    const action = actions[actionName];
+    actions[current]?.fadeOut(0.1);
+    action.reset().fadeIn(0.1).play();
+    this.playerModel.userData.currentAction = actionName;
+    this.currentSpecialAction = actionName;
+
+    const mixer = this.playerModel.userData.mixer;
+    const onFinished = (e) => {
+      if (e.action === action) {
+        mixer.removeEventListener('finished', onFinished);
+        this.currentSpecialAction = null;
+      }
+    };
+    mixer.addEventListener('finished', onFinished);
   }
 
   applyKnockback(impulse) {
@@ -389,6 +420,12 @@ export class PlayerControls {
         newY = block.position.y + blockHeight / 2 + 0.01;
         this.velocity.y = 0;
         this.canJump = true;
+        this.hasDoubleJumped = false;
+        if (this.currentSpecialAction === 'hurricaneKick') {
+          const actions = this.playerModel?.userData?.actions;
+          actions?.hurricaneKick?.stop();
+          this.currentSpecialAction = null;
+        }
       } else if (
         Math.abs(newX - block.position.x) < (blockWidth / 2 + playerRadius) &&
         Math.abs(newZ - block.position.z) < (blockDepth / 2 + playerRadius) &&
@@ -410,6 +447,12 @@ export class PlayerControls {
         newY = terrainY;
         this.velocity.y = 0;
         this.canJump = true;
+        this.hasDoubleJumped = false;
+        if (this.currentSpecialAction === 'hurricaneKick') {
+          const actions = this.playerModel?.userData?.actions;
+          actions?.hurricaneKick?.stop();
+          this.currentSpecialAction = null;
+        }
       }
     }
 
@@ -441,7 +484,7 @@ export class PlayerControls {
         }
 
         const actions = this.playerModel.userData.actions;
-        if (actions && !this.isKnocked) {
+        if (actions && !this.isKnocked && !this.currentSpecialAction) {
           let actionName = 'idle';
           if (!this.canJump) {
             actionName = 'jump';
