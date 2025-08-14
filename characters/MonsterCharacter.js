@@ -50,6 +50,30 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
     return;
   }
 
+  // 🕊️ Friendly mode: wander around without attacking players
+  if (data.mode === "friendly") {
+    const delta = clock.getDelta();
+
+    // Change direction every few seconds to simulate wandering
+    if (now - data.lastDirectionChange > 2000) {
+      data.direction = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+      data.lastDirectionChange = now;
+    }
+
+    const movement = data.direction.clone().multiplyScalar(data.speed);
+    monster.position.add(movement);
+
+    // Follow terrain height and face movement direction
+    const targetY = getTerrainHeightAt(monster.position.x, monster.position.z);
+    monster.position.y += (targetY - monster.position.y) * 0.2;
+    monster.lookAt(monster.position.clone().add(data.direction));
+
+    switchMonsterAnimation(monster, "Walk");
+
+    if (data.mixer) data.mixer.update(delta);
+    return; // ⛔ Skip enemy logic
+  }
+
   const allPlayers = [
     { id: 'local', model: playerModel },
     ...Object.entries(otherPlayers).map(([id, p]) => ({ id, model: p.model }))
