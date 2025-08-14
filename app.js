@@ -45,6 +45,7 @@ async function main() {
     monster.userData.direction = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
     monster.userData.speed = 0.025;
     monster.userData.lastDirectionChange = Date.now();
+    monster.userData.mode = "enemy"; // default behavior
 
     const orcPhrases = [
       "Uggghh",
@@ -54,6 +55,13 @@ async function main() {
     ];
     monster.userData.voice = createOrcVoice(orcPhrases);
   });
+
+  // Allow mode switching from console or other scripts
+  window.setMonsterMode = mode => {
+    if (monster && (mode === "friendly" || mode === "enemy")) {
+      monster.userData.mode = mode;
+    }
+  };
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
