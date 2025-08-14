@@ -106,6 +106,7 @@ export function updateProjectiles({
       const monsterBox = new THREE.Box3().setFromObject(monster);
       if (projBox.intersectsBox(monsterBox) && age >= 80) {
         console.log(`💥 Monster was hit`);
+        monster.userData.mode = "enemy";
         scene.remove(proj);
         projectiles.splice(i, 1);
         

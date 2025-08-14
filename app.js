@@ -45,7 +45,7 @@ async function main() {
     monster.userData.direction = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
     monster.userData.speed = 0.025;
     monster.userData.lastDirectionChange = Date.now();
-    monster.userData.mode = "enemy"; // default behavior
+    monster.userData.mode = "friendly"; // default behavior
 
     const orcPhrases = [
       "Uggghh",
