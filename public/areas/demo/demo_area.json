@@ -1,0 +1,324 @@
+{
+  "version": 1,
+  "assets": {
+    "b_intact": "/assets/auto/b_intact.glb",
+    "rootnode_intact": "/assets/auto/rootnode_intact.glb",
+    "rootnode_001_intact": "/assets/auto/rootnode_001_intact.glb",
+    "rootnode_002_intact": "/assets/auto/rootnode_002_intact.glb",
+    "rootnode_003_intact": "/assets/auto/rootnode_003_intact.glb",
+    "stop_sign_intact": "/assets/auto/stop_sign_intact.glb",
+    "rootnode_005_intact": "/assets/auto/rootnode_005_intact.glb",
+    "rootnode_006_intact": "/assets/auto/rootnode_006_intact.glb",
+    "rock_band_poster_plane_002_intact": "/assets/auto/rock_band_poster_plane_002_intact.glb",
+    "rootnode_007_intact": "/assets/auto/rootnode_007_intact.glb",
+    "node_intact": "/assets/auto/node_intact.glb",
+    "building3_big_intact": "/assets/auto/building3_big_intact.glb",
+    "node_001_intact": "/assets/auto/node_001_intact.glb"
+  },
+  "instances": [
+    {
+      "id": "b",
+      "asset": "b_intact",
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rotationEuler": [
+        0.0,
+        -0.0,
+        0.0
+      ],
+      "scale": 1.0,
+      "tags": [
+        "prop",
+        "destructible"
+      ],
+      "meta": {
+        "health": 50,
+        "fractureId": ""
+      }
+    },
+    {
+      "id": "rootnode",
+      "asset": "rootnode_intact",
+      "position": [
+        0.0,
+        -2.475503,
+        0.0
+      ],
+      "rotationEuler": [
+        0.0,
+        -0.0,
+        0.0
+      ],
+      "scale": 5.692961,
+      "tags": [
+        "prop",
+        "destructible"
+      ],
+      "meta": {
+        "health": 50,
+        "fractureId": ""
+      }
+    },
+    {
+      "id": "rootnode_001",
+      "asset": "rootnode_001_intact",
+      "position": [
+        2.350393,
+        0.301982,
+        0.111952
+      ],
+      "rotationEuler": [
+        0.0,
+        -0.0,
+        0.0
+      ],
+      "scale": 5.692961,
+      "tags": [
+        "prop",
+        "destructible"
+      ],
+      "meta": {
+        "health": 50,
+        "fractureId": ""
+      }
+    },
+    {
+      "id": "rootnode_002",
+      "asset": "rootnode_002_intact",
+      "position": [
+        1.77247,
+        -2.137974,
+        -0.129343
+      ],
+      "rotationEuler": [
+        0.0,
+        -0.0,
+        0.0
+      ],
+      "scale": 5.692961,
+      "tags": [
+        "prop",
+        "destructible"
+      ],
+      "meta": {
+        "health": 50,
+        "fractureId": ""
+      }
+    },
+    {
+      "id": "rootnode_003",
+      "asset": "rootnode_003_intact",
+      "position": [
+        -9.283536,
+        15.483182,
+        0.0
+      ],
+      "rotationEuler": [
+        0.0,
+        -0.0,
+        0.0
+      ],
+      "scale": 3.423493,
+      "tags": [
+        "prop",
+        "destructible"
+      ],
+      "meta": {
+        "health": 50,
+        "fractureId": ""
+      }
+    },
+    {
+      "id": "stop_sign",
+      "asset": "stop_sign_intact",
+      "position": [
+        -17.403795,
+        10.230167,
+        0.0
+      ],
+      "rotationEuler": [
+        0.0,
+        -0.0,
+        0.0
+      ],
+      "scale": 0.021857,
+      "tags": [
+        "prop",
+        "destructible"
+      ],
+      "meta": {
+        "health": 50,
+        "fractureId": ""
+      }
+    },
+    {
+      "id": "rootnode_005",
+      "asset": "rootnode_005_intact",
+      "position": [
+        -3.316919,
+        12.174023,
+        0.0
+      ],
+      "rotationEuler": [
+        0.0,
+        -0.0,
+        3.141139
+      ],
+      "scale": 1.0,
+      "tags": [
+        "prop",
+        "destructible"
+      ],
+      "meta": {
+        "health": 50,
+        "fractureId": ""
+      }
+    },
+    {
+      "id": "rootnode_006",
+      "asset": "rootnode_006_intact",
+      "position": [
+        3.803503,
+        11.708633,
+        0.207084
+      ],
+      "rotationEuler": [
+        0.0,
+        -0.0,
+        3.141139
+      ],
+      "scale": 1.0,
+      "tags": [
+        "prop",
+        "destructible"
+      ],
+      "meta": {
+        "health": 50,
+        "fractureId": ""
+      }
+    },
+    {
+      "id": "rock_band_poster_plane_002",
+      "asset": "rock_band_poster_plane_002_intact",
+      "position": [
+        4.861937,
+        16.627153,
+        2.558849
+      ],
+      "rotationEuler": [
+        0.0,
+        0.0,
+        -1.551607
+      ],
+      "scale": 0.281847,
+      "tags": [
+        "prop",
+        "destructible"
+      ],
+      "meta": {
+        "health": 50,
+        "fractureId": ""
+      }
+    },
+    {
+      "id": "rootnode_007",
+      "asset": "rootnode_007_intact",
+      "position": [
+        5.508969,
+        20.223032,
+        0.0
+      ],
+      "rotationEuler": [
+        0.0,
+        -0.0,
+        1.537625
+      ],
+      "scale": 3.066406,
+      "tags": [
+        "prop",
+        "destructible"
+      ],
+      "meta": {
+        "health": 50,
+        "fractureId": ""
+      }
+    },
+    {
+      "id": "node",
+      "asset": "node_intact",
+      "position": [
+        0.0,
+        0.0,
+        0.867392
+      ],
+      "rotationEuler": [
+        0.0,
+        -0.0,
+        0.0
+      ],
+      "scale": 1.0,
+      "tags": [
+        "prop",
+        "destructible"
+      ],
+      "meta": {
+        "health": 50,
+        "fractureId": ""
+      }
+    },
+    {
+      "id": "building3_big",
+      "asset": "building3_big_intact",
+      "position": [
+        0.0,
+        16.724899,
+        0.0
+      ],
+      "rotationEuler": [
+        -1.570797,
+        -0.0,
+        0.0
+      ],
+      "scale": 1.0,
+      "tags": [
+        "prop",
+        "destructible"
+      ],
+      "meta": {
+        "health": 50,
+        "fractureId": "",
+        "scaleVec": [
+          221.299286,
+          221.299255,
+          221.299271
+        ]
+      }
+    },
+    {
+      "id": "node_001",
+      "asset": "node_001_intact",
+      "position": [
+        -12.450147,
+        12.517934,
+        0.867392
+      ],
+      "rotationEuler": [
+        0.0,
+        -0.0,
+        -3.072099
+      ],
+      "scale": 1.0,
+      "tags": [
+        "prop",
+        "destructible"
+      ],
+      "meta": {
+        "health": 50,
+        "fractureId": ""
+      }
+    }
+  ]
+}
