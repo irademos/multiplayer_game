@@ -184,14 +184,7 @@ export class PlayerControls {
         direction: direction.toArray()
       });
 
-      const actions = this.playerModel.userData.actions;
-      const current = this.playerModel.userData.currentAction;
-      const projAction = actions?.projectile;
-      if (projAction) {
-        actions[current]?.fadeOut(0.1);
-        projAction.reset().fadeIn(0.1).play();
-        this.playerModel.userData.currentAction = 'projectile';
-      }
+      this.playAction('projectile');
       this.spawnProjectile(this.scene, this.projectiles, position, direction);
 
       event.preventDefault();
@@ -247,16 +240,7 @@ export class PlayerControls {
           position: position.toArray(),
           direction: direction.toArray()
         });
-
-        const actions = this.playerModel.userData.actions;
-        const current = this.playerModel.userData.currentAction;
-        const projAction = actions?.projectile;
-        if (projAction) {
-          actions[current]?.fadeOut(0.1);
-          projAction.reset().fadeIn(0.1).play();
-          this.playerModel.userData.currentAction = 'projectile';
-        }
-
+        this.playAction('projectile');
         this.spawnProjectile(this.scene, this.projectiles, position, direction);
     });
   }
@@ -307,37 +291,40 @@ export class PlayerControls {
     
     // Create movement vector
     const moveDirection = new THREE.Vector3(0, 0, 0);
-    
-    if (this.isMobile) {
-      if (this.joystickForce > 0.1) {
-        // Define direction from yaw
-        const forward = new THREE.Vector3(0, 0, 1);
-        const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
-        forward.applyQuaternion(yawQuat);
-      
-        const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
-      
-        // Decompose joystick input into directional components
-        const dx = Math.cos(this.joystickAngle); // right-left
-        const dz = Math.sin(this.joystickAngle); // forward-back
+    const movementLocked = ['projectile', 'mutantPunch', 'mmaKick'].includes(this.currentSpecialAction);
 
-        moveDirection.addScaledVector(forward, dz * this.joystickForce * SPEED);
-        moveDirection.addScaledVector(right, dx * this.joystickForce * SPEED);
+    if (!movementLocked) {
+      if (this.isMobile) {
+        if (this.joystickForce > 0.1) {
+          // Define direction from yaw
+          const forward = new THREE.Vector3(0, 0, 1);
+          const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
+          forward.applyQuaternion(yawQuat);
 
-        this.playerModel.rotation.y = this.yaw; // Use computed yaw instead of raw angle
-      }      
-    } else {
-      if (this.keysPressed.has("w")) {
-        moveDirection.z = 1; 
-      } else if (this.keysPressed.has("s")) {
-        moveDirection.z = -1; 
+          const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
+
+          // Decompose joystick input into directional components
+          const dx = Math.cos(this.joystickAngle); // right-left
+          const dz = Math.sin(this.joystickAngle); // forward-back
+
+          moveDirection.addScaledVector(forward, dz * this.joystickForce * SPEED);
+          moveDirection.addScaledVector(right, dx * this.joystickForce * SPEED);
+
+          this.playerModel.rotation.y = this.yaw; // Use computed yaw instead of raw angle
+        }
+      } else {
+        if (this.keysPressed.has("w")) {
+          moveDirection.z = 1;
+        } else if (this.keysPressed.has("s")) {
+          moveDirection.z = -1;
+        }
+
+        if (this.keysPressed.has("a")) {
+          moveDirection.x = 1;
+        } else if (this.keysPressed.has("d")) {
+          moveDirection.x = -1;
+        }
       }
-      
-      if (this.keysPressed.has("a")) {
-        moveDirection.x = 1; 
-      } else if (this.keysPressed.has("d")) {
-        moveDirection.x = -1; 
-      } 
     }
     
     if (!this.isMobile && moveDirection.length() > 0) {
@@ -654,15 +641,7 @@ export class PlayerControls {
       direction: direction.toArray()
     });
 
-    const actions = this.playerModel.userData.actions;
-    const current = this.playerModel.userData.currentAction;
-    const projAction = actions?.projectile;
-    if (projAction) {
-      actions[current]?.fadeOut(0.1);
-      projAction.reset().fadeIn(0.1).play();
-      this.playerModel.userData.currentAction = 'projectile';
-    }
-
+    this.playAction('projectile');
     this.spawnProjectile(this.scene, this.projectiles, position, direction);
   }
 
