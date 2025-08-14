@@ -123,20 +123,10 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
 
         if (playerDist < 3.2 && !window.playerControls.isKnocked) {
           window.localHealth = Math.max(0, window.localHealth - 10);
-          playerModel.userData.currentAction = 'hit';
-          const knockbackDir = new THREE.Vector3()
-            .subVectors(window.playerModel.position, monster.position)
-            .normalize();
-
-          // knockbackDir.z = 0.4; // optional lift arc
-          window.playerControls.knockbackVelocity.copy(knockbackDir.multiplyScalar(0.3));
-
-          window.playerControls.isKnocked = true;
-
-          const right = new THREE.Vector3(1, 0, 0).applyQuaternion(monster.quaternion).normalize();
-          window.playerControls.knockbackRotation = new THREE.Euler(Math.PI / 2, 0, 0, 'XYZ');
-          window.playerControls.knockbackRotationAxis = right;
-
+          if (window.playerControls) {
+            const impulse = monster.userData.direction.clone().multiplyScalar(0.17);
+            window.playerControls.applyKnockback(impulse);
+          }
           console.log(`👹 Monster attacks you! Distance: ${playerDist.toFixed(2)} | Health: ${window.localHealth.toFixed(1)}`);
         }
       }

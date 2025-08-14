@@ -39,7 +39,7 @@ export function createPlayerModel(THREE, username, onLoad) {
         walk: 'Old Man Walk.fbx',
         run: 'Drunk Run Forward.fbx',
         jump: 'Joyful Jump.fbx',
-        hit: 'Old Man Dying.fbx',
+        hit: 'Flying Back Death.fbx',
         mutantPunch: 'Mutant Punch.fbx',
         mmaKick: 'Mma Kick.fbx',
         hurricaneKick: 'Hurricane Kick.fbx',

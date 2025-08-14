@@ -358,7 +358,7 @@ export class PlayerControls {
       this.knockbackVelocity.y -= GRAVITY;
       movement.set(this.knockbackVelocity.x, 0, this.knockbackVelocity.z);
       this.velocity.y = this.knockbackVelocity.y;
-      this.knockbackVelocity.multiplyScalar(0.95); // damping
+      this.knockbackVelocity.multiplyScalar(0.98); // damping
       // this.playerModel.setRotationFromAxisAngle(this.knockbackRotationAxis || new THREE.Vector3(-1, 0, 0), Math.PI / 2);
 
 
