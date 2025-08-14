@@ -1,13 +1,13 @@
 // /models/playerModel.js
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 
 export function createPlayerModel(THREE, username, onLoad) {
   const playerGroup = new THREE.Group();
-  const loader = new GLTFLoader();
+  const loader = new FBXLoader();
   loader.load(
-    '/models/animated_old_man_character.glb',
-    (gltf) => {
-      const model = gltf.scene;
+    `/models/old_man_files/${encodeURIComponent('Old Man Idle.fbx')}`,
+    (fbx) => {
+      const model = fbx;
 
       // Scale and center the model so it rotates around its midpoint
       const scale = 0.01;
@@ -15,37 +15,50 @@ export function createPlayerModel(THREE, username, onLoad) {
       const box = new THREE.Box3().setFromObject(model);
       const center = box.getCenter(new THREE.Vector3());
       model.position.set(-center.x, -box.min.y, -center.z);
-      model.rotation.y = - Math.PI / 2;
       playerGroup.add(model);
 
       const mixer = new THREE.AnimationMixer(model);
       const actions = {};
-      const baseClip = gltf.animations[0];
-      if (baseClip) {
-        const ranges = [
-          ['idle', 0, 74],
-          ['walk', 110, 162],
-          ['run', 170, 198],
-          ['jump', 225, 299],
-          ['ledge', 300, 374],
-        ];
-        ranges.forEach(([name, start, end]) => {
-          const clip = THREE.AnimationUtils.subclip(baseClip, name, start, end);
-          const action = mixer.clipAction(clip);
-          if (name === 'jump' || name === 'ledge') {
-            action.loop = THREE.LoopOnce;
-            action.clampWhenFinished = true;
-          }
-          actions[name] = action;
-          console.log('Player animation:', name);
-        });
-        actions.idle?.play();
-        playerGroup.userData.currentAction = 'idle';
-      }
 
-      playerGroup.userData.mixer = mixer;
-      playerGroup.userData.actions = actions;
-      if (onLoad) onLoad({ mixer, actions });
+      // Idle animation from the base model
+      const idleAction = mixer.clipAction(fbx.animations[0]);
+      actions.idle = idleAction;
+      idleAction.play();
+      playerGroup.userData.currentAction = 'idle';
+
+      // Load additional Mixamo animations
+      const fbxLoader = new FBXLoader();
+      const animationFiles = {
+        walk: 'Old Man Walk.fbx',
+        run: 'Drunk Run Forward.fbx',
+        jump: 'Joyful Jump.fbx',
+      };
+
+      const promises = Object.entries(animationFiles).map(([name, file]) => {
+        return new Promise((resolve, reject) => {
+          fbxLoader.load(
+            `/models/old_man_files/${encodeURIComponent(file)}`,
+            (anim) => {
+              const clip = anim.animations[0];
+              const action = mixer.clipAction(clip);
+              if (name === 'jump') {
+                action.loop = THREE.LoopOnce;
+                action.clampWhenFinished = true;
+              }
+              actions[name] = action;
+              resolve();
+            },
+            undefined,
+            reject
+          );
+        });
+      });
+
+      Promise.all(promises).then(() => {
+        playerGroup.userData.mixer = mixer;
+        playerGroup.userData.actions = actions;
+        if (onLoad) onLoad({ mixer, actions });
+      });
     },
     undefined,
     (err) => {
