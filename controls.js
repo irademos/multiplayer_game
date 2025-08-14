@@ -238,16 +238,14 @@ export class PlayerControls {
   applyKnockback(impulse) {
     this.isKnocked = true;
     this.knockbackVelocity.copy(impulse);
-    // this.knockbackRestYaw = this.playerModel.rotation.y;
-    const up = new THREE.Vector3(0, 1, 0);
-    const axis = new THREE.Vector3().crossVectors(up, impulse.clone().normalize());
-    if (axis.lengthSq() === 0) {
-      axis.set(1, 0, 0);
+    const actions = this.playerModel.userData.actions;
+    const current = this.playerModel.userData.currentAction;
+    const hitAction = actions?.hit;
+    if (hitAction) {
+      actions[current]?.fadeOut(0.1);
+      hitAction.reset().fadeIn(0.1).play();
+      this.playerModel.userData.currentAction = 'hit';
     }
-    // this.knockbackRotationAxis.copy(axis.normalize());
-    this.playerModel.userData.mixer?.stopAllAction();
-    this.playerModel.userData.actions?.hit?.play();
-    this.playerModel.userData.currentAction = 'hit';
   }
 
   processMovement() {
@@ -337,7 +335,9 @@ export class PlayerControls {
         this.isKnocked = false;
         this.velocity.set(0, 0, 0);
         this.playerModel.setRotationFromAxisAngle(new THREE.Vector3(0, 1, 0), this.playerModel.rotation.y);
-        this.playerModel.userData.actions?.idle?.play();
+        const actions = this.playerModel.userData.actions;
+        actions?.hit?.fadeOut(0.2);
+        actions?.idle?.reset().fadeIn(0.2).play();
         this.playerModel.userData.currentAction = 'idle';
         console.log("🤕 Got up");
       }
@@ -422,7 +422,9 @@ export class PlayerControls {
       this.knockbackVelocity.set(0, 0, 0);
       this.velocity.set(0, 0, 0);
       this.playerModel.rotation.set(0, this.knockbackRestYaw || this.playerModel.rotation.y, 0);
-      this.playerModel.userData.actions?.idle?.play();
+      const actions = this.playerModel.userData.actions;
+      actions?.hit?.fadeOut(0.2);
+      actions?.idle?.reset().fadeIn(0.2).play();
       this.playerModel.userData.currentAction = 'idle';
       console.log("🤕 Got up");
     }

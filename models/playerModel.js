@@ -12,10 +12,17 @@ export function createPlayerModel(THREE, username, onLoad) {
       // Scale and center the model so it rotates around its midpoint
       const scale = 0.01;
       model.scale.set(scale, scale, scale);
+
+      // Center the FBX so rotations pivot around the model itself
+      model.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(model);
       const center = box.getCenter(new THREE.Vector3());
-      model.position.set(-center.x, -box.min.y-0.75, -center.z);
-      playerGroup.add(model);
+
+      // Offset the model inside a pivot group instead of shifting the mesh directly
+      const pivot = new THREE.Group();
+      pivot.position.set(-center.x, -box.min.y, -center.z);
+      pivot.add(model);
+      playerGroup.add(pivot);
 
       const mixer = new THREE.AnimationMixer(model);
       const actions = {};
@@ -42,7 +49,7 @@ export function createPlayerModel(THREE, username, onLoad) {
             (anim) => {
               const clip = anim.animations[0];
               const action = mixer.clipAction(clip);
-              if (name === 'jump') {
+              if (name === 'jump' || name === 'hit') {
                 action.loop = THREE.LoopOnce;
                 action.clampWhenFinished = true;
               }
