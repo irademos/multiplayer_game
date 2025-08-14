@@ -99,6 +99,7 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
 
         if (playerDist < 3.2 && !window.playerControls.isKnocked) {
           window.localHealth = Math.max(0, window.localHealth - 10);
+          playerModel.userData.currentAction = 'hit';
           const knockbackDir = new THREE.Vector3()
             .subVectors(window.playerModel.position, monster.position)
             .normalize();

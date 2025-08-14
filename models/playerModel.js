@@ -14,7 +14,7 @@ export function createPlayerModel(THREE, username, onLoad) {
       model.scale.set(scale, scale, scale);
       const box = new THREE.Box3().setFromObject(model);
       const center = box.getCenter(new THREE.Vector3());
-      model.position.set(-center.x, -box.min.y, -center.z);
+      model.position.set(-center.x, -box.min.y-0.75, -center.z);
       playerGroup.add(model);
 
       const mixer = new THREE.AnimationMixer(model);
@@ -32,6 +32,7 @@ export function createPlayerModel(THREE, username, onLoad) {
         walk: 'Old Man Walk.fbx',
         run: 'Drunk Run Forward.fbx',
         jump: 'Joyful Jump.fbx',
+        hit: 'Old Man Dying.fbx',
       };
 
       const promises = Object.entries(animationFiles).map(([name, file]) => {
