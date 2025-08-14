@@ -421,6 +421,7 @@ export class PlayerControls {
         this.velocity.y = 0;
         this.canJump = true;
         this.hasDoubleJumped = false;
+        this.playAction('hurricaneKick');
       } else if (
         Math.abs(newX - block.position.x) < (blockWidth / 2 + playerRadius) &&
         Math.abs(newZ - block.position.z) < (blockDepth / 2 + playerRadius) &&

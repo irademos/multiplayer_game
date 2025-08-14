@@ -13,6 +13,7 @@ export function initSpeechCommands(commands = {}) {
   recognition.onresult = (event) => {
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const result = event.results[i];
+      console.log(result);
       if (result.isFinal) {
         const transcript = result[0].transcript.trim().toLowerCase();
         Object.entries(commands).forEach(([phrase, callback]) => {

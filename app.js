@@ -131,7 +131,6 @@ async function main() {
     }
   }
 
-
   const otherPlayers = {};
 
   function handleIncomingData(peerId, data) {
