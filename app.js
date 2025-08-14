@@ -166,6 +166,18 @@ async function main() {
       const position = new THREE.Vector3(...data.position);
       const direction = new THREE.Vector3(...data.direction);
       spawnProjectile(scene, projectiles, position, direction);
+
+      const shooter = otherPlayers[data.id];
+      if (shooter) {
+        const actions = shooter.model.userData.actions;
+        const current = shooter.model.userData.currentAction;
+        const projAction = actions?.projectile;
+        if (projAction) {
+          actions[current]?.fadeOut(0.1);
+          projAction.reset().fadeIn(0.1).play();
+          shooter.model.userData.currentAction = 'projectile';
+        }
+      }
     }
 
     if (data.type === "monster" && monster) {

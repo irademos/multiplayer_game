@@ -1,11 +1,16 @@
 import * as THREE from "three";
 import { updateMonster, switchMonsterAnimation } from './characters/MonsterCharacter.js';
+import { getTerrainHeightAt } from "./worldGeneration.js";
 
 export function spawnProjectile(scene, projectiles, position, direction) {
   const geometry = new THREE.SphereGeometry(0.1, 16, 16);
   const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
   const sphere = new THREE.Mesh(geometry, material);
   sphere.position.copy(position);
+  const groundY = getTerrainHeightAt(position.x, position.z) + 0.1;
+  if (sphere.position.y < groundY) {
+    sphere.position.y = groundY;
+  }
   sphere.userData.velocity = direction.clone().multiplyScalar(0.1);
   sphere.userData.lifetime = 4000;
   sphere.userData.spawnTime = Date.now();
@@ -29,8 +34,9 @@ export function updateProjectiles({
     vel.y += gravity;
     proj.position.add(vel);
 
-    if (proj.position.y <= 0.3) {
-      proj.position.y = 0.3;
+    const terrainY = getTerrainHeightAt(proj.position.x, proj.position.z) + 0.1;
+    if (proj.position.y <= terrainY) {
+      proj.position.y = terrainY;
       vel.y = Math.abs(vel.y) > 0.01 ? vel.y * -0.5 : 0;
     }
     
