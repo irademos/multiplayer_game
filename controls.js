@@ -184,6 +184,14 @@ export class PlayerControls {
         direction: direction.toArray()
       });
 
+      const actions = this.playerModel.userData.actions;
+      const current = this.playerModel.userData.currentAction;
+      const projAction = actions?.projectile;
+      if (projAction) {
+        actions[current]?.fadeOut(0.1);
+        projAction.reset().fadeIn(0.1).play();
+        this.playerModel.userData.currentAction = 'projectile';
+      }
       this.spawnProjectile(this.scene, this.projectiles, position, direction);
 
       event.preventDefault();
