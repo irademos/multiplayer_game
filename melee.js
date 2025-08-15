@@ -67,6 +67,7 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, monster }) {
             window.breakManager.onHit(id, cfg.damage, impulse);
             const remaining = window.breakManager.registry.get(id)?.health ?? 0;
             console.log(`🪓 ${id} health: ${remaining}`);
+
           }
         }
       }
