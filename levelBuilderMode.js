@@ -101,10 +101,35 @@ export class LevelBuilder {
       reader.readAsText(file);
     });
 
-    const modules = import.meta.glob('/assets/props/*.glb', { as: 'url', eager: true });
-    Object.keys(modules).forEach(path => {
-      const name = path.split('/').pop().replace('.glb', '');
-      this.propUrls[name] = modules[path];
+    const propFiles = [
+      'building3_big_chunks',
+      'building3_big_intact',
+      'rock_band_poster_plane_002_chunks',
+      'rock_band_poster_plane_002_intact',
+      'rootnode_003_chunks',
+      'rootnode_003_intact',
+      'rootnode_007_chunks',
+      'rootnode_007_intact',
+      'node_001_chunks',
+      'rootnode_001_chunks',
+      'rootnode_005_chunks',
+      'rootnode_chunks',
+      'node_001_intact',
+      'rootnode_001_intact',
+      'rootnode_005_intact',
+      'rootnode_intact',
+      'node_chunks',
+      'rootnode_002_chunks',
+      'rootnode_006_chunks',
+      'stop_sign_chunks',
+      'node_intact',
+      'rootnode_002_intact',
+      'rootnode_006_intact',
+      'stop_sign_intact'
+    ];
+    propFiles.forEach(name => {
+      const url = `/assets/props/${name}.glb`;
+      this.propUrls[name] = url;
       const opt = document.createElement('option');
       opt.value = name;
       opt.textContent = name;
