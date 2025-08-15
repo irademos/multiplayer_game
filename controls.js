@@ -245,6 +245,14 @@ export class PlayerControls {
     this.playerModel.userData.currentAction = actionName;
     this.currentSpecialAction = actionName;
 
+    if (['mutantPunch', 'hurricaneKick', 'mmaKick'].includes(actionName)) {
+      this.playerModel.userData.attack = {
+        name: actionName,
+        start: Date.now(),
+        hasHit: false
+      };
+    }
+
     const mixer = this.playerModel.userData.mixer;
     const onFinished = (e) => {
       if (e.action === action) {

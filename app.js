@@ -8,6 +8,7 @@ import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
 import { spawnProjectile, updateProjectiles } from './projectiles.js';
+import { updateMeleeAttacks } from './melee.js';
 import { LevelLoader } from './levelLoader.js';
 import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
@@ -172,6 +173,13 @@ async function main() {
         actions[current]?.fadeOut(0.2);
         actions[data.action]?.reset().fadeIn(0.2).play();
         player.model.userData.currentAction = data.action;
+        if (['mutantPunch','hurricaneKick','mmaKick'].includes(data.action)) {
+          player.model.userData.attack = {
+            name: data.action,
+            start: Date.now(),
+            hasHit: false
+          };
+        }
       }
 
       if (!multiplayer.connections[peerId]) {
@@ -337,6 +345,8 @@ async function main() {
       monster,
       clock
     });
+
+    updateMeleeAttacks({ playerModel, otherPlayers, monster });
 
     breakManager.update();
 
