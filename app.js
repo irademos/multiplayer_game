@@ -112,6 +112,81 @@ async function main() {
   });
   window.playerControls = playerControls;
 
+  // Game Over UI elements
+  const gameOverOverlay = document.getElementById('game-over-overlay');
+  const gameOverMessage = document.getElementById('game-over-message');
+  const continueSection = document.getElementById('continue-section');
+  const countdownEl = document.getElementById('countdown');
+  const yesBtn = document.getElementById('continue-yes');
+  const noBtn = document.getElementById('continue-no');
+
+  function showGameOver() {
+    gameOverOverlay.classList.remove('hidden');
+    continueSection.classList.add('hidden');
+    gameOverMessage.style.opacity = 0;
+    gameOverMessage.classList.remove('hidden');
+    setTimeout(() => {
+      gameOverMessage.style.opacity = 1;
+      setTimeout(() => {
+        gameOverMessage.style.opacity = 0;
+        setTimeout(() => {
+          gameOverMessage.classList.add('hidden');
+          showContinue();
+        }, 1000);
+      }, 1500);
+    }, 50);
+  }
+
+  function showContinue() {
+    continueSection.classList.remove('hidden');
+    let countdown = 9;
+    countdownEl.textContent = countdown;
+    const interval = setInterval(() => {
+      countdown--;
+      countdownEl.textContent = countdown;
+      if (countdown <= 0) {
+        clearInterval(interval);
+        hideGameOver();
+      }
+    }, 1000);
+
+    yesBtn.onclick = () => {
+      clearInterval(interval);
+      respawnPlayer();
+      hideGameOver();
+    };
+
+    noBtn.onclick = () => {
+      clearInterval(interval);
+      hideGameOver();
+    };
+  }
+
+  function hideGameOver() {
+    gameOverOverlay.classList.add('hidden');
+  }
+
+  function respawnPlayer() {
+    window.localHealth = 100;
+    updateHealthUI();
+    const newX = (Math.random() * 10) - 5;
+    const newZ = (Math.random() * 10) - 5;
+    const newY = getTerrainHeightAt(newX, newZ) + 0.5;
+    playerModel.position.set(newX, newY, newZ);
+    playerControls.playerX = newX;
+    playerControls.playerY = newY;
+    playerControls.playerZ = newZ;
+    playerControls.lastPosition.set(newX, newY, newZ);
+    playerControls.velocity.set(0, 0, 0);
+    playerControls.enabled = true;
+    playerDead = false;
+    const actions = playerModel.userData.actions;
+    const current = playerModel.userData.currentAction;
+    actions?.[current]?.fadeOut(0.2);
+    actions?.idle?.reset().fadeIn(0.2).play();
+    playerModel.userData.currentAction = 'idle';
+  }
+
   // Initialize speech commands for voice-controlled actions
   const speech = initSpeechCommands({
     jump: () => playerControls.triggerJump(),
@@ -313,6 +388,7 @@ async function main() {
         die.reset().fadeIn(0.2).play();
         playerModel.userData.currentAction = 'die';
       }
+      showGameOver();
     }
 
     const delta = mixerClock.getDelta();

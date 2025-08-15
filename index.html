@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Minimalist 3D Multiplayer Movement</title>
   <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <link rel="icon" href="data:,">
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.10.1/dist/nipplejs.min.js"></script>
@@ -46,6 +47,18 @@
     </div>
   </div>
 
+  <!-- Game Over Overlay -->
+  <div id="game-over-overlay" class="hidden">
+    <div id="game-over-message">GAME OVER</div>
+    <div id="continue-section" class="hidden">
+      <div>CONTINUE?</div>
+      <div id="countdown">9</div>
+      <div>
+        <span id="continue-yes" class="continue-option">YES</span>
+        <span id="continue-no" class="continue-option">NO</span>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js" type="module"></script>
 </body>
