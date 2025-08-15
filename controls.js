@@ -72,18 +72,6 @@ export class PlayerControls {
     // Setup event listeners
     this.setupEventListeners();
     
-    // If room is provided, initialize multiplayer presence
-    if (this.multiplayer) {
-      // Initialize player presence in the room
-      this.multiplayer.send({
-        x: this.playerX,
-        y: this.playerY,
-        z: this.playerZ,
-        rotation: 0,
-        moving: false
-      });
-    }
-    
     this.enabled = true; // Add enabled flag for chat input
   }
   
