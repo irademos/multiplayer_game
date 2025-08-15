@@ -54,6 +54,22 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, monster }) {
           }
         }
       }
+
+      if (window.breakManager) {
+        for (const [id, data] of window.breakManager.registry.entries()) {
+          const center = data.center || data.object.position;
+          const dist = attacker.model.position.distanceTo(center);
+          if (dist <= cfg.range) {
+            const dir = new THREE.Vector3()
+              .subVectors(center, attacker.model.position)
+              .normalize();
+            const impulse = dir.multiplyScalar(2);
+            window.breakManager.onHit(id, cfg.damage, impulse);
+            const remaining = window.breakManager.registry.get(id)?.health ?? 0;
+            console.log(`🪓 ${id} health: ${remaining}`);
+          }
+        }
+      }
       info.hasHit = true;
     }
     if (elapsed > cfg.hitTime + cfg.hitWindow) {

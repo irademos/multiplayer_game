@@ -19,13 +19,17 @@ export class BreakManager {
   }
 
   // Register a destructible object. `data` expects:
-  // { id, health, fractureScene }
+  // { id, health, fractureScene, bbox, center }
   register(object, data) {
     const id = data.id;
+    const bbox = data.bbox || new THREE.Box3().setFromObject(object);
+    const center = data.center || bbox.getCenter(new THREE.Vector3());
     this.registry.set(id, {
       object,
       health: data.health ?? 100,
-      fractureScene: data.fractureScene
+      fractureScene: data.fractureScene,
+      bbox,
+      center
     });
   }
 

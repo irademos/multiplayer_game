@@ -39,7 +39,7 @@ export function updateProjectiles({
       proj.position.y = terrainY;
       vel.y = Math.abs(vel.y) > 0.01 ? vel.y * -0.5 : 0;
     }
-    
+
     const barriers = scene.children.filter(obj => obj.userData?.isBarrier);
 
     for (const barrier of barriers) {
@@ -60,6 +60,9 @@ export function updateProjectiles({
     }
 
     const age = Date.now() - proj.userData.spawnTime;
+
+    let removed = false;
+
     for (const [id, { model }] of Object.entries(otherPlayers)) {
       if (age < 80) continue;
       const projBox = new THREE.Box3().setFromObject(proj);
@@ -72,23 +75,30 @@ export function updateProjectiles({
         }
         scene.remove(proj);
         projectiles.splice(i, 1);
+        removed = true;
         break;
       }
     }
 
+    if (removed) continue;
+
     // Check destructible props loaded via LevelLoader
     if (window.breakManager) {
       for (const [id, data] of window.breakManager.registry.entries()) {
-        const targetBox = new THREE.Box3().setFromObject(data.object);
         const projBox = new THREE.Box3().setFromObject(proj);
-        if (projBox.intersectsBox(targetBox)) {
+        if (projBox.intersectsBox(data.bbox)) {
           window.breakManager.onHit(id, 25, proj.userData.velocity.clone());
+          const remaining = window.breakManager.registry.get(id)?.health ?? 0;
+          console.log(`🎯 ${id} health: ${remaining}`);
           scene.remove(proj);
           projectiles.splice(i, 1);
+          removed = true;
           break;
         }
       }
     }
+
+    if (removed) continue;
 
     const projBox = new THREE.Box3().setFromObject(proj);
     const localBox = new THREE.Box3().setFromObject(playerModel);
@@ -96,6 +106,7 @@ export function updateProjectiles({
       console.log(`💥 You were hit`);
       scene.remove(proj);
       projectiles.splice(i, 1);
+      removed = true;
 
       if (typeof window.localHealth === 'number') {
         window.localHealth = Math.max(0, window.localHealth - 10);
@@ -108,6 +119,8 @@ export function updateProjectiles({
       }
     }
 
+    if (removed) continue;
+
     if (monster) {
       const monsterBox = new THREE.Box3().setFromObject(monster);
       if (projBox.intersectsBox(monsterBox) && age >= 80) {
@@ -115,7 +128,8 @@ export function updateProjectiles({
         monster.userData.mode = "enemy";
         scene.remove(proj);
         projectiles.splice(i, 1);
-        
+        removed = true;
+
         if (typeof window.monsterHealth === 'number') {
           window.monsterHealth = Math.max(0, window.monsterHealth - 10);
           console.log(`👹 Monster Health: ${window.monsterHealth}`);
