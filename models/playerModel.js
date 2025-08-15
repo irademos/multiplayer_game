@@ -43,7 +43,8 @@ export function createPlayerModel(THREE, username, onLoad) {
         mutantPunch: 'Mutant Punch.fbx',
         mmaKick: 'Mma Kick.fbx',
         hurricaneKick: 'Hurricane Kick.fbx',
-        projectile: 'Projectile.fbx'
+        projectile: 'Projectile.fbx',
+        die: 'Dying.fbx'
       };
 
       const promises = Object.entries(animationFiles).map(([name, file]) => {
@@ -53,7 +54,7 @@ export function createPlayerModel(THREE, username, onLoad) {
             (anim) => {
               const clip = anim.animations[0];
               const action = mixer.clipAction(clip);
-              if (['jump', 'hit', 'mutantPunch', 'mmaKick', 'hurricaneKick', 'projectile'].includes(name)) {
+              if (['jump', 'hit', 'mutantPunch', 'mmaKick', 'hurricaneKick', 'projectile', 'die'].includes(name)) {
                 action.loop = THREE.LoopOnce;
                 action.clampWhenFinished = true;
               }

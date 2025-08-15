@@ -89,6 +89,16 @@ async function main() {
   window.localHealth = 100;
   window.monsterHealth = 100;
 
+  const healthFill = document.getElementById('health-fill');
+  function updateHealthUI() {
+    if (healthFill) {
+      healthFill.style.width = `${window.localHealth}%`;
+    }
+  }
+  updateHealthUI();
+
+  let playerDead = false;
+
   const projectiles = [];
 
   const playerControls = new PlayerControls({
@@ -290,6 +300,20 @@ async function main() {
     requestAnimationFrame(animate);
     playerControls.update();
     updateTerrain();
+
+    updateHealthUI();
+    if (window.localHealth <= 0 && !playerDead) {
+      playerDead = true;
+      playerControls.enabled = false;
+      const actions = playerModel.userData.actions;
+      const current = playerModel.userData.currentAction;
+      const die = actions?.die;
+      if (die) {
+        actions[current]?.fadeOut(0.2);
+        die.reset().fadeIn(0.2).play();
+        playerModel.userData.currentAction = 'die';
+      }
+    }
 
     const delta = mixerClock.getDelta();
     Object.values(otherPlayers).forEach(p => {
