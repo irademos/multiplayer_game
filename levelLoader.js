@@ -36,13 +36,32 @@ export class LevelLoader {
       if (!src) return;
       const obj = src.clone(true);
 
-      obj.position.fromArray(inst.position || [0, 0, 0]);
+      // Instance transforms are exported from Blender in Z-up coordinates.
+      // Convert position and rotation to Three.js's Y-up system.
+      const pos = new THREE.Vector3().fromArray(inst.position || [0, 0, 0]);
+      pos.set(pos.x, pos.z, -pos.y);
+
       const r = inst.rotationEuler || [0, 0, 0];
-      obj.rotation.set(r[0], r[1], r[2]);
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(r[0], r[1], r[2], 'XYZ'));
+      const convertQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+      q.premultiply(convertQ);
+
+      obj.position.copy(pos);
+      obj.quaternion.copy(q);
+
+      // Scale may be a scalar, vector, or provided via meta.scaleVec for non-uniform scaling
+      let scaleArr = null;
       if (Array.isArray(inst.scale)) {
-        obj.scale.fromArray(inst.scale);
+        scaleArr = inst.scale;
+      } else if (inst.meta && Array.isArray(inst.meta.scaleVec)) {
+        scaleArr = inst.meta.scaleVec;
       } else if (typeof inst.scale === 'number') {
         obj.scale.setScalar(inst.scale);
+      }
+      if (scaleArr) {
+        const s = new THREE.Vector3().fromArray(scaleArr);
+        // Reorder axes to match the Y-up system
+        obj.scale.set(s.x, s.z, s.y);
       }
 
       obj.userData.id = inst.id;
