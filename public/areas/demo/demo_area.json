@@ -1,8 +1,6 @@
 {
   "version": 1,
   "assets": {
-    "b_intact": "/assets/props/b_intact.glb",
-    "b_chunks": "/assets/props/b_chunks.glb",
     "rootnode_intact": "/assets/props/rootnode_intact.glb",
     "rootnode_chunks": "/assets/props/rootnode_chunks.glb",
     "rootnode_001_intact": "/assets/props/rootnode_001_intact.glb",
@@ -30,29 +28,6 @@
   },
   "instances": [
     {
-      "id": "b",
-      "asset": "b_intact",
-      "position": [
-        0.0,
-        0.0,
-        0.0
-      ],
-      "rotationEuler": [
-        0.0,
-        -0.0,
-        0.0
-      ],
-      "scale": 1.0,
-      "tags": [
-        "prop",
-        "destructible"
-      ],
-      "meta": {
-        "health": 50,
-        "fractureId": "b_chunks"
-      }
-    },
-    {
       "id": "rootnode",
       "asset": "rootnode_intact",
       "position": [
@@ -72,7 +47,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": "rootnode_chunks"
+        "fractureId": ""
       }
     },
     {
@@ -95,7 +70,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": "rootnode_001_chunks"
+        "fractureId": ""
       }
     },
     {
@@ -118,7 +93,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": "rootnode_002_chunks"
+        "fractureId": ""
       }
     },
     {
@@ -141,7 +116,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": "rootnode_003_chunks"
+        "fractureId": ""
       }
     },
     {
@@ -164,7 +139,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": "stop_sign_chunks"
+        "fractureId": ""
       }
     },
     {
@@ -187,7 +162,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": "rootnode_005_chunks"
+        "fractureId": ""
       }
     },
     {
@@ -210,7 +185,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": "rootnode_006_chunks"
+        "fractureId": ""
       }
     },
     {
@@ -233,7 +208,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": "rock_band_poster_plane_002_chunks"
+        "fractureId": ""
       }
     },
     {
@@ -256,7 +231,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": "rootnode_007_chunks"
+        "fractureId": ""
       }
     },
     {
@@ -279,7 +254,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": "node_chunks"
+        "fractureId": ""
       }
     },
     {
@@ -302,7 +277,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": "building3_big_chunks",
+        "fractureId": "",
         "scaleVec": [
           221.299286,
           221.299255,
@@ -330,7 +305,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": "node_001_chunks"
+        "fractureId": ""
       }
     }
   ]
