@@ -107,6 +107,7 @@ export class PlayerControls {
     
     // Jump button event listeners
     document.getElementById('jump-button').addEventListener('touchstart', (event) => {
+      if (!this.enabled) return;
       this.jumpButtonPressed = true;
       if (this.canJump) {
         this.velocity.y = JUMP_FORCE;
@@ -114,8 +115,9 @@ export class PlayerControls {
       }
       event.preventDefault();
     });
-    
+
     document.getElementById('jump-button').addEventListener('touchend', (event) => {
+      if (!this.enabled) return;
       this.jumpButtonPressed = false;
       event.preventDefault();
     });
@@ -162,6 +164,7 @@ export class PlayerControls {
 
     // Fire button logic
     document.getElementById('fire-button').addEventListener('touchstart', (event) => {
+      if (!this.enabled) return;
       const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
       const direction = new THREE.Vector3(0, 0, 1).applyEuler(this.playerModel.rotation);
 
@@ -182,6 +185,7 @@ export class PlayerControls {
   setupEventListeners() {
     // Listen for key events (for desktop controls)
     document.addEventListener("keydown", (e) => {
+      if (!this.enabled) return;
       const key = e.key.toLowerCase();
       this.keysPressed.add(key);
 
@@ -616,6 +620,7 @@ export class PlayerControls {
    * Useful for alternative input methods like voice commands.
    */
   triggerJump() {
+    if (!this.enabled) return;
     if (this.canJump) {
       this.velocity.y = JUMP_FORCE;
       this.canJump = false;
@@ -627,6 +632,7 @@ export class PlayerControls {
    * Useful for alternative input methods like voice commands.
    */
   triggerFire() {
+    if (!this.enabled) return;
     const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
     const direction = new THREE.Vector3(0, 0, 1).applyEuler(this.playerModel.rotation);
 
