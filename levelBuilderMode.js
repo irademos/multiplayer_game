@@ -14,8 +14,11 @@ export class LevelBuilder {
     this.active = false;
 
     this.transform = new TransformControls(camera, renderer.domElement);
-    this.transform.setSize(0.75);
+    this.transform.setSize(1);
     this.transform.enabled = false;
+    this.transform.visible = false;
+    this.transform.showX = this.transform.showY = this.transform.showZ = true;
+
     scene.add(this.transform);
 
     this.raycaster = new THREE.Raycaster();
@@ -35,6 +38,7 @@ export class LevelBuilder {
 
     this.sidebar.innerHTML = `
       <select id="prop-select"><option value="">Add Prop...</option></select>
+      <select id="scene-prop-select"><option value="">Select Prop...</option></select>
       <div>
         <button data-mode="translate">Move</button>
         <button data-mode="rotate">Rotate</button>
@@ -47,6 +51,9 @@ export class LevelBuilder {
         <label>Tags <input id="prop-tags" type="text" value="prop" /></label>
       </div>
       <div>
+        <button id="delete-prop">Delete Prop</button>
+      </div>
+      <div>
         <button id="download-level">Download JSON</button>
         <button id="upload-level">Upload JSON</button>
         <input type="file" id="upload-input" accept="application/json" style="display:none" />
@@ -55,9 +62,10 @@ export class LevelBuilder {
     this.sidebar.classList.add('hidden');
 
     this.propSelect = this.sidebar.querySelector('#prop-select');
+    this.sceneSelect = this.sidebar.querySelector('#scene-prop-select');
     this.healthInput = this.sidebar.querySelector('#prop-health');
     this.tagsInput = this.sidebar.querySelector('#prop-tags');
-
+    this.deleteBtn = this.sidebar.querySelector('#delete-prop');
     this.sidebar.querySelectorAll('button[data-mode]').forEach(btn => {
       btn.addEventListener('click', () => {
         this.transform.setMode(btn.dataset.mode);
@@ -69,6 +77,12 @@ export class LevelBuilder {
         this.spawnProp(this.propSelect.value);
         this.propSelect.value = '';
       }
+    });
+    
+    this.sceneSelect.addEventListener('change', () => {
+      const id = this.sceneSelect.value;
+      const obj = this.objects.find(o => o.userData.id === id);
+      if (obj) this.selectObject(obj);
     });
 
     this.healthInput.addEventListener('input', () => {
@@ -84,6 +98,16 @@ export class LevelBuilder {
           .map(t => t.trim())
           .filter(Boolean);
       }
+    });
+
+    this.deleteBtn.addEventListener('click', () => {
+      if (!this.selected) return;
+      this.scene.remove(this.selected);
+      this.objects = this.objects.filter(o => o !== this.selected);
+      this._removeObjectOption(this.selected);
+      this.transform.detach();
+      this.selected = null;
+      this.sceneSelect.value = '';
     });
 
     this.sidebar.querySelector('#download-level').addEventListener('click', () => this.downloadJSON());
@@ -142,6 +166,7 @@ export class LevelBuilder {
     this.active = true;
     this.sidebar.classList.remove('hidden');
     this.transform.enabled = true;
+    this.transform.setMode('translate');
     this.renderer.domElement.addEventListener('pointerdown', this._onPointerDown);
   }
 
@@ -151,6 +176,7 @@ export class LevelBuilder {
     this.sidebar.classList.add('hidden');
     this.transform.enabled = false;
     this.transform.detach();
+    this.transform.visible = false;
     this.selected = null;
     this.renderer.domElement.removeEventListener('pointerdown', this._onPointerDown);
   }
@@ -172,6 +198,7 @@ export class LevelBuilder {
       obj.traverse(c => (c.userData.parentProp = obj));
       this.scene.add(obj);
       this.objects.push(obj);
+      this._addObjectOption(obj);
       this.selectObject(obj);
     };
     if (this.assets[name]) {
@@ -187,8 +214,12 @@ export class LevelBuilder {
   selectObject(obj) {
     this.selected = obj;
     this.transform.attach(obj);
+    this.transform.visible = true;
     this.healthInput.value = obj.userData.meta.health || 0;
     this.tagsInput.value = (obj.userData.tags || []).join(', ');
+    if (this.sceneSelect) {
+      this.sceneSelect.value = obj.userData.id;
+    }
   }
 
   _onPointerDown = event => {
@@ -205,11 +236,17 @@ export class LevelBuilder {
       this.selectObject(root);
     } else {
       this.transform.detach();
+      this.transform.visible = false;
       this.selected = null;
+      if (this.sceneSelect) this.sceneSelect.value = '';
     }
   };
 
-  update() {}
+  update() {
+    if (this.transform.visible) {
+      this.transform.update();
+    }
+  }
 
   downloadJSON() {
     const assets = {};
@@ -286,7 +323,22 @@ export class LevelBuilder {
       obj.traverse(c => (c.userData.parentProp = obj));
       this.scene.add(obj);
       this.objects.push(obj);
+      this._addObjectOption(obj);
     });
+  }
+
+  _addObjectOption(obj) {
+    if (!this.sceneSelect) return;
+    const opt = document.createElement('option');
+    opt.value = obj.userData.id;
+    opt.textContent = obj.userData.id;
+    this.sceneSelect.appendChild(opt);
+  }
+
+  _removeObjectOption(obj) {
+    if (!this.sceneSelect) return;
+    const opt = Array.from(this.sceneSelect.options).find(o => o.value === obj.userData.id);
+    if (opt) opt.remove();
   }
 }
 
