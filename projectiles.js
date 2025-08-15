@@ -85,10 +85,11 @@ export function updateProjectiles({
     // Check destructible props loaded via LevelLoader
     if (window.breakManager) {
       for (const [id, data] of window.breakManager.registry.entries()) {
-        const targetBox = new THREE.Box3().setFromObject(data.object);
         const projBox = new THREE.Box3().setFromObject(proj);
-        if (projBox.intersectsBox(targetBox)) {
+        if (projBox.intersectsBox(data.bbox)) {
           window.breakManager.onHit(id, 25, proj.userData.velocity.clone());
+          const remaining = window.breakManager.registry.get(id)?.health ?? 0;
+          console.log(`🎯 ${id} health: ${remaining}`);
           scene.remove(proj);
           projectiles.splice(i, 1);
           removed = true;

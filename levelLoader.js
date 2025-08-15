@@ -69,13 +69,18 @@ export class LevelLoader {
       obj.userData.meta = inst.meta || {};
 
       this.scene.add(obj);
+      obj.updateMatrixWorld(true);
 
       if (inst.meta && inst.meta.fractureId) {
         const fractureScene = this.assets.get(inst.meta.fractureId);
+        const bbox = new THREE.Box3().setFromObject(obj);
+        const center = bbox.getCenter(new THREE.Vector3());
         this.breakManager.register(obj, {
           id: inst.id,
           health: inst.meta.health,
-          fractureScene
+          fractureScene,
+          bbox,
+          center
         });
       }
     });
