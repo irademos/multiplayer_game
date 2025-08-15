@@ -316,6 +316,29 @@ body {
   width: 200px;
 }
 
+#level-builder-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 260px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 10px;
+  overflow-y: auto;
+  z-index: 1500;
+}
+
+#level-builder-sidebar.hidden {
+  display: none;
+}
+
+#level-builder-sidebar button,
+#level-builder-sidebar select,
+#level-builder-sidebar input {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
 
 @media (max-width: 768px) {
   #joystick-container {
