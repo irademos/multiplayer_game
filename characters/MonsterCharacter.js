@@ -113,6 +113,8 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
     if (!data.lastAttackTime || now - data.lastAttackTime > 2000) {
       switchMonsterAnimation(monster, "Weapon");
       data.lastAttackTime = now;
+      data.attackStartTime = now;
+      data.attackHasHit = false;
       console.log(`👹 Monster attacked ${closestPlayer.id}`);
 
       if (window.playerModel?.position) {
@@ -120,15 +122,6 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
         const maxHearingDistance = 20;
         const volume = Math.max(0, 1 - playerDist / maxHearingDistance);
         monster.userData.voice?.speakRandom(volume);
-
-        if (playerDist < 3.2 && !window.playerControls.isKnocked) {
-          window.localHealth = Math.max(0, window.localHealth - 10);
-          if (window.playerControls) {
-            const impulse = monster.userData.direction.clone().multiplyScalar(0.17);
-            window.playerControls.applyKnockback(impulse);
-          }
-          console.log(`👹 Monster attacks you! Distance: ${playerDist.toFixed(2)} | Health: ${window.localHealth.toFixed(1)}`);
-        }
       }
     }
   }
@@ -136,6 +129,37 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
   const delta = clock.getDelta();
   if (data.mixer) {
     data.mixer.update(delta);
+  }
+
+  if (monster.userData.currentAction === "Weapon" && data.attackStartTime) {
+    const elapsed = now - data.attackStartTime;
+    const hitTime = 500;
+    if (!data.attackHasHit && elapsed >= hitTime) {
+      for (const player of allPlayers) {
+        const dist = monster.position.distanceTo(player.model.position);
+        if (dist < 3.2) {
+          if (player.id === 'local' && !window.playerControls.isKnocked) {
+            window.localHealth = Math.max(0, window.localHealth - 10);
+            if (window.playerControls) {
+              const impulse = monster.userData.direction.clone().multiplyScalar(0.17);
+              window.playerControls.applyKnockback(impulse);
+            }
+            console.log(`👹 Monster attacks you! Distance: ${dist.toFixed(2)} | Health: ${window.localHealth.toFixed(1)}`);
+          } else if (player.id !== 'local') {
+            const op = otherPlayers[player.id];
+            if (op) {
+              op.health = Math.max(0, (op.health || 100) - 10);
+              console.log(`👹 Monster attacks ${player.id} | Health: ${op.health}`);
+            }
+          }
+        }
+      }
+      data.attackHasHit = true;
+    }
+    if (elapsed > hitTime + 500) {
+      data.attackStartTime = null;
+      data.attackHasHit = false;
+    }
   }
 }
 
