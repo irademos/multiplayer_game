@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
 import { createOrcVoice } from "./orcVoice.js";
-import { createClouds, generateTerrainChunk } from "./worldGeneration.js";
+import { createClouds, generateTerrainChunk, getTerrainHeightAt } from "./worldGeneration.js";
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -13,6 +13,7 @@ import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
 
 const clock = new THREE.Clock();
+const mixerClock = new THREE.Clock();
 
 async function main() {
   document.body.addEventListener('touchstart', () => {}, { once: true });
@@ -145,8 +146,33 @@ async function main() {
 
       const player = otherPlayers[data.id];
       player.name = data.name;
-      player.model.position.set(data.x, data.y, data.z);
+      // Update remote player position and rotation
+      player.model.position.x = data.x;
+      player.model.position.z = data.z;
+
+      // Ensure terrain chunk exists locally for remote player position
+      const rcx = Math.floor(data.x / chunkSize);
+      const rcz = Math.floor(data.z / chunkSize);
+      const rkey = `${rcx},${rcz}`;
+      if (!generatedChunks.has(rkey)) {
+        generateTerrainChunk(scene, rcx, rcz, chunkSize);
+        generatedChunks.add(rkey);
+      }
+
+      // Adjust vertical placement against local terrain height
+      const terrainY = getTerrainHeightAt(data.x, data.z);
+      const targetY = Math.max(data.y ?? terrainY, terrainY);
+      player.model.position.y = targetY;
       player.model.rotation.y = data.rotation;
+
+      // Sync animation state if provided
+      const actions = player.model.userData.actions;
+      const current = player.model.userData.currentAction;
+      if (actions && data.action && current !== data.action) {
+        actions[current]?.fadeOut(0.2);
+        actions[data.action]?.reset().fadeIn(0.2).play();
+        player.model.userData.currentAction = data.action;
+      }
 
       if (!multiplayer.connections[peerId]) {
         multiplayer.connections[peerId] = {};
@@ -257,6 +283,11 @@ async function main() {
     playerControls.update();
     updateTerrain();
 
+    const delta = mixerClock.getDelta();
+    Object.values(otherPlayers).forEach(p => {
+      p.model.userData.mixer?.update(delta);
+    });
+
     multiplayer.send({
       type: "presence",
       id: multiplayer.getId(),
@@ -264,7 +295,8 @@ async function main() {
       x: playerModel.position.x,
       y: playerModel.position.y,
       z: playerModel.position.z,
-      rotation: playerModel.rotation.y
+      rotation: playerModel.rotation.y,
+      action: playerModel.userData.currentAction
     });
 
     Object.entries(multiplayer.voiceAudios || {}).forEach(([peerId, { audio }]) => {
