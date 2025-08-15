@@ -13,6 +13,7 @@ import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
 
 const clock = new THREE.Clock();
+const mixerClock = new THREE.Clock();
 
 async function main() {
   document.body.addEventListener('touchstart', () => {}, { once: true });
@@ -149,6 +150,15 @@ async function main() {
       player.model.position.x = data.x;
       player.model.position.z = data.z;
 
+      // Ensure terrain chunk exists locally for remote player position
+      const rcx = Math.floor(data.x / chunkSize);
+      const rcz = Math.floor(data.z / chunkSize);
+      const rkey = `${rcx},${rcz}`;
+      if (!generatedChunks.has(rkey)) {
+        generateTerrainChunk(scene, rcx, rcz, chunkSize);
+        generatedChunks.add(rkey);
+      }
+
       // Adjust vertical placement against local terrain height
       const terrainY = getTerrainHeightAt(data.x, data.z);
       const targetY = Math.max(data.y ?? terrainY, terrainY);
@@ -272,6 +282,11 @@ async function main() {
     requestAnimationFrame(animate);
     playerControls.update();
     updateTerrain();
+
+    const delta = mixerClock.getDelta();
+    Object.values(otherPlayers).forEach(p => {
+      p.model.userData.mixer?.update(delta);
+    });
 
     multiplayer.send({
       type: "presence",
