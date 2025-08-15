@@ -1,19 +1,32 @@
 {
   "version": 1,
   "assets": {
-    "b_intact": "/assets/auto/b_intact.glb",
-    "rootnode_intact": "/assets/auto/rootnode_intact.glb",
-    "rootnode_001_intact": "/assets/auto/rootnode_001_intact.glb",
-    "rootnode_002_intact": "/assets/auto/rootnode_002_intact.glb",
-    "rootnode_003_intact": "/assets/auto/rootnode_003_intact.glb",
-    "stop_sign_intact": "/assets/auto/stop_sign_intact.glb",
-    "rootnode_005_intact": "/assets/auto/rootnode_005_intact.glb",
-    "rootnode_006_intact": "/assets/auto/rootnode_006_intact.glb",
-    "rock_band_poster_plane_002_intact": "/assets/auto/rock_band_poster_plane_002_intact.glb",
-    "rootnode_007_intact": "/assets/auto/rootnode_007_intact.glb",
-    "node_intact": "/assets/auto/node_intact.glb",
-    "building3_big_intact": "/assets/auto/building3_big_intact.glb",
-    "node_001_intact": "/assets/auto/node_001_intact.glb"
+    "b_intact": "/assets/props/b_intact.glb",
+    "b_chunks": "/assets/props/b_chunks.glb",
+    "rootnode_intact": "/assets/props/rootnode_intact.glb",
+    "rootnode_chunks": "/assets/props/rootnode_chunks.glb",
+    "rootnode_001_intact": "/assets/props/rootnode_001_intact.glb",
+    "rootnode_001_chunks": "/assets/props/rootnode_001_chunks.glb",
+    "rootnode_002_intact": "/assets/props/rootnode_002_intact.glb",
+    "rootnode_002_chunks": "/assets/props/rootnode_002_chunks.glb",
+    "rootnode_003_intact": "/assets/props/rootnode_003_intact.glb",
+    "rootnode_003_chunks": "/assets/props/rootnode_003_chunks.glb",
+    "stop_sign_intact": "/assets/props/stop_sign_intact.glb",
+    "stop_sign_chunks": "/assets/props/stop_sign_chunks.glb",
+    "rootnode_005_intact": "/assets/props/rootnode_005_intact.glb",
+    "rootnode_005_chunks": "/assets/props/rootnode_005_chunks.glb",
+    "rootnode_006_intact": "/assets/props/rootnode_006_intact.glb",
+    "rootnode_006_chunks": "/assets/props/rootnode_006_chunks.glb",
+    "rock_band_poster_plane_002_intact": "/assets/props/rock_band_poster_plane_002_intact.glb",
+    "rock_band_poster_plane_002_chunks": "/assets/props/rock_band_poster_plane_002_chunks.glb",
+    "rootnode_007_intact": "/assets/props/rootnode_007_intact.glb",
+    "rootnode_007_chunks": "/assets/props/rootnode_007_chunks.glb",
+    "node_intact": "/assets/props/node_intact.glb",
+    "node_chunks": "/assets/props/node_chunks.glb",
+    "building3_big_intact": "/assets/props/building3_big_intact.glb",
+    "building3_big_chunks": "/assets/props/building3_big_chunks.glb",
+    "node_001_intact": "/assets/props/node_001_intact.glb",
+    "node_001_chunks": "/assets/props/node_001_chunks.glb"
   },
   "instances": [
     {
@@ -36,7 +49,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "b_chunks"
       }
     },
     {
@@ -59,7 +72,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rootnode_chunks"
       }
     },
     {
@@ -82,7 +95,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rootnode_001_chunks"
       }
     },
     {
@@ -105,7 +118,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rootnode_002_chunks"
       }
     },
     {
@@ -128,7 +141,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rootnode_003_chunks"
       }
     },
     {
@@ -151,7 +164,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "stop_sign_chunks"
       }
     },
     {
@@ -174,7 +187,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rootnode_005_chunks"
       }
     },
     {
@@ -197,7 +210,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rootnode_006_chunks"
       }
     },
     {
@@ -220,7 +233,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rock_band_poster_plane_002_chunks"
       }
     },
     {
@@ -243,7 +256,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rootnode_007_chunks"
       }
     },
     {
@@ -266,7 +279,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "node_chunks"
       }
     },
     {
@@ -289,7 +302,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": "",
+        "fractureId": "building3_big_chunks",
         "scaleVec": [
           221.299286,
           221.299255,
@@ -317,7 +330,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "node_001_chunks"
       }
     }
   ]
