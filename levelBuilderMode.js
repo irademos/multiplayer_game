@@ -18,6 +18,7 @@ export class LevelBuilder {
     this.transform.enabled = false;
     this.transform.visible = false;
     this.transform.showX = this.transform.showY = this.transform.showZ = true;
+
     scene.add(this.transform);
 
     this.raycaster = new THREE.Raycaster();
@@ -65,7 +66,6 @@ export class LevelBuilder {
     this.healthInput = this.sidebar.querySelector('#prop-health');
     this.tagsInput = this.sidebar.querySelector('#prop-tags');
     this.deleteBtn = this.sidebar.querySelector('#delete-prop');
-
     this.sidebar.querySelectorAll('button[data-mode]').forEach(btn => {
       btn.addEventListener('click', () => {
         this.transform.setMode(btn.dataset.mode);
@@ -78,7 +78,7 @@ export class LevelBuilder {
         this.propSelect.value = '';
       }
     });
-
+    
     this.sceneSelect.addEventListener('change', () => {
       const id = this.sceneSelect.value;
       const obj = this.objects.find(o => o.userData.id === id);
