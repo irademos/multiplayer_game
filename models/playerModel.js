@@ -23,6 +23,7 @@ export function createPlayerModel(THREE, username, onLoad) {
       pivot.position.set(-center.x, -box.min.y-0.75, -center.z-0.8);
       pivot.add(model);
       playerGroup.add(pivot);
+      playerGroup.userData.pivot = pivot;
 
       const mixer = new THREE.AnimationMixer(model);
       const actions = {};
@@ -42,6 +43,7 @@ export function createPlayerModel(THREE, username, onLoad) {
         hit: 'Flying Back Death.fbx',
         mutantPunch: 'Mutant Punch.fbx',
         mmaKick: 'Mma Kick.fbx',
+        runningKick: 'Female Laying Pose.fbx',
         hurricaneKick: 'Hurricane Kick.fbx',
         projectile: 'Projectile.fbx',
         die: 'Dying.fbx'
@@ -54,7 +56,7 @@ export function createPlayerModel(THREE, username, onLoad) {
             (anim) => {
               const clip = anim.animations[0];
               const action = mixer.clipAction(clip);
-              if (['jump', 'hit', 'mutantPunch', 'mmaKick', 'hurricaneKick', 'projectile', 'die'].includes(name)) {
+              if (['jump', 'hit', 'mutantPunch', 'mmaKick', 'runningKick', 'hurricaneKick', 'projectile', 'die'].includes(name)) {
                 action.loop = THREE.LoopOnce;
                 action.clampWhenFinished = true;
               }

@@ -201,14 +201,32 @@ async function main() {
     fire: () => playerControls.triggerFire(),
     shoot: () => playerControls.triggerFire()
   });
-  speech.start();
+  const talkButton = document.getElementById('talk-button');
+  if (talkButton) {
+    let talking = false;
+    const startTalking = (e) => {
+      e.preventDefault();
+      if (!talking) {
+        talking = true;
+        speech.start();
+      }
+    };
+    const stopTalking = (e) => {
+      if (talking) {
+        if (e) e.preventDefault();
+        talking = false;
+        speech.stop();
+      }
+    };
+    talkButton.addEventListener('mousedown', startTalking);
+    talkButton.addEventListener('touchstart', startTalking);
+    window.addEventListener('mouseup', stopTalking);
+    window.addEventListener('touchend', stopTalking);
+    window.addEventListener('touchcancel', stopTalking);
+  }
 
   const generatedChunks = new Set();
   const chunkSize = 50;
-
-  function getChunkCoord(x, z) {
-    return `${Math.floor(x / chunkSize)},${Math.floor(z / chunkSize)}`;
-  }
 
   function updateTerrain() {
     const playerPos = playerModel.position;

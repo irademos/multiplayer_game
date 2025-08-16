@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { getTerrainHeightAt } from "./worldGeneration.js";
 import { pass } from "three/tsl";
 
@@ -27,6 +26,8 @@ export class PlayerControls {
     this.knockbackVelocity = new THREE.Vector3();
     this.knockbackRotationAxis = new THREE.Vector3(1, 0, 0);
     this.knockbackRestYaw = 0;
+    this.slideMomentum = new THREE.Vector3();
+    this.lastMoveDirection = new THREE.Vector3();
     
     // Player state
     this.velocity = new THREE.Vector3();
@@ -35,6 +36,8 @@ export class PlayerControls {
     this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     this.hasDoubleJumped = false;
     this.currentSpecialAction = null;
+    this.runningKickTimer = null;
+    this.runningKickOriginalY = 0;
     
     // Mobile control variables
     this.joystick = null;
@@ -84,10 +87,7 @@ export class PlayerControls {
     }
   }  
   
-  initializeMobileControls() {    
-    // Initialize OrbitControls for camera rotation (similar to desktop)
-    this.controls = new OrbitControls(this.camera, this.domElement);
-    
+  initializeMobileControls() {
     // Add joystick container for mobile
     const joystickContainer = document.getElementById('joystick-container');
     if (!joystickContainer) {
@@ -143,26 +143,64 @@ export class PlayerControls {
       this.joystickForce = 0;
     });
 
-    // Add fire button for mobile
-    const fireButton = document.getElementById('fire-button');
-    if (!fireButton) {
-      const newFireButton = document.createElement('div');
+    // Touch camera control
+    this.cameraTouchId = null;
+    this.domElement.addEventListener('touchstart', (event) => {
+      if (!this.enabled) return;
+      for (const touch of event.changedTouches) {
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (target && !target.closest('#joystick-container') && !target.closest('#jump-button') && !target.closest('#action-buttons')) {
+          this.cameraTouchId = touch.identifier;
+          this.touchStartX = touch.clientX;
+          this.touchStartY = touch.clientY;
+          event.preventDefault();
+          break;
+        }
+      }
+    }, { passive: false });
+
+    this.domElement.addEventListener('touchmove', (event) => {
+      if (!this.enabled || this.cameraTouchId === null) return;
+      for (const touch of event.changedTouches) {
+        if (touch.identifier === this.cameraTouchId) {
+          const deltaX = touch.clientX - this.touchStartX;
+          const deltaY = touch.clientY - this.touchStartY;
+          this.touchStartX = touch.clientX;
+          this.touchStartY = touch.clientY;
+
+          this.yaw -= deltaX * this.touchSensitivity;
+          this.pitch -= deltaY * this.touchSensitivity;
+
+          const maxPitch = Math.PI / 3;
+          const minPitch = -Math.PI / 8;
+          this.pitch = Math.max(minPitch, Math.min(maxPitch, this.pitch));
+          event.preventDefault();
+          break;
+        }
+      }
+    }, { passive: false });
+
+    this.domElement.addEventListener('touchend', (event) => {
+      for (const touch of event.changedTouches) {
+        if (touch.identifier === this.cameraTouchId) {
+          this.cameraTouchId = null;
+          break;
+        }
+      }
+    });
+
+    // Action buttons container
+    const actionContainer = document.getElementById('action-buttons');
+
+    // Fire button
+    if (!document.getElementById('fire-button')) {
+      const newFireButton = document.createElement('button');
       newFireButton.id = 'fire-button';
+      newFireButton.className = 'action-button';
       newFireButton.innerText = 'FIRE';
-      newFireButton.style.position = 'absolute';
-      newFireButton.style.bottom = '100px';
-      newFireButton.style.right = '70px';
-      newFireButton.style.padding = '12px 20px';
-      newFireButton.style.background = '#ff4e4e';
-      newFireButton.style.color = 'white';
-      newFireButton.style.borderRadius = '10px';
-      newFireButton.style.fontWeight = 'bold';
-      newFireButton.style.zIndex = '10';
-      newFireButton.style.opacity = '0.9';
-      document.body.appendChild(newFireButton);
+      actionContainer.appendChild(newFireButton);
     }
 
-    // Fire button logic
     document.getElementById('fire-button').addEventListener('touchstart', (event) => {
       if (!this.enabled) return;
       const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
@@ -180,6 +218,34 @@ export class PlayerControls {
 
       event.preventDefault();
     });
+
+    // Kick button
+    if (!document.getElementById('kick-button')) {
+      const kickButton = document.createElement('button');
+      kickButton.id = 'kick-button';
+      kickButton.className = 'action-button';
+      kickButton.innerText = 'KICK';
+      actionContainer.appendChild(kickButton);
+      kickButton.addEventListener('touchstart', (event) => {
+        if (!this.enabled) return;
+        this.playAction('mmaKick');
+        event.preventDefault();
+      });
+    }
+
+    // Punch button
+    if (!document.getElementById('punch-button')) {
+      const punchButton = document.createElement('button');
+      punchButton.id = 'punch-button';
+      punchButton.className = 'action-button';
+      punchButton.innerText = 'PUNCH';
+      actionContainer.appendChild(punchButton);
+      punchButton.addEventListener('touchstart', (event) => {
+        if (!this.enabled) return;
+        this.playAction('mutantPunch');
+        event.preventDefault();
+      });
+    }
   }
   
   setupEventListeners() {
@@ -200,9 +266,17 @@ export class PlayerControls {
           this.playAction('hurricaneKick');
         }
       } else if (key === 'e') {
+        if (this.isMoving) {
+          this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
+        }
         this.playAction('mutantPunch');
       } else if (key === 'r') {
-        this.playAction('mmaKick');
+        if (this.isMoving) {
+          this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
+          this.playAction('runningKick');
+        } else {
+          this.playAction('mmaKick');
+        }
       }
     });
 
@@ -242,6 +316,15 @@ export class PlayerControls {
     const actions = this.playerModel.userData.actions;
     if (!actions || !actions[actionName]) return;
 
+    if (this.runningKickTimer) {
+      clearTimeout(this.runningKickTimer);
+      this.runningKickTimer = null;
+      const pivot = this.playerModel.userData.pivot;
+      if (pivot) {
+        pivot.rotation.y = this.runningKickOriginalY;
+      }
+    }
+
     const current = this.playerModel.userData.currentAction;
     const action = actions[actionName];
     actions[current]?.fadeOut(0.1);
@@ -249,22 +332,39 @@ export class PlayerControls {
     this.playerModel.userData.currentAction = actionName;
     this.currentSpecialAction = actionName;
 
-    if (['mutantPunch', 'hurricaneKick', 'mmaKick'].includes(actionName)) {
+    if (["mutantPunch", "hurricaneKick", "mmaKick", "runningKick"].includes(actionName)) {
       this.playerModel.userData.attack = {
         name: actionName,
         start: Date.now(),
-        hasHit: false
+        hasHit: false,
       };
+    }
+
+    if (actionName === "runningKick") {
+      action.paused = true;
+      const pivot = this.playerModel.userData.pivot;
+      if (pivot) {
+        this.runningKickOriginalY = pivot.rotation.y;
+        pivot.rotation.y -= Math.PI / 2;
+      }
+      this.runningKickTimer = setTimeout(() => {
+        action.stop();
+        if (pivot) {
+          pivot.rotation.y = this.runningKickOriginalY;
+        }
+        this.currentSpecialAction = null;
+      }, 1000);
+      return;
     }
 
     const mixer = this.playerModel.userData.mixer;
     const onFinished = (e) => {
       if (e.action === action) {
-        mixer.removeEventListener('finished', onFinished);
+        mixer.removeEventListener("finished", onFinished);
         this.currentSpecialAction = null;
       }
     };
-    mixer.addEventListener('finished', onFinished);
+    mixer.addEventListener("finished", onFinished);
   }
 
   applyKnockback(impulse) {
@@ -291,26 +391,24 @@ export class PlayerControls {
     
     // Create movement vector
     const moveDirection = new THREE.Vector3(0, 0, 0);
-    const movementLocked = ['projectile', 'mutantPunch', 'mmaKick'].includes(this.currentSpecialAction);
+    const movementLocked = ['mutantPunch', 'mmaKick', 'runningKick'].includes(this.currentSpecialAction);
 
     if (!movementLocked) {
       if (this.isMobile) {
         if (this.joystickForce > 0.1) {
-          // Define direction from yaw
-          const forward = new THREE.Vector3(0, 0, 1);
-          const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
-          forward.applyQuaternion(yawQuat);
+          const cameraForward = new THREE.Vector3();
+          this.camera.getWorldDirection(cameraForward);
+          cameraForward.y = 0;
+          cameraForward.normalize();
 
-          const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
+          const cameraRight = new THREE.Vector3().crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
 
           // Decompose joystick input into directional components
           const dx = Math.cos(this.joystickAngle); // right-left
           const dz = Math.sin(this.joystickAngle); // forward-back
 
-          moveDirection.addScaledVector(forward, dz * this.joystickForce * SPEED);
-          moveDirection.addScaledVector(right, dx * this.joystickForce * SPEED);
-
-          this.playerModel.rotation.y = this.yaw; // Use computed yaw instead of raw angle
+          moveDirection.addScaledVector(cameraForward, dz * this.joystickForce * SPEED);
+          moveDirection.addScaledVector(cameraRight, dx * this.joystickForce * SPEED);
         }
       } else {
         if (this.keysPressed.has("w")) {
@@ -347,14 +445,24 @@ export class PlayerControls {
       if (moveDirection.x !== 0) {
         movement.add(rightVector.clone().multiplyScalar(moveDirection.x));
       }
-      
+
       if (movement.length() > 0) {
         movement.normalize().multiplyScalar(SPEED);
       }
     } else {
       movement.copy(moveDirection);
     }
-    
+
+    if (movementLocked) {
+      movement.copy(this.slideMomentum);
+      this.slideMomentum.multiplyScalar(0.99);
+      if (this.slideMomentum.length() < 0.01) {
+        this.slideMomentum.set(0, 0, 0);
+      }
+    } else if (movement.length() > 0) {
+      this.lastMoveDirection.copy(movement);
+    }
+
     this.velocity.y -= GRAVITY;
 
     if (this.isKnocked) {
@@ -560,32 +668,15 @@ export class PlayerControls {
       this.pitch = Math.max(minPitch, this.pitch - 0.02);
     }
 
-    if (this.isMobile) {
-      const orbitCenter = this.playerModel.position.clone().add(new THREE.Vector3(0, 1, 0));
-    
-      // Define desired offset relative to player (e.g. 5 units behind)
-      const desiredDistance = this.cameraOffset.length(); // Keep original distance
-      const angle = this.playerModel.rotation.y;
-    
-      const rotatedOffset = new THREE.Vector3(
-        -desiredDistance * Math.sin(angle),
-        this.cameraOffset.y,
-        -desiredDistance * Math.cos(angle)
-      );      
-    
-      this.camera.position.copy(orbitCenter).add(rotatedOffset);
-      this.camera.lookAt(orbitCenter);
-    } else {
-      const orbitCenter = this.playerModel.position.clone().add(new THREE.Vector3(0, 1, 0)); // target above the player's head
-      const rotatedOffset = new THREE.Vector3(
-        this.cameraOffset.x * Math.cos(this.yaw) - this.cameraOffset.z * Math.sin(this.yaw),
-        this.cameraOffset.y + 5 * Math.sin(this.pitch), // optional tilt factor
-        this.cameraOffset.x * Math.sin(this.yaw) + this.cameraOffset.z * Math.cos(this.yaw)
-      );
+    const orbitCenter = this.playerModel.position.clone().add(new THREE.Vector3(0, 1, 0));
+    const rotatedOffset = new THREE.Vector3(
+      this.cameraOffset.x * Math.cos(this.yaw) - this.cameraOffset.z * Math.sin(this.yaw),
+      this.cameraOffset.y + 5 * Math.sin(this.pitch),
+      this.cameraOffset.x * Math.sin(this.yaw) + this.cameraOffset.z * Math.cos(this.yaw)
+    );
 
-      this.camera.position.copy(orbitCenter).add(rotatedOffset);
-      this.camera.lookAt(orbitCenter);
-    }
+    this.camera.position.copy(orbitCenter).add(rotatedOffset);
+    this.camera.lookAt(orbitCenter);
 
       const now = performance.now();
       if (!this.lastUpdate) this.lastUpdate = now;

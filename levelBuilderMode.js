@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 
 export class LevelBuilder {
   constructor({ scene, camera, renderer }) {
@@ -11,13 +12,11 @@ export class LevelBuilder {
     this.objects = [];
     this.propUrls = {};
     this.active = false;
-
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
     this.selected = null;
 
     this._setupUI();
-
     this.gizmo = document.getElementById('transform-gizmo');
     this.mode = 'translate';
     this.dragState = null;
@@ -81,7 +80,6 @@ export class LevelBuilder {
     this.healthInput = this.sidebar.querySelector('#prop-health');
     this.tagsInput = this.sidebar.querySelector('#prop-tags');
     this.deleteBtn = this.sidebar.querySelector('#delete-prop');
-
     this.sidebar.querySelectorAll('button[data-mode]').forEach(btn => {
       btn.addEventListener('click', () => {
         this.mode = btn.dataset.mode;
