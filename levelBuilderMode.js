@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
+// Uses a simple HTML-based transform gizmo instead of Three.js TransformControls
 
 export class LevelBuilder {
   constructor({ scene, camera, renderer }) {
@@ -252,10 +252,11 @@ export class LevelBuilder {
 
   update() {
     if (this.selected && this.gizmo) {
-      const pos = this.selected.position.clone();
-      pos.project(this.camera);
-      const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
-      const y = (-pos.y * 0.5 + 0.5) * window.innerHeight;
+      const box = new THREE.Box3().setFromObject(this.selected);
+      const center = box.getCenter(new THREE.Vector3());
+      center.project(this.camera);
+      const x = (center.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-center.y * 0.5 + 0.5) * window.innerHeight;
       this.gizmo.style.left = `${x}px`;
       this.gizmo.style.top = `${y}px`;
     }
