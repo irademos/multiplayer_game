@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { getTerrainHeightAt } from "./worldGeneration.js";
 import { pass } from "three/tsl";
 
@@ -88,10 +87,7 @@ export class PlayerControls {
     }
   }  
   
-  initializeMobileControls() {    
-    // Initialize OrbitControls for camera rotation (similar to desktop)
-    this.controls = new OrbitControls(this.camera, this.domElement);
-    
+  initializeMobileControls() {
     // Add joystick container for mobile
     const joystickContainer = document.getElementById('joystick-container');
     if (!joystickContainer) {
@@ -145,6 +141,52 @@ export class PlayerControls {
     
     this.joystick.on('end', () => {
       this.joystickForce = 0;
+    });
+
+    // Touch camera control
+    this.cameraTouchId = null;
+    this.domElement.addEventListener('touchstart', (event) => {
+      if (!this.enabled) return;
+      for (const touch of event.changedTouches) {
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (target && !target.closest('#joystick-container') && !target.closest('#jump-button') && !target.closest('#action-buttons')) {
+          this.cameraTouchId = touch.identifier;
+          this.touchStartX = touch.clientX;
+          this.touchStartY = touch.clientY;
+          event.preventDefault();
+          break;
+        }
+      }
+    }, { passive: false });
+
+    this.domElement.addEventListener('touchmove', (event) => {
+      if (!this.enabled || this.cameraTouchId === null) return;
+      for (const touch of event.changedTouches) {
+        if (touch.identifier === this.cameraTouchId) {
+          const deltaX = touch.clientX - this.touchStartX;
+          const deltaY = touch.clientY - this.touchStartY;
+          this.touchStartX = touch.clientX;
+          this.touchStartY = touch.clientY;
+
+          this.yaw -= deltaX * this.touchSensitivity;
+          this.pitch -= deltaY * this.touchSensitivity;
+
+          const maxPitch = Math.PI / 3;
+          const minPitch = -Math.PI / 8;
+          this.pitch = Math.max(minPitch, Math.min(maxPitch, this.pitch));
+          event.preventDefault();
+          break;
+        }
+      }
+    }, { passive: false });
+
+    this.domElement.addEventListener('touchend', (event) => {
+      for (const touch of event.changedTouches) {
+        if (touch.identifier === this.cameraTouchId) {
+          this.cameraTouchId = null;
+          break;
+        }
+      }
     });
 
     // Action buttons container
@@ -628,32 +670,15 @@ export class PlayerControls {
       this.pitch = Math.max(minPitch, this.pitch - 0.02);
     }
 
-    if (this.isMobile) {
-      const orbitCenter = this.playerModel.position.clone().add(new THREE.Vector3(0, 1, 0));
-    
-      // Define desired offset relative to player (e.g. 5 units behind)
-      const desiredDistance = this.cameraOffset.length(); // Keep original distance
-      const angle = this.playerModel.rotation.y;
-    
-      const rotatedOffset = new THREE.Vector3(
-        -desiredDistance * Math.sin(angle),
-        this.cameraOffset.y,
-        -desiredDistance * Math.cos(angle)
-      );      
-    
-      this.camera.position.copy(orbitCenter).add(rotatedOffset);
-      this.camera.lookAt(orbitCenter);
-    } else {
-      const orbitCenter = this.playerModel.position.clone().add(new THREE.Vector3(0, 1, 0)); // target above the player's head
-      const rotatedOffset = new THREE.Vector3(
-        this.cameraOffset.x * Math.cos(this.yaw) - this.cameraOffset.z * Math.sin(this.yaw),
-        this.cameraOffset.y + 5 * Math.sin(this.pitch), // optional tilt factor
-        this.cameraOffset.x * Math.sin(this.yaw) + this.cameraOffset.z * Math.cos(this.yaw)
-      );
+    const orbitCenter = this.playerModel.position.clone().add(new THREE.Vector3(0, 1, 0));
+    const rotatedOffset = new THREE.Vector3(
+      this.cameraOffset.x * Math.cos(this.yaw) - this.cameraOffset.z * Math.sin(this.yaw),
+      this.cameraOffset.y + 5 * Math.sin(this.pitch),
+      this.cameraOffset.x * Math.sin(this.yaw) + this.cameraOffset.z * Math.cos(this.yaw)
+    );
 
-      this.camera.position.copy(orbitCenter).add(rotatedOffset);
-      this.camera.lookAt(orbitCenter);
-    }
+    this.camera.position.copy(orbitCenter).add(rotatedOffset);
+    this.camera.lookAt(orbitCenter);
 
       const now = performance.now();
       if (!this.lastUpdate) this.lastUpdate = now;
