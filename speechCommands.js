@@ -11,6 +11,7 @@ export function initSpeechCommands(commands = {}) {
   recognition.lang = 'en-US';
 
   recognition.onresult = (event) => {
+    console.log(event);
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const result = event.results[i];
       console.log(result);

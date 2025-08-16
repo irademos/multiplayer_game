@@ -228,10 +228,6 @@ async function main() {
   const generatedChunks = new Set();
   const chunkSize = 50;
 
-  function getChunkCoord(x, z) {
-    return `${Math.floor(x / chunkSize)},${Math.floor(z / chunkSize)}`;
-  }
-
   function updateTerrain() {
     const playerPos = playerModel.position;
     const cx = Math.floor(playerPos.x / chunkSize);
