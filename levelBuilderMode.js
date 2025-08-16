@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 
 export class LevelBuilder {
   constructor({ scene, camera, renderer }) {
@@ -35,11 +36,6 @@ export class LevelBuilder {
       <select id="prop-select"><option value="">Add Prop...</option></select>
       <select id="scene-prop-select"><option value="">Select Prop...</option></select>
       <div>
-        <button data-mode="translate">Move</button>
-        <button data-mode="rotate">Rotate</button>
-        <button data-mode="scale">Scale</button>
-      </div>
-      <div>
         <label>Health <input id="prop-health" type="number" value="100" /></label>
       </div>
       <div>
@@ -61,12 +57,16 @@ export class LevelBuilder {
     this.healthInput = this.sidebar.querySelector('#prop-health');
     this.tagsInput = this.sidebar.querySelector('#prop-tags');
     this.deleteBtn = this.sidebar.querySelector('#delete-prop');
-    this.sidebar.querySelectorAll('button[data-mode]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.mode = btn.dataset.mode;
-        this.transformControls.setMode(this.mode);
+
+    this.modeControls = document.getElementById('level-builder-controls');
+    if (this.modeControls) {
+      this.modeControls.querySelectorAll('button[data-mode]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          this.mode = btn.dataset.mode;
+          this.transformControls.setMode(this.mode);
+        });
       });
-    });
+    }
 
     this.propSelect.addEventListener('change', () => {
       if (this.propSelect.value) {
@@ -162,6 +162,7 @@ export class LevelBuilder {
     if (this.active) return;
     this.active = true;
     this.sidebar.classList.remove('hidden');
+    this.modeControls?.classList.remove('hidden');
     this.renderer.domElement.addEventListener('pointerdown', this._onPointerDown);
     this.transformControls.enabled = true;
   }
@@ -170,6 +171,7 @@ export class LevelBuilder {
     if (!this.active) return;
     this.active = false;
     this.sidebar.classList.add('hidden');
+    this.modeControls?.classList.add('hidden');
     this.selected = null;
     this.transformControls.detach();
     this.transformControls.enabled = false;
@@ -180,17 +182,27 @@ export class LevelBuilder {
     if (this.active) this.disable(); else this.enable();
   }
 
+  _centerObject(obj) {
+    const box = new THREE.Box3().setFromObject(obj);
+    const center = box.getCenter(new THREE.Vector3());
+    const pivot = new THREE.Object3D();
+    obj.position.sub(center);
+    pivot.add(obj);
+    obj.traverse(c => (c.userData.parentProp = pivot));
+    return pivot;
+  }
+
   spawnProp(name) {
     const url = this.propUrls[name];
     if (!url) return;
     const create = scene => {
-      const obj = scene.clone(true);
+      const raw = scene.clone(true);
+      const obj = this._centerObject(raw);
       obj.position.set(0, 0, 0);
       obj.userData.asset = name;
       obj.userData.id = `${name}_${Date.now()}`;
       obj.userData.tags = ['prop'];
       obj.userData.meta = { health: 100, fractureId: '' };
-      obj.traverse(c => (c.userData.parentProp = obj));
       this.scene.add(obj);
       this.objects.push(obj);
       this._addObjectOption(obj);
@@ -305,7 +317,8 @@ export class LevelBuilder {
     (manifest.instances || []).forEach(inst => {
       const src = this.assets[inst.asset];
       if (!src) return;
-      const obj = src.clone(true);
+      const raw = src.clone(true);
+      const obj = this._centerObject(raw);
       const pos = inst.position || [0, 0, 0];
       obj.position.set(pos[0], pos[2], -pos[1]);
       const r = inst.rotationEuler || [0, 0, 0];
@@ -322,7 +335,6 @@ export class LevelBuilder {
       obj.userData.id = inst.id;
       obj.userData.tags = inst.tags || [];
       obj.userData.meta = inst.meta || {};
-      obj.traverse(c => (c.userData.parentProp = obj));
       this.scene.add(obj);
       this.objects.push(obj);
       this._addObjectOption(obj);
