@@ -350,6 +350,7 @@ body {
 }
 
 
+
 @media (pointer: coarse) and (max-width: 768px),
        (pointer: coarse) and (max-height: 768px) {
   #joystick-container {

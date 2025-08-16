@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 
 export class LevelBuilder {
   constructor({ scene, camera, renderer }) {
@@ -240,7 +239,15 @@ export class LevelBuilder {
   };
 
   update() {
-    // TransformControls manages its own positioning; nothing needed here for now.
+    if (this.selected && this.gizmo) {
+      const box = new THREE.Box3().setFromObject(this.selected);
+      const center = box.getCenter(new THREE.Vector3());
+      center.project(this.camera);
+      const x = (center.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-center.y * 0.5 + 0.5) * window.innerHeight;
+      this.gizmo.style.left = `${x}px`;
+      this.gizmo.style.top = `${y}px`;
+    }
   }
 
   downloadJSON() {
