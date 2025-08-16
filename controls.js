@@ -8,7 +8,7 @@ const GRAVITY = 0.01;
 const JUMP_FORCE = 0.25;
 
 export class PlayerControls {
-  constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles }) {
+  constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager }) {
     this.yaw = 0;
     this.pitch = 0;
     this.pointerLocked = false;
@@ -22,6 +22,7 @@ export class PlayerControls {
     this.isMoving = false;
     this.spawnProjectile = spawnProjectile;
     this.projectiles = projectiles;
+    this.audioManager = audioManager;
     this.isKnocked = false;
     this.knockbackVelocity = new THREE.Vector3();
     this.knockbackRotationAxis = new THREE.Vector3(1, 0, 0);
@@ -256,28 +257,31 @@ export class PlayerControls {
       this.keysPressed.add(key);
 
       if (e.key === " ") {
-        if (this.canJump) {
-          this.velocity.y = JUMP_FORCE;
-          this.canJump = false;
-          this.hasDoubleJumped = false;
-        } else if (!this.hasDoubleJumped) {
-          this.velocity.y = JUMP_FORCE;
-          this.hasDoubleJumped = true;
-          this.playAction('hurricaneKick');
-        }
-      } else if (key === 'e') {
-        if (this.isMoving) {
-          this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
-        }
-        this.playAction('mutantPunch');
-      } else if (key === 'r') {
-        if (this.isMoving) {
-          this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
-          this.playAction('runningKick');
-        } else {
-          this.playAction('mmaKick');
-        }
+      if (this.canJump) {
+        this.velocity.y = JUMP_FORCE;
+        this.canJump = false;
+        this.hasDoubleJumped = false;
+      } else if (!this.hasDoubleJumped) {
+        this.velocity.y = JUMP_FORCE;
+        this.hasDoubleJumped = true;
+        this.playAction('hurricaneKick');
       }
+    } else if (key === 'e') {
+      if (this.isMoving) {
+        this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
+      }
+      this.playAction('mutantPunch');
+      this.audioManager?.playAttack();
+    } else if (key === 'r') {
+      if (this.isMoving) {
+        this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
+        this.playAction('runningKick');
+        this.audioManager?.playAttack();
+      } else {
+        this.playAction('mmaKick');
+        this.audioManager?.playAttack();
+      }
+    }
     });
 
     document.addEventListener("keyup", (e) => {
@@ -587,6 +591,9 @@ export class PlayerControls {
     
     const isMovingNow = movement.length() > 0;
     this.isMoving = isMovingNow;
+    if (isMovingNow && this.canJump) {
+      this.audioManager?.playFootstep();
+    }
     
     if (this.playerModel) {
       this.playerModel.position.set(newX, newY, newZ);
