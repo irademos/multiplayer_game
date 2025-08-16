@@ -21,6 +21,8 @@ export class LevelBuilder {
 
     this.transformControls = new TransformControls(this.camera, this.renderer.domElement);
     this.transformControls.enabled = false;
+    this.transformControls.setMode(this.mode);
+    this.transformControls.visible = false;
     this.scene.add(this.transformControls);
   }
 
@@ -35,6 +37,11 @@ export class LevelBuilder {
     this.sidebar.innerHTML = `
       <select id="prop-select"><option value="">Add Prop...</option></select>
       <select id="scene-prop-select"><option value="">Select Prop...</option></select>
+      <div id="mode-controls">
+        <button data-mode="translate">⇄</button>
+        <button data-mode="rotate">⟳</button>
+        <button data-mode="scale">⤢</button>
+      </div>
       <div>
         <label>Health <input id="prop-health" type="number" value="100" /></label>
       </div>
@@ -58,13 +65,11 @@ export class LevelBuilder {
     this.tagsInput = this.sidebar.querySelector('#prop-tags');
     this.deleteBtn = this.sidebar.querySelector('#delete-prop');
 
-    this.modeControls = document.getElementById('level-builder-controls');
-    if (this.modeControls) {
-      this.modeControls.querySelectorAll('button[data-mode]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          this.mode = btn.dataset.mode;
-          this.transformControls.setMode(this.mode);
-        });
+    this.modeControls = this.sidebar.querySelector('#mode-controls');
+    this.modeControls.querySelectorAll('button[data-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.mode = btn.dataset.mode;
+        this.transformControls.setMode(this.mode);
       });
     }
 
@@ -105,6 +110,7 @@ export class LevelBuilder {
       this.sceneSelect.value = '';
       this.transformControls.detach();
       this.transformControls.enabled = false;
+      this.transformControls.visible = false;
     });
 
     this.sidebar.querySelector('#download-level').addEventListener('click', () => this.downloadJSON());
@@ -175,6 +181,7 @@ export class LevelBuilder {
     this.selected = null;
     this.transformControls.detach();
     this.transformControls.enabled = false;
+    this.transformControls.visible = false;
     this.renderer.domElement.removeEventListener('pointerdown', this._onPointerDown);
   }
 
@@ -223,6 +230,7 @@ export class LevelBuilder {
     this.transformControls.attach(obj);
     this.transformControls.setMode(this.mode);
     this.transformControls.enabled = true;
+    this.transformControls.visible = true;
     this.healthInput.value = obj.userData.meta.health || 0;
     this.tagsInput.value = (obj.userData.tags || []).join(', ');
     if (this.sceneSelect) {
@@ -246,6 +254,7 @@ export class LevelBuilder {
       this.selected = null;
       this.transformControls.detach();
       this.transformControls.enabled = false;
+      this.transformControls.visible = false;
       if (this.sceneSelect) this.sceneSelect.value = '';
     }
   };
