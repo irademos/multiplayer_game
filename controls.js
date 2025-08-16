@@ -27,6 +27,8 @@ export class PlayerControls {
     this.knockbackVelocity = new THREE.Vector3();
     this.knockbackRotationAxis = new THREE.Vector3(1, 0, 0);
     this.knockbackRestYaw = 0;
+    this.slideMomentum = new THREE.Vector3();
+    this.lastMoveDirection = new THREE.Vector3();
     
     // Player state
     this.velocity = new THREE.Vector3();
@@ -200,9 +202,17 @@ export class PlayerControls {
           this.playAction('hurricaneKick');
         }
       } else if (key === 'e') {
+        if (this.isMoving) {
+          this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
+        }
         this.playAction('mutantPunch');
       } else if (key === 'r') {
-        this.playAction('mmaKick');
+        if (this.isMoving) {
+          this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
+          this.playAction('runningKick');
+        } else {
+          this.playAction('mmaKick');
+        }
       }
     });
 
@@ -249,7 +259,7 @@ export class PlayerControls {
     this.playerModel.userData.currentAction = actionName;
     this.currentSpecialAction = actionName;
 
-    if (['mutantPunch', 'hurricaneKick', 'mmaKick'].includes(actionName)) {
+    if (['mutantPunch', 'hurricaneKick', 'mmaKick', 'runningKick'].includes(actionName)) {
       this.playerModel.userData.attack = {
         name: actionName,
         start: Date.now(),
@@ -291,7 +301,7 @@ export class PlayerControls {
     
     // Create movement vector
     const moveDirection = new THREE.Vector3(0, 0, 0);
-    const movementLocked = ['projectile', 'mutantPunch', 'mmaKick'].includes(this.currentSpecialAction);
+    const movementLocked = ['mutantPunch', 'mmaKick', 'runningKick'].includes(this.currentSpecialAction);
 
     if (!movementLocked) {
       if (this.isMobile) {
@@ -347,14 +357,24 @@ export class PlayerControls {
       if (moveDirection.x !== 0) {
         movement.add(rightVector.clone().multiplyScalar(moveDirection.x));
       }
-      
+
       if (movement.length() > 0) {
         movement.normalize().multiplyScalar(SPEED);
       }
     } else {
       movement.copy(moveDirection);
     }
-    
+
+    if (movementLocked) {
+      movement.copy(this.slideMomentum);
+      this.slideMomentum.multiplyScalar(0.9);
+      if (this.slideMomentum.length() < 0.001) {
+        this.slideMomentum.set(0, 0, 0);
+      }
+    } else if (movement.length() > 0) {
+      this.lastMoveDirection.copy(movement);
+    }
+
     this.velocity.y -= GRAVITY;
 
     if (this.isKnocked) {
