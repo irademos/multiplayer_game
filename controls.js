@@ -147,26 +147,18 @@ export class PlayerControls {
       this.joystickForce = 0;
     });
 
-    // Add fire button for mobile
-    const fireButton = document.getElementById('fire-button');
-    if (!fireButton) {
-      const newFireButton = document.createElement('div');
+    // Action buttons container
+    const actionContainer = document.getElementById('action-buttons');
+
+    // Fire button
+    if (!document.getElementById('fire-button')) {
+      const newFireButton = document.createElement('button');
       newFireButton.id = 'fire-button';
+      newFireButton.className = 'action-button';
       newFireButton.innerText = 'FIRE';
-      newFireButton.style.position = 'absolute';
-      newFireButton.style.bottom = '100px';
-      newFireButton.style.right = '70px';
-      newFireButton.style.padding = '12px 20px';
-      newFireButton.style.background = '#ff4e4e';
-      newFireButton.style.color = 'white';
-      newFireButton.style.borderRadius = '10px';
-      newFireButton.style.fontWeight = 'bold';
-      newFireButton.style.zIndex = '10';
-      newFireButton.style.opacity = '0.9';
-      document.body.appendChild(newFireButton);
+      actionContainer.appendChild(newFireButton);
     }
 
-    // Fire button logic
     document.getElementById('fire-button').addEventListener('touchstart', (event) => {
       if (!this.enabled) return;
       const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
@@ -184,6 +176,34 @@ export class PlayerControls {
 
       event.preventDefault();
     });
+
+    // Kick button
+    if (!document.getElementById('kick-button')) {
+      const kickButton = document.createElement('button');
+      kickButton.id = 'kick-button';
+      kickButton.className = 'action-button';
+      kickButton.innerText = 'KICK';
+      actionContainer.appendChild(kickButton);
+      kickButton.addEventListener('touchstart', (event) => {
+        if (!this.enabled) return;
+        this.playAction('mmaKick');
+        event.preventDefault();
+      });
+    }
+
+    // Punch button
+    if (!document.getElementById('punch-button')) {
+      const punchButton = document.createElement('button');
+      punchButton.id = 'punch-button';
+      punchButton.className = 'action-button';
+      punchButton.innerText = 'PUNCH';
+      actionContainer.appendChild(punchButton);
+      punchButton.addEventListener('touchstart', (event) => {
+        if (!this.enabled) return;
+        this.playAction('mutantPunch');
+        event.preventDefault();
+      });
+    }
   }
   
   setupEventListeners() {

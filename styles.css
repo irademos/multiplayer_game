@@ -71,12 +71,12 @@ body {
 
 #joystick-container {
   position: fixed;
-  bottom: 50px;
-  left: 20px;
-  width: 150px;  
-  height: 150px; 
+  bottom: 20px;
+  right: 20px;
+  width: 150px;
+  height: 150px;
   z-index: 1000;
-  display: none; 
+  display: none;
   touch-action: none;
   background-color: rgba(255, 255, 255, 0.2);
   border-radius: 50%;
@@ -84,13 +84,13 @@ body {
 
 #jump-button {
   position: fixed;
-  bottom: 50px;
+  bottom: 190px;
   right: 20px;
   width: 80px;
   height: 80px;
   background-color: rgba(255, 255, 255, 0.5);
   border-radius: 50%;
-  display: none; 
+  display: none;
   z-index: 1000;
   touch-action: none;
   text-align: center;
@@ -98,6 +98,31 @@ body {
   font-weight: bold;
   color: #333;
   user-select: none;
+}
+
+#action-buttons {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 1000;
+}
+
+.action-button {
+  width: 60px;
+  height: 60px;
+  background-color: rgba(255, 255, 255, 0.5);
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  color: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  cursor: pointer;
 }
 
 #camera-controls {
@@ -216,21 +241,6 @@ body {
 }
 
 #voice-button {
-  position: fixed;
-  bottom: 50px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: rgba(255, 255, 255, 0.5);
-  border-radius: 50%;
-  width: 60px;
-  height: 60px;
-  text-align: center;
-  line-height: 60px;
-  font-weight: bold;
-  color: #333;
-  z-index: 1000;
-  touch-action: none;
-  cursor: pointer;
 }
 
 #voice-button.active {
