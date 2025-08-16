@@ -345,7 +345,7 @@ export class PlayerControls {
       const pivot = this.playerModel.userData.pivot;
       if (pivot) {
         this.runningKickOriginalY = pivot.rotation.y;
-        pivot.rotation.y += Math.PI / 2;
+        pivot.rotation.y -= Math.PI / 2;
       }
       this.runningKickTimer = setTimeout(() => {
         action.stop();
