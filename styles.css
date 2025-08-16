@@ -349,50 +349,7 @@ body {
   margin-bottom: 8px;
 }
 
-#transform-gizmo {
-  position: absolute;
-  left: 0;
-  top: 0;
-  transform: translate(-50%, -50%);
-  z-index: 1600;
-  display: flex;
-  gap: 6px;
-}
 
-#transform-gizmo.hidden {
-  display: none;
-}
-
-.gizmo-arrow {
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0,0,0,0.6);
-  color: #fff;
-  font-size: 18px;
-  border: 2px solid;
-  user-select: none;
-}
-
-.gizmo-arrow[data-axis="x"] {
-  border-color: red;
-  color: red;
-  cursor: ew-resize;
-}
-
-.gizmo-arrow[data-axis="y"] {
-  border-color: green;
-  color: green;
-  cursor: ns-resize;
-}
-
-.gizmo-arrow[data-axis="z"] {
-  border-color: blue;
-  color: blue;
-  cursor: ew-resize;
-}
 
 
 @media (pointer: coarse) and (max-width: 768px),
