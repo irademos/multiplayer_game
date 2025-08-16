@@ -395,8 +395,8 @@ export class PlayerControls {
 
     if (movementLocked) {
       movement.copy(this.slideMomentum);
-      this.slideMomentum.multiplyScalar(0.9);
-      if (this.slideMomentum.length() < 0.001) {
+      this.slideMomentum.multiplyScalar(0.99);
+      if (this.slideMomentum.length() < 0.01) {
         this.slideMomentum.set(0, 0, 0);
       }
     } else if (movement.length() > 0) {
