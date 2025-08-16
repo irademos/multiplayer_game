@@ -27,6 +27,8 @@ export class PlayerControls {
     this.knockbackVelocity = new THREE.Vector3();
     this.knockbackRotationAxis = new THREE.Vector3(1, 0, 0);
     this.knockbackRestYaw = 0;
+    this.slideMomentum = new THREE.Vector3();
+    this.lastMoveDirection = new THREE.Vector3();
     
     // Player state
     this.velocity = new THREE.Vector3();
@@ -35,6 +37,8 @@ export class PlayerControls {
     this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     this.hasDoubleJumped = false;
     this.currentSpecialAction = null;
+    this.runningKickTimer = null;
+    this.runningKickOriginalY = 0;
     
     // Mobile control variables
     this.joystick = null;
@@ -200,9 +204,17 @@ export class PlayerControls {
           this.playAction('hurricaneKick');
         }
       } else if (key === 'e') {
+        if (this.isMoving) {
+          this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
+        }
         this.playAction('mutantPunch');
       } else if (key === 'r') {
-        this.playAction('mmaKick');
+        if (this.isMoving) {
+          this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
+          this.playAction('runningKick');
+        } else {
+          this.playAction('mmaKick');
+        }
       }
     });
 
@@ -242,6 +254,15 @@ export class PlayerControls {
     const actions = this.playerModel.userData.actions;
     if (!actions || !actions[actionName]) return;
 
+    if (this.runningKickTimer) {
+      clearTimeout(this.runningKickTimer);
+      this.runningKickTimer = null;
+      const pivot = this.playerModel.userData.pivot;
+      if (pivot) {
+        pivot.rotation.y = this.runningKickOriginalY;
+      }
+    }
+
     const current = this.playerModel.userData.currentAction;
     const action = actions[actionName];
     actions[current]?.fadeOut(0.1);
@@ -249,22 +270,39 @@ export class PlayerControls {
     this.playerModel.userData.currentAction = actionName;
     this.currentSpecialAction = actionName;
 
-    if (['mutantPunch', 'hurricaneKick', 'mmaKick'].includes(actionName)) {
+    if (["mutantPunch", "hurricaneKick", "mmaKick", "runningKick"].includes(actionName)) {
       this.playerModel.userData.attack = {
         name: actionName,
         start: Date.now(),
-        hasHit: false
+        hasHit: false,
       };
+    }
+
+    if (actionName === "runningKick") {
+      action.paused = true;
+      const pivot = this.playerModel.userData.pivot;
+      if (pivot) {
+        this.runningKickOriginalY = pivot.rotation.y;
+        pivot.rotation.y += Math.PI / 2;
+      }
+      this.runningKickTimer = setTimeout(() => {
+        action.stop();
+        if (pivot) {
+          pivot.rotation.y = this.runningKickOriginalY;
+        }
+        this.currentSpecialAction = null;
+      }, 1000);
+      return;
     }
 
     const mixer = this.playerModel.userData.mixer;
     const onFinished = (e) => {
       if (e.action === action) {
-        mixer.removeEventListener('finished', onFinished);
+        mixer.removeEventListener("finished", onFinished);
         this.currentSpecialAction = null;
       }
     };
-    mixer.addEventListener('finished', onFinished);
+    mixer.addEventListener("finished", onFinished);
   }
 
   applyKnockback(impulse) {
@@ -291,7 +329,7 @@ export class PlayerControls {
     
     // Create movement vector
     const moveDirection = new THREE.Vector3(0, 0, 0);
-    const movementLocked = ['projectile', 'mutantPunch', 'mmaKick'].includes(this.currentSpecialAction);
+    const movementLocked = ['mutantPunch', 'mmaKick', 'runningKick'].includes(this.currentSpecialAction);
 
     if (!movementLocked) {
       if (this.isMobile) {
@@ -347,14 +385,24 @@ export class PlayerControls {
       if (moveDirection.x !== 0) {
         movement.add(rightVector.clone().multiplyScalar(moveDirection.x));
       }
-      
+
       if (movement.length() > 0) {
         movement.normalize().multiplyScalar(SPEED);
       }
     } else {
       movement.copy(moveDirection);
     }
-    
+
+    if (movementLocked) {
+      movement.copy(this.slideMomentum);
+      this.slideMomentum.multiplyScalar(0.9);
+      if (this.slideMomentum.length() < 0.001) {
+        this.slideMomentum.set(0, 0, 0);
+      }
+    } else if (movement.length() > 0) {
+      this.lastMoveDirection.copy(movement);
+    }
+
     this.velocity.y -= GRAVITY;
 
     if (this.isKnocked) {
