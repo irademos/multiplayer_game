@@ -71,7 +71,7 @@ export class LevelBuilder {
         this.mode = btn.dataset.mode;
         this.transformControls.setMode(this.mode);
       });
-    });
+    }
 
     this.propSelect.addEventListener('change', () => {
       if (this.propSelect.value) {
@@ -168,6 +168,7 @@ export class LevelBuilder {
     if (this.active) return;
     this.active = true;
     this.sidebar.classList.remove('hidden');
+    this.modeControls?.classList.remove('hidden');
     this.renderer.domElement.addEventListener('pointerdown', this._onPointerDown);
     this.transformControls.enabled = true;
   }
@@ -176,6 +177,7 @@ export class LevelBuilder {
     if (!this.active) return;
     this.active = false;
     this.sidebar.classList.add('hidden');
+    this.modeControls?.classList.add('hidden');
     this.selected = null;
     this.transformControls.detach();
     this.transformControls.enabled = false;
