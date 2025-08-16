@@ -12,20 +12,34 @@ export class LevelBuilder {
     this.objects = [];
     this.propUrls = {};
     this.active = false;
-
-    this.transform = new TransformControls(camera, renderer.domElement);
-    this.transform.setSize(1);
-    this.transform.enabled = false;
-    this.transform.visible = false;
-    this.transform.showX = this.transform.showY = this.transform.showZ = true;
-
-    scene.add(this.transform);
-
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
     this.selected = null;
 
     this._setupUI();
+    this.gizmo = document.getElementById('transform-gizmo');
+    this.mode = 'translate';
+    this.dragState = null;
+
+    if (this.gizmo) {
+      this.gizmo.querySelectorAll('.gizmo-arrow').forEach(arrow => {
+        arrow.addEventListener('mousedown', e => {
+          if (!this.selected) return;
+          e.stopPropagation();
+          const axis = arrow.dataset.axis;
+          const startMouse = axis === 'y' ? e.clientY : e.clientX;
+          this.dragState = {
+            axis,
+            startMouse,
+            startPos: this.selected.position.clone(),
+            startScale: this.selected.scale.clone(),
+            startRot: this.selected.rotation.clone()
+          };
+          window.addEventListener('mousemove', this._onDragMove);
+          window.addEventListener('mouseup', this._onDragEnd);
+        });
+      });
+    }
   }
 
   _setupUI() {
@@ -68,7 +82,7 @@ export class LevelBuilder {
     this.deleteBtn = this.sidebar.querySelector('#delete-prop');
     this.sidebar.querySelectorAll('button[data-mode]').forEach(btn => {
       btn.addEventListener('click', () => {
-        this.transform.setMode(btn.dataset.mode);
+        this.mode = btn.dataset.mode;
       });
     });
 
@@ -78,7 +92,7 @@ export class LevelBuilder {
         this.propSelect.value = '';
       }
     });
-    
+
     this.sceneSelect.addEventListener('change', () => {
       const id = this.sceneSelect.value;
       const obj = this.objects.find(o => o.userData.id === id);
@@ -105,9 +119,9 @@ export class LevelBuilder {
       this.scene.remove(this.selected);
       this.objects = this.objects.filter(o => o !== this.selected);
       this._removeObjectOption(this.selected);
-      this.transform.detach();
       this.selected = null;
       this.sceneSelect.value = '';
+      if (this.gizmo) this.gizmo.classList.add('hidden');
     });
 
     this.sidebar.querySelector('#download-level').addEventListener('click', () => this.downloadJSON());
@@ -165,8 +179,6 @@ export class LevelBuilder {
     if (this.active) return;
     this.active = true;
     this.sidebar.classList.remove('hidden');
-    this.transform.enabled = true;
-    this.transform.setMode('translate');
     this.renderer.domElement.addEventListener('pointerdown', this._onPointerDown);
   }
 
@@ -174,10 +186,8 @@ export class LevelBuilder {
     if (!this.active) return;
     this.active = false;
     this.sidebar.classList.add('hidden');
-    this.transform.enabled = false;
-    this.transform.detach();
-    this.transform.visible = false;
     this.selected = null;
+    if (this.gizmo) this.gizmo.classList.add('hidden');
     this.renderer.domElement.removeEventListener('pointerdown', this._onPointerDown);
   }
 
@@ -213,8 +223,7 @@ export class LevelBuilder {
 
   selectObject(obj) {
     this.selected = obj;
-    this.transform.attach(obj);
-    this.transform.visible = true;
+    if (this.gizmo) this.gizmo.classList.remove('hidden');
     this.healthInput.value = obj.userData.meta.health || 0;
     this.tagsInput.value = (obj.userData.tags || []).join(', ');
     if (this.sceneSelect) {
@@ -235,16 +244,20 @@ export class LevelBuilder {
       const root = intersects[0].object.userData.parentProp || intersects[0].object;
       this.selectObject(root);
     } else {
-      this.transform.detach();
-      this.transform.visible = false;
+      if (this.gizmo) this.gizmo.classList.add('hidden');
       this.selected = null;
       if (this.sceneSelect) this.sceneSelect.value = '';
     }
   };
 
   update() {
-    if (this.transform.visible) {
-      this.transform.update();
+    if (this.selected && this.gizmo) {
+      const pos = this.selected.position.clone();
+      pos.project(this.camera);
+      const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-pos.y * 0.5 + 0.5) * window.innerHeight;
+      this.gizmo.style.left = `${x}px`;
+      this.gizmo.style.top = `${y}px`;
     }
   }
 
@@ -340,5 +353,28 @@ export class LevelBuilder {
     const opt = Array.from(this.sceneSelect.options).find(o => o.value === obj.userData.id);
     if (opt) opt.remove();
   }
+
+  _onDragMove = e => {
+    if (!this.dragState || !this.selected) return;
+    const { axis, startMouse, startPos, startScale, startRot } = this.dragState;
+    const delta = ((axis === 'y' ? e.clientY : e.clientX) - startMouse) * 0.01;
+    switch (this.mode) {
+      case 'translate':
+        this.selected.position[axis] = startPos[axis] + delta;
+        break;
+      case 'scale':
+        this.selected.scale[axis] = Math.max(0.01, startScale[axis] + delta);
+        break;
+      case 'rotate':
+        this.selected.rotation[axis] = startRot[axis] + delta;
+        break;
+    }
+  };
+
+  _onDragEnd = () => {
+    window.removeEventListener('mousemove', this._onDragMove);
+    window.removeEventListener('mouseup', this._onDragEnd);
+    this.dragState = null;
+  };
 }
 
