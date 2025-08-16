@@ -397,11 +397,11 @@ export class PlayerControls {
       if (this.isMobile) {
         if (this.joystickForce > 0.1) {
           // Define direction from yaw
-          const forward = new THREE.Vector3(0, 0, 1);
+          const forward = new THREE.Vector3(0, 0, -1);
           const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
           forward.applyQuaternion(yawQuat);
 
-          const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
+          const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
 
           // Decompose joystick input into directional components
           const dx = Math.cos(this.joystickAngle); // right-left
