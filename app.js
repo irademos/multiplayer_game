@@ -12,6 +12,7 @@ import { updateMeleeAttacks } from './melee.js';
 import { LevelLoader } from './levelLoader.js';
 import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
+import { LevelBuilder } from './levelBuilderMode.js';
 
 const clock = new THREE.Clock();
 const mixerClock = new THREE.Clock();
@@ -111,6 +112,13 @@ async function main() {
     projectiles
   });
   window.playerControls = playerControls;
+
+  const levelBuilder = new LevelBuilder({ scene, camera, renderer });
+  const builderBtn = document.getElementById('level-builder-button');
+  builderBtn?.addEventListener('click', () => {
+    levelBuilder.toggle();
+    playerControls.enabled = !levelBuilder.active;
+  });
 
   // Game Over UI elements
   const gameOverOverlay = document.getElementById('game-over-overlay');
@@ -449,6 +457,8 @@ async function main() {
     updateMeleeAttacks({ playerModel, otherPlayers, monster });
 
     breakManager.update();
+
+    levelBuilder.update();
 
     renderer.render(scene, camera);
   }
