@@ -38,6 +38,7 @@ export class PlayerControls {
     this.hasDoubleJumped = false;
     this.currentSpecialAction = null;
     this.runningKickTimer = null;
+    this.runningKickOriginalY = 0;
     
     // Mobile control variables
     this.joystick = null;
@@ -256,6 +257,10 @@ export class PlayerControls {
     if (this.runningKickTimer) {
       clearTimeout(this.runningKickTimer);
       this.runningKickTimer = null;
+      const pivot = this.playerModel.userData.pivot;
+      if (pivot) {
+        pivot.rotation.y = this.runningKickOriginalY;
+      }
     }
 
     const current = this.playerModel.userData.currentAction;
@@ -275,8 +280,16 @@ export class PlayerControls {
 
     if (actionName === "runningKick") {
       action.paused = true;
+      const pivot = this.playerModel.userData.pivot;
+      if (pivot) {
+        this.runningKickOriginalY = pivot.rotation.y;
+        pivot.rotation.y += Math.PI / 2;
+      }
       this.runningKickTimer = setTimeout(() => {
         action.stop();
+        if (pivot) {
+          pivot.rotation.y = this.runningKickOriginalY;
+        }
         this.currentSpecialAction = null;
       }, 1000);
       return;

@@ -23,6 +23,7 @@ export function createPlayerModel(THREE, username, onLoad) {
       pivot.position.set(-center.x, -box.min.y-0.75, -center.z-0.8);
       pivot.add(model);
       playerGroup.add(pivot);
+      playerGroup.userData.pivot = pivot;
 
       const mixer = new THREE.AnimationMixer(model);
       const actions = {};
