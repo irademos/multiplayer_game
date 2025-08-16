@@ -17,29 +17,11 @@ export class LevelBuilder {
     this.selected = null;
 
     this._setupUI();
-    this.gizmo = document.getElementById('transform-gizmo');
     this.mode = 'translate';
-    this.dragState = null;
 
-    if (this.gizmo) {
-      this.gizmo.querySelectorAll('.gizmo-arrow').forEach(arrow => {
-        arrow.addEventListener('mousedown', e => {
-          if (!this.selected) return;
-          e.stopPropagation();
-          const axis = arrow.dataset.axis;
-          const startMouse = axis === 'y' ? e.clientY : e.clientX;
-          this.dragState = {
-            axis,
-            startMouse,
-            startPos: this.selected.position.clone(),
-            startScale: this.selected.scale.clone(),
-            startRot: this.selected.rotation.clone()
-          };
-          window.addEventListener('mousemove', this._onDragMove);
-          window.addEventListener('mouseup', this._onDragEnd);
-        });
-      });
-    }
+    this.transformControls = new TransformControls(this.camera, this.renderer.domElement);
+    this.transformControls.enabled = false;
+    this.scene.add(this.transformControls);
   }
 
   _setupUI() {
@@ -83,6 +65,7 @@ export class LevelBuilder {
     this.sidebar.querySelectorAll('button[data-mode]').forEach(btn => {
       btn.addEventListener('click', () => {
         this.mode = btn.dataset.mode;
+        this.transformControls.setMode(this.mode);
       });
     });
 
@@ -121,7 +104,8 @@ export class LevelBuilder {
       this._removeObjectOption(this.selected);
       this.selected = null;
       this.sceneSelect.value = '';
-      if (this.gizmo) this.gizmo.classList.add('hidden');
+      this.transformControls.detach();
+      this.transformControls.enabled = false;
     });
 
     this.sidebar.querySelector('#download-level').addEventListener('click', () => this.downloadJSON());
@@ -180,6 +164,7 @@ export class LevelBuilder {
     this.active = true;
     this.sidebar.classList.remove('hidden');
     this.renderer.domElement.addEventListener('pointerdown', this._onPointerDown);
+    this.transformControls.enabled = true;
   }
 
   disable() {
@@ -187,7 +172,8 @@ export class LevelBuilder {
     this.active = false;
     this.sidebar.classList.add('hidden');
     this.selected = null;
-    if (this.gizmo) this.gizmo.classList.add('hidden');
+    this.transformControls.detach();
+    this.transformControls.enabled = false;
     this.renderer.domElement.removeEventListener('pointerdown', this._onPointerDown);
   }
 
@@ -223,7 +209,9 @@ export class LevelBuilder {
 
   selectObject(obj) {
     this.selected = obj;
-    if (this.gizmo) this.gizmo.classList.remove('hidden');
+    this.transformControls.attach(obj);
+    this.transformControls.setMode(this.mode);
+    this.transformControls.enabled = true;
     this.healthInput.value = obj.userData.meta.health || 0;
     this.tagsInput.value = (obj.userData.tags || []).join(', ');
     if (this.sceneSelect) {
@@ -244,21 +232,15 @@ export class LevelBuilder {
       const root = intersects[0].object.userData.parentProp || intersects[0].object;
       this.selectObject(root);
     } else {
-      if (this.gizmo) this.gizmo.classList.add('hidden');
       this.selected = null;
+      this.transformControls.detach();
+      this.transformControls.enabled = false;
       if (this.sceneSelect) this.sceneSelect.value = '';
     }
   };
 
   update() {
-    if (this.selected && this.gizmo) {
-      const pos = this.selected.position.clone();
-      pos.project(this.camera);
-      const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
-      const y = (-pos.y * 0.5 + 0.5) * window.innerHeight;
-      this.gizmo.style.left = `${x}px`;
-      this.gizmo.style.top = `${y}px`;
-    }
+    // TransformControls manages its own positioning; nothing needed here for now.
   }
 
   downloadJSON() {
@@ -354,27 +336,6 @@ export class LevelBuilder {
     if (opt) opt.remove();
   }
 
-  _onDragMove = e => {
-    if (!this.dragState || !this.selected) return;
-    const { axis, startMouse, startPos, startScale, startRot } = this.dragState;
-    const delta = ((axis === 'y' ? e.clientY : e.clientX) - startMouse) * 0.01;
-    switch (this.mode) {
-      case 'translate':
-        this.selected.position[axis] = startPos[axis] + delta;
-        break;
-      case 'scale':
-        this.selected.scale[axis] = Math.max(0.01, startScale[axis] + delta);
-        break;
-      case 'rotate':
-        this.selected.rotation[axis] = startRot[axis] + delta;
-        break;
-    }
-  };
-
-  _onDragEnd = () => {
-    window.removeEventListener('mousemove', this._onDragMove);
-    window.removeEventListener('mouseup', this._onDragEnd);
-    this.dragState = null;
-  };
+  // TransformControls handles dragging internally; no manual event handlers needed.
 }
 
