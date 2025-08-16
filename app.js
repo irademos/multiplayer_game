@@ -13,6 +13,7 @@ import { LevelLoader } from './levelLoader.js';
 import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
 import { LevelBuilder } from './levelBuilderMode.js';
+import { AudioManager } from './audioManager.js';
 
 const clock = new THREE.Clock();
 const mixerClock = new THREE.Clock();
@@ -27,6 +28,7 @@ async function main() {
   }
 
   const multiplayer = new Multiplayer(playerName, handleIncomingData);
+  const audioManager = new AudioManager();
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87CEEB);
@@ -86,6 +88,7 @@ async function main() {
   scene.add(playerModel);
   document.body.appendChild(player.nameLabel);
   window.playerModel = playerModel;
+  audioManager.playBGS('Forest Day/Forest Day.ogg');
 
   window.localHealth = 100;
   window.monsterHealth = 100;
@@ -109,7 +112,8 @@ async function main() {
     renderer,
     multiplayer,
     spawnProjectile,
-    projectiles
+    projectiles,
+    audioManager
   });
   window.playerControls = playerControls;
 
@@ -472,7 +476,7 @@ async function main() {
       clock
     });
 
-    updateMeleeAttacks({ playerModel, otherPlayers, monster });
+    updateMeleeAttacks({ playerModel, otherPlayers, monster, audioManager });
 
     breakManager.update();
 

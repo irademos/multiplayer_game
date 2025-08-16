@@ -7,7 +7,7 @@ const ATTACKS = {
   mmaKick: { damage: 12, range: 1.7, hitTime: 350, hitWindow: 300 }
 };
 
-export function updateMeleeAttacks({ playerModel, otherPlayers, monster }) {
+export function updateMeleeAttacks({ playerModel, otherPlayers, monster, audioManager }) {
   const now = Date.now();
   const players = [
     { id: 'local', model: playerModel },
@@ -21,10 +21,12 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, monster }) {
     if (!cfg) continue;
     const elapsed = now - info.start;
     if (elapsed >= cfg.hitTime && elapsed <= cfg.hitTime + cfg.hitWindow && !info.hasHit) {
+      let hit = false;
       for (const target of players) {
         if (target === attacker) continue;
         const dist = attacker.model.position.distanceTo(target.model.position);
         if (dist <= cfg.range) {
+          hit = true;
           if (target.id === 'local') {
             window.localHealth = Math.max(0, window.localHealth - cfg.damage);
             if (window.playerControls) {
@@ -44,6 +46,7 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, monster }) {
       if (monster) {
         const dist = attacker.model.position.distanceTo(monster.position);
         if (dist <= cfg.range) {
+          hit = true;
           window.monsterHealth = Math.max(0, window.monsterHealth - cfg.damage);
           if (window.monsterHealth > 0 && !monster.userData.hitReacting) {
             switchMonsterAnimation(monster, "Death");
@@ -60,6 +63,7 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, monster }) {
           const center = data.center || data.object.position;
           const dist = attacker.model.position.distanceTo(center);
           if (dist <= cfg.range) {
+            hit = true;
             const dir = new THREE.Vector3()
               .subVectors(center, attacker.model.position)
               .normalize();
@@ -70,6 +74,10 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, monster }) {
 
           }
         }
+      }
+
+      if (hit) {
+        audioManager?.playSFX('SFX/Attacks/Sword Attacks Hits and Blocks/Sword Impact Hit 1.ogg', 0.6);
       }
       info.hasHit = true;
     }
