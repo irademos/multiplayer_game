@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 
 export class LevelBuilder {
   constructor({ scene, camera, renderer }) {
@@ -20,6 +21,8 @@ export class LevelBuilder {
 
     this.transformControls = new TransformControls(this.camera, this.renderer.domElement);
     this.transformControls.enabled = false;
+    this.transformControls.setMode(this.mode);
+    this.transformControls.visible = false;
     this.scene.add(this.transformControls);
   }
 
@@ -34,10 +37,10 @@ export class LevelBuilder {
     this.sidebar.innerHTML = `
       <select id="prop-select"><option value="">Add Prop...</option></select>
       <select id="scene-prop-select"><option value="">Select Prop...</option></select>
-      <div>
-        <button data-mode="translate">Move</button>
-        <button data-mode="rotate">Rotate</button>
-        <button data-mode="scale">Scale</button>
+      <div id="mode-controls">
+        <button data-mode="translate">⇄</button>
+        <button data-mode="rotate">⟳</button>
+        <button data-mode="scale">⤢</button>
       </div>
       <div>
         <label>Health <input id="prop-health" type="number" value="100" /></label>
@@ -61,7 +64,9 @@ export class LevelBuilder {
     this.healthInput = this.sidebar.querySelector('#prop-health');
     this.tagsInput = this.sidebar.querySelector('#prop-tags');
     this.deleteBtn = this.sidebar.querySelector('#delete-prop');
-    this.sidebar.querySelectorAll('button[data-mode]').forEach(btn => {
+
+    this.modeControls = this.sidebar.querySelector('#mode-controls');
+    this.modeControls.querySelectorAll('button[data-mode]').forEach(btn => {
       btn.addEventListener('click', () => {
         this.mode = btn.dataset.mode;
         this.transformControls.setMode(this.mode);
@@ -105,6 +110,7 @@ export class LevelBuilder {
       this.sceneSelect.value = '';
       this.transformControls.detach();
       this.transformControls.enabled = false;
+      this.transformControls.visible = false;
     });
 
     this.sidebar.querySelector('#download-level').addEventListener('click', () => this.downloadJSON());
@@ -173,6 +179,7 @@ export class LevelBuilder {
     this.selected = null;
     this.transformControls.detach();
     this.transformControls.enabled = false;
+    this.transformControls.visible = false;
     this.renderer.domElement.removeEventListener('pointerdown', this._onPointerDown);
   }
 
@@ -180,17 +187,27 @@ export class LevelBuilder {
     if (this.active) this.disable(); else this.enable();
   }
 
+  _centerObject(obj) {
+    const box = new THREE.Box3().setFromObject(obj);
+    const center = box.getCenter(new THREE.Vector3());
+    const pivot = new THREE.Object3D();
+    obj.position.sub(center);
+    pivot.add(obj);
+    obj.traverse(c => (c.userData.parentProp = pivot));
+    return pivot;
+  }
+
   spawnProp(name) {
     const url = this.propUrls[name];
     if (!url) return;
     const create = scene => {
-      const obj = scene.clone(true);
+      const raw = scene.clone(true);
+      const obj = this._centerObject(raw);
       obj.position.set(0, 0, 0);
       obj.userData.asset = name;
       obj.userData.id = `${name}_${Date.now()}`;
       obj.userData.tags = ['prop'];
       obj.userData.meta = { health: 100, fractureId: '' };
-      obj.traverse(c => (c.userData.parentProp = obj));
       this.scene.add(obj);
       this.objects.push(obj);
       this._addObjectOption(obj);
@@ -211,6 +228,7 @@ export class LevelBuilder {
     this.transformControls.attach(obj);
     this.transformControls.setMode(this.mode);
     this.transformControls.enabled = true;
+    this.transformControls.visible = true;
     this.healthInput.value = obj.userData.meta.health || 0;
     this.tagsInput.value = (obj.userData.tags || []).join(', ');
     if (this.sceneSelect) {
@@ -234,6 +252,7 @@ export class LevelBuilder {
       this.selected = null;
       this.transformControls.detach();
       this.transformControls.enabled = false;
+      this.transformControls.visible = false;
       if (this.sceneSelect) this.sceneSelect.value = '';
     }
   };
@@ -305,7 +324,8 @@ export class LevelBuilder {
     (manifest.instances || []).forEach(inst => {
       const src = this.assets[inst.asset];
       if (!src) return;
-      const obj = src.clone(true);
+      const raw = src.clone(true);
+      const obj = this._centerObject(raw);
       const pos = inst.position || [0, 0, 0];
       obj.position.set(pos[0], pos[2], -pos[1]);
       const r = inst.rotationEuler || [0, 0, 0];
@@ -322,7 +342,6 @@ export class LevelBuilder {
       obj.userData.id = inst.id;
       obj.userData.tags = inst.tags || [];
       obj.userData.meta = inst.meta || {};
-      obj.traverse(c => (c.userData.parentProp = obj));
       this.scene.add(obj);
       this.objects.push(obj);
       this._addObjectOption(obj);
