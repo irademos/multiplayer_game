@@ -13,9 +13,9 @@ export function initSpeechCommands(commands = {}) {
   recognition.onresult = (event) => {
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const result = event.results[i];
-      console.log(result);
       if (result.isFinal) {
         const transcript = result[0].transcript.trim().toLowerCase();
+        console.log('Detected speech:', transcript);
         Object.entries(commands).forEach(([phrase, callback]) => {
           if (transcript.includes(phrase.toLowerCase())) {
             try {
@@ -31,6 +31,10 @@ export function initSpeechCommands(commands = {}) {
 
   recognition.onerror = (e) => {
     console.error('Speech recognition error:', e);
+  };
+
+  recognition.onnomatch = () => {
+    console.warn('Speech not detected.');
   };
 
   let active = false;
