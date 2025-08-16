@@ -350,17 +350,39 @@ body {
 }
 
 
-@media (max-width: 768px) {
+@media (pointer: coarse) and (max-width: 768px),
+       (pointer: coarse) and (max-height: 768px) {
   #joystick-container {
     display: block;
   }
-  
+
   #jump-button {
     display: block;
   }
-  
+
   .instructions {
     display: none !important;
+  }
+}
+
+@media (pointer: coarse) and (orientation: landscape) {
+  #joystick-container {
+    left: 20px;
+    right: auto;
+    bottom: 20px;
+  }
+
+  #jump-button {
+    left: auto;
+    right: 20px;
+    bottom: 20px;
+  }
+
+  #action-buttons {
+    left: auto;
+    right: 120px;
+    bottom: 20px;
+    flex-direction: column;
   }
 }
 
