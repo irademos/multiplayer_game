@@ -37,6 +37,7 @@ export class PlayerControls {
     this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     this.hasDoubleJumped = false;
     this.currentSpecialAction = null;
+    this.runningKickTimer = null;
     
     // Mobile control variables
     this.joystick = null;
@@ -252,6 +253,11 @@ export class PlayerControls {
     const actions = this.playerModel.userData.actions;
     if (!actions || !actions[actionName]) return;
 
+    if (this.runningKickTimer) {
+      clearTimeout(this.runningKickTimer);
+      this.runningKickTimer = null;
+    }
+
     const current = this.playerModel.userData.currentAction;
     const action = actions[actionName];
     actions[current]?.fadeOut(0.1);
@@ -259,22 +265,31 @@ export class PlayerControls {
     this.playerModel.userData.currentAction = actionName;
     this.currentSpecialAction = actionName;
 
-    if (['mutantPunch', 'hurricaneKick', 'mmaKick', 'runningKick'].includes(actionName)) {
+    if (["mutantPunch", "hurricaneKick", "mmaKick", "runningKick"].includes(actionName)) {
       this.playerModel.userData.attack = {
         name: actionName,
         start: Date.now(),
-        hasHit: false
+        hasHit: false,
       };
+    }
+
+    if (actionName === "runningKick") {
+      action.paused = true;
+      this.runningKickTimer = setTimeout(() => {
+        action.stop();
+        this.currentSpecialAction = null;
+      }, 1000);
+      return;
     }
 
     const mixer = this.playerModel.userData.mixer;
     const onFinished = (e) => {
       if (e.action === action) {
-        mixer.removeEventListener('finished', onFinished);
+        mixer.removeEventListener("finished", onFinished);
         this.currentSpecialAction = null;
       }
     };
-    mixer.addEventListener('finished', onFinished);
+    mixer.addEventListener("finished", onFinished);
   }
 
   applyKnockback(impulse) {
