@@ -396,21 +396,19 @@ export class PlayerControls {
     if (!movementLocked) {
       if (this.isMobile) {
         if (this.joystickForce > 0.1) {
-          // Define direction from yaw
-          const forward = new THREE.Vector3(0, 0, 1);
-          const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
-          forward.applyQuaternion(yawQuat);
+          const cameraForward = new THREE.Vector3();
+          this.camera.getWorldDirection(cameraForward);
+          cameraForward.y = 0;
+          cameraForward.normalize();
 
-          const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
+          const cameraRight = new THREE.Vector3().crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
 
           // Decompose joystick input into directional components
           const dx = Math.cos(this.joystickAngle); // right-left
           const dz = Math.sin(this.joystickAngle); // forward-back
 
-          moveDirection.addScaledVector(forward, dz * this.joystickForce * SPEED);
-          moveDirection.addScaledVector(right, dx * this.joystickForce * SPEED);
-
-          this.playerModel.rotation.y = this.yaw; // Use computed yaw instead of raw angle
+          moveDirection.addScaledVector(cameraForward, dz * this.joystickForce * SPEED);
+          moveDirection.addScaledVector(cameraRight, dx * this.joystickForce * SPEED);
         }
       } else {
         if (this.keysPressed.has("w")) {
