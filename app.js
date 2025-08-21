@@ -27,7 +27,7 @@ async function main() {
     setCookie("playerName", playerName);
   }
 
-  let characterModel = getCookie("characterModel") || "/models/old_man/model.fbx";
+  let characterModel = getCookie("characterModel") || "/models/old_man.fbx";
 
   const multiplayer = new Multiplayer(playerName, handleIncomingData);
   const audioManager = new AudioManager();
@@ -374,20 +374,13 @@ async function main() {
 
   async function populateCharacterSelect() {
     try {
-      const res = await fetch('/models/');
-      const text = await res.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(text, 'text/html');
-      const links = Array.from(doc.querySelectorAll('a'));
-      links.forEach(link => {
-        const href = link.getAttribute('href');
-        if (href && href.endsWith('/') && href !== '../' && href !== 'animations/') {
-          const name = href.replace(/\/$/, '');
-          const option = document.createElement('option');
-          option.value = `/models/${name}/model.fbx`;
-          option.textContent = name;
-          characterSelect.appendChild(option);
-        }
+      const characters = ['andy', 'chris', 'gemhorn_monster', 'old_man'];
+      characters.forEach(name => {
+        const option = document.createElement('option');
+        option.value = `/models/${name}.fbx`;
+        option.textContent = name;
+        characterSelect.appendChild(option);
+        console.log(option.value);
       });
       characterSelect.value = characterModel;
     } catch (e) {

@@ -15,8 +15,56 @@ export function createPlayerModel(
     (fbx) => {
       const model = fbx;
 
+      try {
+        // --- make FBX unlit and remove its internal lights ---
+        model.traverse((obj) => {
+          // Remove lights embedded in the FBX
+          if (obj.isLight) {
+            obj.parent && obj.parent.remove(obj);
+            return;
+          }
+
+          // Replace any lit materials with MeshBasicMaterial
+          if (obj.isMesh) {
+            // turn off shadows so lighting side-effects don't show up
+            obj.castShadow = false;
+            obj.receiveShadow = false;
+
+            const toBasic = (mat) => {
+              if (!mat) return mat;
+              // Preserve the most important props; MeshBasicMaterial ignores lights
+              const basicParams = {
+                map: mat.map || null,
+                color: (mat.color && mat.color.clone()) || new THREE.Color(0xffffff),
+                transparent: mat.transparent || false,
+                opacity: (typeof mat.opacity === 'number') ? mat.opacity : 1,
+                side: mat.side || THREE.FrontSide,
+                // keep vertex colors if present
+                vertexColors: !!mat.vertexColors,
+                // keep alpha maps if any
+                alphaMap: mat.alphaMap || null,
+                // skinned meshes need this flag even on basic materials
+                skinning: obj.isSkinnedMesh === true
+              };
+              // Note: normal/roughness/metalness maps are ignored by MeshBasicMaterial (by design)
+              return new THREE.MeshBasicMaterial(basicParams);
+            };
+
+            if (Array.isArray(obj.material)) {
+              obj.material = obj.material.map(toBasic);
+            } else {
+              obj.material = toBasic(obj.material);
+            }
+          }
+        });
+      }
+      catch  (error) {
+        console.log(error);
+      }
+
+
       // Scale and center the model so it rotates around its midpoint
-      const scale = 0.01;
+      const scale = 1;
       model.scale.set(scale, scale, scale);
 
       // Center the FBX so rotations pivot around the model itself
