@@ -27,6 +27,8 @@ async function main() {
     setCookie("playerName", playerName);
   }
 
+  let characterModel = getCookie("characterModel") || "/models/old_man/model.fbx";
+
   const multiplayer = new Multiplayer(playerName, handleIncomingData);
   const audioManager = new AudioManager();
 
@@ -83,7 +85,7 @@ async function main() {
   dirLight.castShadow = true;
   scene.add(dirLight);
 
-  const player = new PlayerCharacter(playerName);
+  const player = new PlayerCharacter(playerName, characterModel);
   const playerModel = player.model;
   scene.add(playerModel);
   document.body.appendChild(player.nameLabel);
@@ -366,18 +368,47 @@ async function main() {
   const overlay = document.getElementById('settings-overlay');
   const nameInput = document.getElementById('name-input');
   const saveBtn = document.getElementById('save-settings');
+  const characterSelect = document.getElementById('character-select');
   const toggleBtn = document.getElementById("toggle-console");
   const consoleDiv = document.getElementById("console-log");
 
+  async function populateCharacterSelect() {
+    try {
+      const res = await fetch('/models/');
+      const text = await res.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, 'text/html');
+      const links = Array.from(doc.querySelectorAll('a'));
+      links.forEach(link => {
+        const href = link.getAttribute('href');
+        if (href && href.endsWith('/') && href !== '../' && href !== 'animations/') {
+          const name = href.replace(/\/$/, '');
+          const option = document.createElement('option');
+          option.value = `/models/${name}/model.fbx`;
+          option.textContent = name;
+          characterSelect.appendChild(option);
+        }
+      });
+      characterSelect.value = characterModel;
+    } catch (e) {
+      console.error('Failed to load character list', e);
+    }
+  }
+  populateCharacterSelect();
+
   settingsBtn.addEventListener('click', () => {
     nameInput.value = playerName;
+    characterSelect.value = characterModel;
     overlay.style.display = 'flex';
   });
 
   saveBtn.addEventListener('click', () => {
     playerName = nameInput.value.trim() || playerName;
     setCookie("playerName", playerName);
+    characterModel = characterSelect.value;
+    setCookie("characterModel", characterModel);
     overlay.style.display = 'none';
+    window.location.reload();
   });
 
   overlay.addEventListener('click', (e) => {

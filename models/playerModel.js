@@ -1,12 +1,17 @@
 // /models/playerModel.js
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 
-export function createPlayerModel(THREE, username, onLoad) {
+export function createPlayerModel(
+  THREE,
+  username,
+  onLoad,
+  modelPath = '/models/old_man/model.fbx'
+) {
   const playerGroup = new THREE.Group();
   const loader = new FBXLoader();
 
   loader.load(
-    '/models/old_man/model.fbx',
+    modelPath,
     (fbx) => {
       const model = fbx;
 
