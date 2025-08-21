@@ -319,7 +319,8 @@ body {
   text-align: center;
 }
 
-#settings-panel input {
+#settings-panel input,
+#settings-panel select {
   margin-top: 8px;
   margin-bottom: 12px;
   padding: 4px;
