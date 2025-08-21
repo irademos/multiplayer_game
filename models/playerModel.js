@@ -4,8 +4,9 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 export function createPlayerModel(THREE, username, onLoad) {
   const playerGroup = new THREE.Group();
   const loader = new FBXLoader();
+
   loader.load(
-    `/models/old_man_files/${encodeURIComponent('Old Man Idle.fbx')}`,
+    '/models/old_man/model.fbx',
     (fbx) => {
       const model = fbx;
 
@@ -20,7 +21,7 @@ export function createPlayerModel(THREE, username, onLoad) {
 
       // Offset the model inside a pivot group instead of shifting the mesh directly
       const pivot = new THREE.Group();
-      pivot.position.set(-center.x, -box.min.y-0.75, -center.z-0.8);
+      pivot.position.set(-center.x, -box.min.y - 0.75, -center.z - 0.8);
       pivot.add(model);
       playerGroup.add(pivot);
       playerGroup.userData.pivot = pivot;
@@ -28,15 +29,10 @@ export function createPlayerModel(THREE, username, onLoad) {
       const mixer = new THREE.AnimationMixer(model);
       const actions = {};
 
-      // Idle animation from the base model
-      const idleAction = mixer.clipAction(fbx.animations[0]);
-      actions.idle = idleAction;
-      idleAction.play();
-      playerGroup.userData.currentAction = 'idle';
-
-      // Load additional Mixamo animations
+      // Load Mixamo animations
       const fbxLoader = new FBXLoader();
       const animationFiles = {
+        idle: 'Breathing Idle.fbx',
         walk: 'Old Man Walk.fbx',
         run: 'Drunk Run Forward.fbx',
         jump: 'Joyful Jump.fbx',
@@ -46,17 +42,19 @@ export function createPlayerModel(THREE, username, onLoad) {
         runningKick: 'Female Laying Pose.fbx',
         hurricaneKick: 'Hurricane Kick.fbx',
         projectile: 'Projectile.fbx',
-        die: 'Dying.fbx'
+        die: 'Dying.fbx',
       };
 
       const promises = Object.entries(animationFiles).map(([name, file]) => {
         return new Promise((resolve, reject) => {
           fbxLoader.load(
-            `/models/old_man_files/${encodeURIComponent(file)}`,
+            `/models/animations/${encodeURIComponent(file)}`,
             (anim) => {
               const clip = anim.animations[0];
               const action = mixer.clipAction(clip);
-              if (['jump', 'hit', 'mutantPunch', 'mmaKick', 'runningKick', 'hurricaneKick', 'projectile', 'die'].includes(name)) {
+              if (
+                ['jump', 'hit', 'mutantPunch', 'mmaKick', 'runningKick', 'hurricaneKick', 'projectile', 'die'].includes(name)
+              ) {
                 action.loop = THREE.LoopOnce;
                 action.clampWhenFinished = true;
               }
@@ -70,6 +68,8 @@ export function createPlayerModel(THREE, username, onLoad) {
       });
 
       Promise.all(promises).then(() => {
+        actions.idle.play();
+        playerGroup.userData.currentAction = 'idle';
         playerGroup.userData.mixer = mixer;
         playerGroup.userData.actions = actions;
         if (onLoad) onLoad({ mixer, actions });
@@ -113,3 +113,4 @@ export function createPlayerModel(THREE, username, onLoad) {
 
   return { model: playerGroup, nameLabel: label };
 }
+
