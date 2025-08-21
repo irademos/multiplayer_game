@@ -21,7 +21,7 @@ export function createPlayerModel(THREE, username, onLoad) {
 
       // Offset the model inside a pivot group instead of shifting the mesh directly
       const pivot = new THREE.Group();
-      pivot.position.set(-center.x, -box.min.y - 0.75, -center.z - 0.8);
+      pivot.position.set(-center.x, -box.min.y, -center.z - 0.8);
       pivot.add(model);
       playerGroup.add(pivot);
       playerGroup.userData.pivot = pivot;

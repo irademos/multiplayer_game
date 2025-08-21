@@ -71,7 +71,7 @@ export class LevelBuilder {
         this.mode = btn.dataset.mode;
         this.transformControls.setMode(this.mode);
       });
-    }
+    });
 
     this.propSelect.addEventListener('change', () => {
       if (this.propSelect.value) {
