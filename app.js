@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
 import { createOrcVoice } from "./orcVoice.js";
-import { createClouds, generateTerrainChunk, getTerrainHeightAt } from "./worldGeneration.js";
+import { createClouds, createPlanet, getSurfaceInfo, planetRadius } from "./worldGeneration.js";
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -36,6 +36,9 @@ async function main() {
   scene.background = new THREE.Color(0x87CEEB);
 
   createClouds(scene);
+
+  // Create a spherical planet for the player to explore
+  createPlanet(scene);
 
   // Load additional level data (destructible props, etc.)
   const breakManager = new BreakManager(scene);
@@ -183,14 +186,11 @@ async function main() {
   function respawnPlayer() {
     window.localHealth = 100;
     updateHealthUI();
-    const newX = (Math.random() * 10) - 5;
-    const newZ = (Math.random() * 10) - 5;
-    const newY = getTerrainHeightAt(newX, newZ) + 0.5;
-    playerModel.position.set(newX, newY, newZ);
-    playerControls.playerX = newX;
-    playerControls.playerY = newY;
-    playerControls.playerZ = newZ;
-    playerControls.lastPosition.set(newX, newY, newZ);
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.random() * Math.PI;
+    const pos = new THREE.Vector3().setFromSphericalCoords(planetRadius + 0.5, phi, theta);
+    playerModel.position.copy(pos);
+    playerControls.lastPosition.copy(pos);
     playerControls.velocity.set(0, 0, 0);
     playerControls.enabled = true;
     playerDead = false;
@@ -231,24 +231,8 @@ async function main() {
     window.addEventListener('touchcancel', stopTalking);
   }
 
-  const generatedChunks = new Set();
-  const chunkSize = 50;
-
-  function updateTerrain() {
-    const playerPos = playerModel.position;
-    const cx = Math.floor(playerPos.x / chunkSize);
-    const cz = Math.floor(playerPos.z / chunkSize);
-
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dz = -1; dz <= 1; dz++) {
-        const key = `${cx + dx},${cz + dz}`;
-        if (!generatedChunks.has(key)) {
-          generateTerrainChunk(scene, cx + dx, cz + dz, chunkSize);
-          generatedChunks.add(key);
-        }
-      }
-    }
-  }
+  // Flat terrain chunks are no longer needed when using a planet
+  // function updateTerrain() {}
 
   const otherPlayers = {};
 
@@ -264,23 +248,10 @@ async function main() {
 
       const player = otherPlayers[data.id];
       player.name = data.name;
-      // Update remote player position and rotation
-      player.model.position.x = data.x;
-      player.model.position.z = data.z;
-
-      // Ensure terrain chunk exists locally for remote player position
-      const rcx = Math.floor(data.x / chunkSize);
-      const rcz = Math.floor(data.z / chunkSize);
-      const rkey = `${rcx},${rcz}`;
-      if (!generatedChunks.has(rkey)) {
-        generateTerrainChunk(scene, rcx, rcz, chunkSize);
-        generatedChunks.add(rkey);
-      }
-
-      // Adjust vertical placement against local terrain height
-      const terrainY = getTerrainHeightAt(data.x, data.z);
-      const targetY = Math.max(data.y ?? terrainY, terrainY);
-      player.model.position.y = targetY;
+      // Update remote player position and rotation on the planet surface
+      const remotePos = new THREE.Vector3(data.x, data.y ?? 0, data.z);
+      const surface = getSurfaceInfo(remotePos);
+      player.model.position.copy(surface.surfacePosition);
       player.model.rotation.y = data.rotation;
 
       // Sync animation state if provided
@@ -428,7 +399,7 @@ async function main() {
   function animate() {
     requestAnimationFrame(animate);
     playerControls.update();
-    updateTerrain();
+    // updateTerrain();
 
     updateHealthUI();
     if (window.localHealth <= 0 && !playerDead) {
