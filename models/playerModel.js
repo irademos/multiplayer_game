@@ -5,15 +5,20 @@ export function createPlayerModel(
   THREE,
   username,
   onLoad,
-  modelPath = '/models/old_man/model.fbx'
+  modelPath = '/models/old_man.fbx'
 ) {
   const playerGroup = new THREE.Group();
   const loader = new FBXLoader();
 
-  loader.load(
-    modelPath,
-    (fbx) => {
-      const model = fbx;
+  const configPath = modelPath.replace(/\.[^/.]+$/, '.json');
+  fetch(configPath)
+    .then((res) => (res.ok ? res.json() : {}))
+    .catch(() => ({}))
+    .then((config) => {
+      loader.load(
+        modelPath,
+        (fbx) => {
+          const model = fbx;
 
       try {
         // --- make FBX unlit and remove its internal lights ---
@@ -63,21 +68,22 @@ export function createPlayerModel(
       }
 
 
-      // Scale and center the model so it rotates around its midpoint
-      const scale = 1;
-      model.scale.set(scale, scale, scale);
+          // Scale and center the model so it rotates around its midpoint
+          const scale = config.scale ?? 1;
+          model.scale.set(scale, scale, scale);
 
-      // Center the FBX so rotations pivot around the model itself
-      model.updateMatrixWorld(true);
-      const box = new THREE.Box3().setFromObject(model);
-      const center = box.getCenter(new THREE.Vector3());
+          // Center the FBX so rotations pivot around the model itself
+          model.updateMatrixWorld(true);
+          const box = new THREE.Box3().setFromObject(model);
+          const center = box.getCenter(new THREE.Vector3());
 
-      // Offset the model inside a pivot group instead of shifting the mesh directly
-      const pivot = new THREE.Group();
-      pivot.position.set(-center.x, -box.min.y, -center.z - 0.8);
-      pivot.add(model);
-      playerGroup.add(pivot);
-      playerGroup.userData.pivot = pivot;
+          // Offset the model inside a pivot group instead of shifting the mesh directly
+          const pivot = new THREE.Group();
+          const yOffset = (config.yOffset ?? 0) - box.min.y;
+          pivot.position.set(-center.x, yOffset, -center.z - 0.8);
+          pivot.add(model);
+          playerGroup.add(pivot);
+          playerGroup.userData.pivot = pivot;
 
       const mixer = new THREE.AnimationMixer(model);
       const actions = {};
@@ -120,19 +126,20 @@ export function createPlayerModel(
         });
       });
 
-      Promise.all(promises).then(() => {
-        actions.idle.play();
-        playerGroup.userData.currentAction = 'idle';
-        playerGroup.userData.mixer = mixer;
-        playerGroup.userData.actions = actions;
-        if (onLoad) onLoad({ mixer, actions });
-      });
-    },
-    undefined,
-    (err) => {
-      console.error('Failed to load player model:', err);
-    }
-  );
+          Promise.all(promises).then(() => {
+            actions.idle.play();
+            playerGroup.userData.currentAction = 'idle';
+            playerGroup.userData.mixer = mixer;
+            playerGroup.userData.actions = actions;
+            if (onLoad) onLoad({ mixer, actions });
+          });
+        },
+        undefined,
+        (err) => {
+          console.error('Failed to load player model:', err);
+        }
+      );
+    });
 
   const canvas = document.createElement('canvas');
   canvas.width = 256;
