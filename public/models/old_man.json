@@ -1,4 +1,5 @@
 {
-  "scale": 1,
-  "yOffset": 0
+  "scale": 0.01,
+  "yOffset": 0,
+  "zOffset": 0.8
 }
