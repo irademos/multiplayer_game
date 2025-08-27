@@ -34,7 +34,7 @@ export class BreakManager {
   }
 
   // Apply damage to an object. Once health <= 0 the object is replaced with its chunks.
-  async onHit(id, damage = 10, impulse = new THREE.Vector3()) {
+  onHit(id, damage = 10, impulse = new THREE.Vector3()) {
     const entry = this.registry.get(id);
     if (!entry || !this.world) return;
     entry.health -= damage;

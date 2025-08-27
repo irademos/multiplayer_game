@@ -45,19 +45,42 @@ export function updateProjectiles({
   monster,
   clock
 }) {
+  const removeProjectile = (index) => {
+    const p = projectiles[index];
+    const body = p.userData.rb;
+    scene.remove(p);
+    if (p.geometry) p.geometry.dispose();
+    if (p.material) p.material.dispose();
+    projectiles.splice(index, 1);
+    window.rbToMesh.delete(body);
+    if (window.rapierWorld?.getRigidBody(body.handle)) {
+      window.rapierWorld.removeRigidBody(body);
+    }
+  };
+
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const proj = projectiles[i];
     const rb = proj.userData.rb;
-    const linvel = rb.linvel();
+
+    let linvel;
+    try {
+      const body = window.rapierWorld?.getRigidBody(rb.handle);
+      if (!body) {
+        removeProjectile(i);
+        continue;
+      }
+      linvel = body.linvel();
+    } catch (e) {
+      removeProjectile(i);
+      continue;
+    }
+
     const vel = new THREE.Vector3(linvel.x, linvel.y, linvel.z);
     proj.userData.velocity = vel.clone();
 
     proj.userData.lifetime -= 16;
     if (proj.userData.lifetime <= 0) {
-      scene.remove(proj);
-      projectiles.splice(i, 1);
-      window.rbToMesh.delete(rb);
-      window.rapierWorld.removeRigidBody(rb);
+      removeProjectile(i);
       continue;
     }
 
@@ -75,8 +98,7 @@ export function updateProjectiles({
           player.health = Math.max(0, (player.health || 100) - 10);
           console.log(`💥 Hit player: ${id}, Health: ${player.health}`);
         }
-        scene.remove(proj);
-        projectiles.splice(i, 1);
+        removeProjectile(i);
         removed = true;
         break;
       }
@@ -92,8 +114,7 @@ export function updateProjectiles({
           window.breakManager.onHit(id, 25, proj.userData.velocity.clone());
           const remaining = window.breakManager.registry.get(id)?.health ?? 0;
           console.log(`🎯 ${id} health: ${remaining}`);
-          scene.remove(proj);
-          projectiles.splice(i, 1);
+          removeProjectile(i);
           removed = true;
           break;
         }
@@ -106,8 +127,7 @@ export function updateProjectiles({
     const localBox = new THREE.Box3().setFromObject(playerModel);
     if (projBox.intersectsBox(localBox) && age >= 80) {
       console.log(`💥 You were hit`);
-      scene.remove(proj);
-      projectiles.splice(i, 1);
+      removeProjectile(i);
       removed = true;
 
       if (typeof window.localHealth === 'number') {
@@ -128,8 +148,7 @@ export function updateProjectiles({
       if (projBox.intersectsBox(monsterBox) && age >= 80) {
         console.log(`💥 Monster was hit`);
         monster.userData.mode = "enemy";
-        scene.remove(proj);
-        projectiles.splice(i, 1);
+        removeProjectile(i);
         removed = true;
 
         if (typeof window.monsterHealth === 'number') {
