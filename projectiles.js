@@ -49,15 +49,32 @@ export function updateProjectiles({
     const p = projectiles[index];
     const body = p.userData.rb;
     scene.remove(p);
+    if (p.geometry) p.geometry.dispose();
+    if (p.material) p.material.dispose();
     projectiles.splice(index, 1);
     window.rbToMesh.delete(body);
-    window.rapierWorld.removeRigidBody(body);
+    if (window.rapierWorld?.getRigidBody(body.handle)) {
+      window.rapierWorld.removeRigidBody(body);
+    }
   };
 
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const proj = projectiles[i];
     const rb = proj.userData.rb;
-    const linvel = rb.linvel();
+
+    let linvel;
+    try {
+      const body = window.rapierWorld?.getRigidBody(rb.handle);
+      if (!body) {
+        removeProjectile(i);
+        continue;
+      }
+      linvel = body.linvel();
+    } catch (e) {
+      removeProjectile(i);
+      continue;
+    }
+
     const vel = new THREE.Vector3(linvel.x, linvel.y, linvel.z);
     proj.userData.velocity = vel.clone();
 
