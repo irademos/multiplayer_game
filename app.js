@@ -69,6 +69,7 @@ async function main() {
       "errrga ooogah"
     ];
     monster.userData.voice = createOrcVoice(orcPhrases);
+    if (rapierWorld) attachMonsterPhysics(monster);
   });
 
   // Allow mode switching from console or other scripts
@@ -118,6 +119,20 @@ async function main() {
     ground.position.y = -0.99;
     scene.add(ground);
   }
+
+  function attachMonsterPhysics(mon) {
+    const rbDesc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(mon.position.x, mon.position.y, mon.position.z)
+      .setLinearDamping(0.5)
+      .setAngularDamping(0.5);
+    const rb = rapierWorld.createRigidBody(rbDesc);
+    const colDesc = RAPIER.ColliderDesc.capsule(0.6, 0.3);
+    rapierWorld.createCollider(colDesc, rb);
+    mon.userData.rb = rb;
+    rbToMesh.set(rb, mon);
+  }
+
+  if (monster) attachMonsterPhysics(monster);
 
 
 
@@ -452,10 +467,8 @@ async function main() {
     }
 
     if (data.type === "monster" && monster) {
-      const target = new THREE.Vector3(data.x, data.y, data.z);
-      if (!window.playerControls?.isKnocked || monster.position.distanceTo(target) > 2) {
-        monster.position.lerp(target, 0.2);
-      }
+      const target = { x: data.x, y: data.y, z: data.z };
+      monster.userData.rb?.setTranslation(target, true);
     }
   }
 

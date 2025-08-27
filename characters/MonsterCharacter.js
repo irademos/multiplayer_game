@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { getTerrainHeightAt } from '../worldGeneration.js';
 
 export function switchMonsterAnimation(monster, newName) {
   const { actions, currentAction } = monster.userData;
@@ -26,6 +25,8 @@ export function switchMonsterAnimation(monster, newName) {
 export function updateMonster(monster, clock, playerModel, otherPlayers) {
   const now = Date.now();
   const data = monster.userData;
+  const body = data.rb;
+  if (!body) return;
 
   // 🧠 Handle monster death state
   if (window.monsterHealth <= 0) {
@@ -60,18 +61,15 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
       data.lastDirectionChange = now;
     }
 
+    const vel = body.linvel();
     const movement = data.direction.clone().multiplyScalar(data.speed);
-    monster.position.add(movement);
-
-    // Follow terrain height and face movement direction
-    const targetY = getTerrainHeightAt(monster.position.x, monster.position.z);
-    monster.position.y += (targetY - monster.position.y) * 0.2;
-    monster.lookAt(monster.position.clone().add(data.direction));
-
+    body.setLinvel({ x: movement.x, y: vel.y, z: movement.z }, true);
+    const angle = Math.atan2(data.direction.x, data.direction.z);
+    const rot = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, angle, 0));
+    body.setRotation(rot, true);
     switchMonsterAnimation(monster, "Walk");
-
     if (data.mixer) data.mixer.update(delta);
-    return; // ⛔ Skip enemy logic
+    return;
   }
 
   const allPlayers = [
@@ -103,13 +101,15 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
     const direction = targetPos.sub(monster.position).normalize();
     data.direction.copy(direction);
     const movement = data.direction.clone().multiplyScalar(data.speed * 3);
-    monster.position.add(movement);
-    monster.lookAt(closestPlayer.model.position);
-    // Adjust vertical position to follow terrain
-    const targetY = getTerrainHeightAt(monster.position.x, monster.position.z);
-    monster.position.y += (targetY - monster.position.y) * 0.2;
+    const vel = body.linvel();
+    body.setLinvel({ x: movement.x, y: vel.y, z: movement.z }, true);
+    const angle = Math.atan2(data.direction.x, data.direction.z);
+    const rot = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, angle, 0));
+    body.setRotation(rot, true);
     switchMonsterAnimation(monster, "Walk");
   } else {
+    const vel = body.linvel();
+    body.setLinvel({ x: 0, y: vel.y, z: 0 }, true);
     if (!data.lastAttackTime || now - data.lastAttackTime > 2000) {
       switchMonsterAnimation(monster, "Weapon");
       data.lastAttackTime = now;
