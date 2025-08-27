@@ -36,36 +36,41 @@ export function createClouds(scene) {
   }
 }
 
-// Radius of the spherical world
-export const planetRadius = 100;
+export const terrainChunks = new Map();
 
-/**
- * Create a spherical planet that replaces the previous flat terrain.
- * The planet is centered at the origin so player movement can be
- * calculated relative to the planet's surface normal.
- */
-export function createPlanet(scene) {
-  const geometry = new THREE.SphereGeometry(planetRadius, 64, 64);
+export function generateTerrainChunk(scene, chunkX, chunkZ, size = 50) {
+  const heightFunction = (x, z) => {
+    return Math.sin(x * 0.1) * Math.cos(z * 0.1) * 2;
+  };
+
+  const geometry = new THREE.PlaneGeometry(size, size, 32, 32);
+  geometry.rotateX(-Math.PI / 2);
+
+  const vertices = geometry.attributes.position;
+  for (let i = 0; i < vertices.count; i++) {
+    const x = vertices.getX(i) + chunkX * size;
+    const z = vertices.getZ(i) + chunkZ * size;
+    const y = heightFunction(x, z);
+    vertices.setY(i, y);
+  }
+
+  geometry.computeVertexNormals();
+
   const material = new THREE.MeshStandardMaterial({ color: 0x77cc77 });
-  const planet = new THREE.Mesh(geometry, material);
-  planet.receiveShadow = true;
-  scene.add(planet);
-  return planet;
+  const terrain = new THREE.Mesh(geometry, material);
+  terrain.receiveShadow = true;
+  terrain.position.set(chunkX * size, 0, chunkZ * size);
+  scene.add(terrain);
+
+  terrainChunks.set(`${chunkX},${chunkZ}`, { mesh: terrain, heightFunction });
 }
 
-/**
- * Given a world position, return information about the planet's surface
- * at that point.
- *
- * @param {THREE.Vector3} position - World position to evaluate
- * @returns {{normal: THREE.Vector3, surfacePosition: THREE.Vector3, height: number}}
- *   normal - the outward surface normal at the closest point on the planet
- *   surfacePosition - the closest point on the planet's surface
- *   height - height above the surface (positive) or penetration depth (negative)
- */
-export function getSurfaceInfo(position) {
-  const normal = position.clone().normalize();
-  const surfacePosition = normal.clone().multiplyScalar(planetRadius);
-  const height = position.length() - planetRadius;
-  return { normal, surfacePosition, height };
+export function getTerrainHeightAt(x, z) {
+  const chunkSize = 50;
+  const cx = Math.floor(x / chunkSize);
+  const cz = Math.floor(z / chunkSize);
+  const key = `${cx},${cz}`;
+  const chunk = terrainChunks.get(key);
+  if (!chunk) return 0;
+  return chunk.heightFunction(x, z);
 }

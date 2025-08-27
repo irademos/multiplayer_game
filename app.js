@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
 import { createOrcVoice } from "./orcVoice.js";
-import { createClouds, createPlanet, getSurfaceInfo, planetRadius } from "./worldGeneration.js";
+import { createClouds, generateTerrainChunk, getTerrainHeightAt } from "./worldGeneration.js";
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -14,9 +14,16 @@ import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
 import { LevelBuilder } from './levelBuilderMode.js';
 import { AudioManager } from './audioManager.js';
+import RAPIER from '@dimforge/rapier3d-compat';
 
 const clock = new THREE.Clock();
 const mixerClock = new THREE.Clock();
+
+// --- Rapier demo state ---
+let rapierWorld;
+const rbToMesh = new Map(); // RigidBody -> THREE.Mesh
+let physicsAccumulator = 0;
+const FIXED_DT = 1 / 60;
 
 async function main() {
   document.body.addEventListener('touchstart', () => {}, { once: true });
@@ -36,9 +43,6 @@ async function main() {
   scene.background = new THREE.Color(0x87CEEB);
 
   createClouds(scene);
-
-  // Create a spherical planet for the player to explore
-  createPlanet(scene);
 
   // Load additional level data (destructible props, etc.)
   const breakManager = new BreakManager(scene);
@@ -88,6 +92,32 @@ async function main() {
   dirLight.castShadow = true;
   scene.add(dirLight);
 
+
+
+  // --- RAPIER INIT ---
+  await RAPIER.init();
+  rapierWorld = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+
+  // Huge static ground so the blocks land (visual terrain stays as-is)
+  {
+    const groundRb = rapierWorld.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -1, 0));
+    rapierWorld.createCollider(
+      RAPIER.ColliderDesc.cuboid(200, 1, 200), // half-extents
+      groundRb
+    );
+
+    // Optional: faint ground helper (invisible if you prefer)
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(400, 400),
+      new THREE.MeshStandardMaterial({ color: 0x556b2f, metalness: 0, roughness: 1, transparent: true, opacity: 0.12 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.99;
+    scene.add(ground);
+  }
+
+
+
   const player = new PlayerCharacter(playerName, characterModel);
   const playerModel = player.model;
   scene.add(playerModel);
@@ -128,6 +158,90 @@ async function main() {
     levelBuilder.toggle();
     playerControls.enabled = !levelBuilder.active;
   });
+
+
+  // --- RAPIER HELPERS ---
+  function spawnBlock({
+    pos = new THREE.Vector3(0, 5, 0),
+    half = new THREE.Vector3(0.25, 0.25, 0.25),
+    linvel = new THREE.Vector3(),
+    angvel = new THREE.Vector3(Math.random(), Math.random(), Math.random()),
+    color = 0x66ccff,
+  } = {}) {
+    // Three mesh
+    const geom = new THREE.BoxGeometry(half.x * 2, half.y * 2, half.z * 2);
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.0 });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.position.copy(pos);
+    scene.add(mesh);
+
+    // Rapier body + collider
+    const rbDesc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(pos.x, pos.y, pos.z)
+      .setLinearDamping(0.02)
+      .setAngularDamping(0.02);
+    const rb = rapierWorld.createRigidBody(rbDesc);
+
+    // Give it a fun impulse/velocity
+    rb.setLinvel({ x: linvel.x, y: linvel.y, z: linvel.z }, true);
+    rb.setAngvel({ x: angvel.x, y: angvel.y, z: angvel.z }, true);
+
+    const colDesc = RAPIER.ColliderDesc.cuboid(half.x, half.y, half.z)
+      .setRestitution(0.2)
+      .setFriction(0.6);
+    rapierWorld.createCollider(colDesc, rb);
+
+    rbToMesh.set(rb, mesh);
+    return rb;
+  }
+
+  function shootBlockFromPlayer(speed = 18) {
+    const origin = playerModel.position.clone().add(new THREE.Vector3(0, 0, 0));
+
+    // forward from camera so it goes where you're looking
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+    const linvel = dir.multiplyScalar(speed);
+
+    spawnBlock({
+      pos: origin.add(dir.clone().multiplyScalar(1.2)),
+      linvel,
+      color: 0xff8855,
+      half: new THREE.Vector3(0.3, 0.3, 0.3),
+    });
+  }
+
+  // Little “machine gun” for fun
+  let burstInterval = null;
+  function startBurst() {
+    if (burstInterval) return;
+    burstInterval = setInterval(() => shootBlockFromPlayer(22), 120);
+  }
+  function stopBurst() {
+    if (!burstInterval) return;
+    clearInterval(burstInterval);
+    burstInterval = null;
+  }
+
+  // Keyboard shortcuts
+  window.addEventListener('keydown', (e) => {
+    
+    if (e.code === 'KeyB') {
+      shootBlockFromPlayer(); // tap B to fire one block
+      console.log("b key pressed");
+    }
+    if (e.code === 'KeyN') startBurst();          // hold N to start burst
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'KeyN') stopBurst();
+  });
+
+  // Expose for console testing
+  window.spawnBlock = spawnBlock;
+  window.shootBlockFromPlayer = shootBlockFromPlayer;
+
+
 
   // Game Over UI elements
   const gameOverOverlay = document.getElementById('game-over-overlay');
@@ -186,11 +300,14 @@ async function main() {
   function respawnPlayer() {
     window.localHealth = 100;
     updateHealthUI();
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.random() * Math.PI;
-    const pos = new THREE.Vector3().setFromSphericalCoords(planetRadius + 0.5, phi, theta);
-    playerModel.position.copy(pos);
-    playerControls.lastPosition.copy(pos);
+    const newX = (Math.random() * 10) - 5;
+    const newZ = (Math.random() * 10) - 5;
+    const newY = getTerrainHeightAt(newX, newZ) + 0.5;
+    playerModel.position.set(newX, newY, newZ);
+    playerControls.playerX = newX;
+    playerControls.playerY = newY;
+    playerControls.playerZ = newZ;
+    playerControls.lastPosition.set(newX, newY, newZ);
     playerControls.velocity.set(0, 0, 0);
     playerControls.enabled = true;
     playerDead = false;
@@ -231,8 +348,24 @@ async function main() {
     window.addEventListener('touchcancel', stopTalking);
   }
 
-  // Flat terrain chunks are no longer needed when using a planet
-  // function updateTerrain() {}
+  const generatedChunks = new Set();
+  const chunkSize = 50;
+
+  function updateTerrain() {
+    const playerPos = playerModel.position;
+    const cx = Math.floor(playerPos.x / chunkSize);
+    const cz = Math.floor(playerPos.z / chunkSize);
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const key = `${cx + dx},${cz + dz}`;
+        if (!generatedChunks.has(key)) {
+          generateTerrainChunk(scene, cx + dx, cz + dz, chunkSize);
+          generatedChunks.add(key);
+        }
+      }
+    }
+  }
 
   const otherPlayers = {};
 
@@ -248,10 +381,23 @@ async function main() {
 
       const player = otherPlayers[data.id];
       player.name = data.name;
-      // Update remote player position and rotation on the planet surface
-      const remotePos = new THREE.Vector3(data.x, data.y ?? 0, data.z);
-      const surface = getSurfaceInfo(remotePos);
-      player.model.position.copy(surface.surfacePosition);
+      // Update remote player position and rotation
+      player.model.position.x = data.x;
+      player.model.position.z = data.z;
+
+      // Ensure terrain chunk exists locally for remote player position
+      const rcx = Math.floor(data.x / chunkSize);
+      const rcz = Math.floor(data.z / chunkSize);
+      const rkey = `${rcx},${rcz}`;
+      if (!generatedChunks.has(rkey)) {
+        generateTerrainChunk(scene, rcx, rcz, chunkSize);
+        generatedChunks.add(rkey);
+      }
+
+      // Adjust vertical placement against local terrain height
+      const terrainY = getTerrainHeightAt(data.x, data.z);
+      const targetY = Math.max(data.y ?? terrainY, terrainY);
+      player.model.position.y = targetY;
       player.model.rotation.y = data.rotation;
 
       // Sync animation state if provided
@@ -398,8 +544,37 @@ async function main() {
 
   function animate() {
     requestAnimationFrame(animate);
+
+    // --- RAPIER FIXED-STEP & SYNC ---
+    // Accumulate variable rAF time into fixed physics steps
+    physicsAccumulator += clock.getDelta();
+    while (physicsAccumulator >= FIXED_DT) {
+      rapierWorld.step();
+      physicsAccumulator -= FIXED_DT;
+    }
+
+    // Sync Rapier bodies -> Three meshes
+    for (const [rb, mesh] of rbToMesh.entries()) {
+      const t = rb.translation();
+      const r = rb.rotation();
+      mesh.position.set(t.x, t.y, t.z);
+      mesh.quaternion.set(r.x, r.y, r.z, r.w);
+
+      // Simple cleanup: remove if it falls far below the world
+      if (mesh.position.y < -50) {
+        scene.remove(mesh);
+        mesh.geometry.dispose();
+        mesh.material.dispose();
+        rbToMesh.delete(rb);
+        rapierWorld.removeRigidBody(rb);
+      }
+    }
+
+
+
+
     playerControls.update();
-    // updateTerrain();
+    updateTerrain();
 
     updateHealthUI();
     if (window.localHealth <= 0 && !playerDead) {

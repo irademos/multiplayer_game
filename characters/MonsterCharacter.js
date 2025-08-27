@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { getSurfaceInfo } from '../worldGeneration.js';
+import { getTerrainHeightAt } from '../worldGeneration.js';
 
 export function switchMonsterAnimation(monster, newName) {
   const { actions, currentAction } = monster.userData;
@@ -64,8 +64,8 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
     monster.position.add(movement);
 
     // Follow terrain height and face movement direction
-    const surface = getSurfaceInfo(monster.position);
-    monster.position.lerp(surface.surfacePosition, 0.2);
+    const targetY = getTerrainHeightAt(monster.position.x, monster.position.z);
+    monster.position.y += (targetY - monster.position.y) * 0.2;
     monster.lookAt(monster.position.clone().add(data.direction));
 
     switchMonsterAnimation(monster, "Walk");
@@ -106,8 +106,8 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
     monster.position.add(movement);
     monster.lookAt(closestPlayer.model.position);
     // Adjust vertical position to follow terrain
-    const surf = getSurfaceInfo(monster.position);
-    monster.position.lerp(surf.surfacePosition, 0.2);
+    const targetY = getTerrainHeightAt(monster.position.x, monster.position.z);
+    monster.position.y += (targetY - monster.position.y) * 0.2;
     switchMonsterAnimation(monster, "Walk");
   } else {
     if (!data.lastAttackTime || now - data.lastAttackTime > 2000) {

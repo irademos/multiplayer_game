@@ -1,16 +1,15 @@
 import * as THREE from "three";
 import { updateMonster, switchMonsterAnimation } from './characters/MonsterCharacter.js';
-import { getSurfaceInfo } from "./worldGeneration.js";
+import { getTerrainHeightAt } from "./worldGeneration.js";
 
 export function spawnProjectile(scene, projectiles, position, direction) {
   const geometry = new THREE.SphereGeometry(0.1, 16, 16);
   const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
   const sphere = new THREE.Mesh(geometry, material);
   sphere.position.copy(position.clone().add(direction.clone().normalize().multiplyScalar(1.2)));
-  const ground = getSurfaceInfo(position);
-  const groundPos = ground.surfacePosition.clone().add(ground.normal.clone().multiplyScalar(0.1));
-  if (sphere.position.length() < groundPos.length()) {
-    sphere.position.copy(groundPos);
+  const groundY = getTerrainHeightAt(position.x, position.z) + 0.1;
+  if (sphere.position.y < groundY) {
+    sphere.position.y = groundY;
   }
   sphere.userData.velocity = direction.clone().multiplyScalar(0.1);
   sphere.userData.lifetime = 4000;
@@ -32,15 +31,13 @@ export function updateProjectiles({
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const proj = projectiles[i];
     const vel = proj.userData.velocity;
-    const surface = getSurfaceInfo(proj.position);
-    vel.addScaledVector(surface.normal, gravity);
+    vel.y += gravity;
     proj.position.add(vel);
 
-    if (surface.height <= 0.1) {
-      const bouncePoint = surface.surfacePosition.clone().add(surface.normal.clone().multiplyScalar(0.1));
-      proj.position.copy(bouncePoint);
-      const vn = vel.dot(surface.normal);
-      vel.addScaledVector(surface.normal, -vn * 1.5);
+    const terrainY = getTerrainHeightAt(proj.position.x, proj.position.z) + 0.1;
+    if (proj.position.y <= terrainY) {
+      proj.position.y = terrainY;
+      vel.y = Math.abs(vel.y) > 0.01 ? vel.y * -0.5 : 0;
     }
 
     const barriers = scene.children.filter(obj => obj.userData?.isBarrier);

@@ -23,6 +23,8 @@
     "vite": "^6.3.4"
   },
   "dependencies": {
+    "@dimforge/rapier3d": "^0.18.2",
+    "@dimforge/rapier3d-compat": "^0.18.2",
     "canvas": "^3.2.0",
     "firebase": "^11.6.1",
     "fs-extra": "^11.3.1",
