@@ -1,21 +1,21 @@
 import * as THREE from 'three';
-import * as CANNON from './miniCannon.js';
-const { FIXED_TIME_STEP } = CANNON;
+import RAPIER from '@dimforge/rapier3d-compat';
 
 
 // BreakManager handles swapping intact meshes with fractured versions
-// and tracking health of destructible objects. Chunk pieces are simulated
-// with a tiny built-in physics world so they can react
-// semi-realistically after destruction.
+// and tracking health of destructible objects. Chunk pieces are added to
+// a Rapier physics world so they can react semi-realistically after
+// destruction.
 export class BreakManager {
-  constructor(scene) {
+  constructor(scene, world = null) {
     this.scene = scene;
+    this.world = world;
     this.registry = new Map(); // id -> { object, health, fractureScene }
     this.activeChunks = [];
-    this.world = new CANNON.World({
-      gravity: new CANNON.Vec3(0, -9.82, 0)
-    });
+  }
 
+  setWorld(world) {
+    this.world = world;
   }
 
   // Register a destructible object. `data` expects:
@@ -36,7 +36,7 @@ export class BreakManager {
   // Apply damage to an object. Once health <= 0 the object is replaced with its chunks.
   async onHit(id, damage = 10, impulse = new THREE.Vector3()) {
     const entry = this.registry.get(id);
-    if (!entry) return;
+    if (!entry || !this.world) return;
     entry.health -= damage;
     console.log(`🛢️ ${id} health: ${entry.health}`);
     if (entry.health > 0) return;
@@ -74,22 +74,27 @@ export class BreakManager {
       // Build a simple box body using the mesh's bounding box
       const bbox = new THREE.Box3().setFromObject(mesh);
       const size = bbox.getSize(new THREE.Vector3());
-      const half = new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2);
-      const shape = new CANNON.Box(half);
-      const body = new CANNON.Body({ mass: 1, shape });
-      body.position.set(mesh.position.x, mesh.position.y, mesh.position.z);
-      body.quaternion.set(
-        mesh.quaternion.x,
-        mesh.quaternion.y,
-        mesh.quaternion.z,
-        mesh.quaternion.w
-      );
-      body.applyImpulse(
-        new CANNON.Vec3(impulse.x, impulse.y, impulse.z),
-        new CANNON.Vec3(0, 0, 0)
-      );
-      this.world.addBody(body);
-      this.activeChunks.push({ mesh, body });
+      const half = { x: size.x / 2, y: size.y / 2, z: size.z / 2 };
+      const rbDesc = RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(mesh.position.x, mesh.position.y, mesh.position.z)
+        .setRotation({
+          x: mesh.quaternion.x,
+          y: mesh.quaternion.y,
+          z: mesh.quaternion.z,
+          w: mesh.quaternion.w,
+        })
+        .setLinearDamping(0.02)
+        .setAngularDamping(0.02);
+      const rb = this.world.createRigidBody(rbDesc);
+
+      const colDesc = RAPIER.ColliderDesc.cuboid(half.x, half.y, half.z)
+        .setRestitution(0.2)
+        .setFriction(0.6);
+      this.world.createCollider(colDesc, rb);
+
+      rb.applyImpulse({ x: impulse.x, y: impulse.y, z: impulse.z }, true);
+
+      this.activeChunks.push({ mesh, rb });
     }
 
     // Remove the now-empty container group
@@ -97,16 +102,12 @@ export class BreakManager {
   }
 
   update() {
-    this.world.step(FIXED_TIME_STEP);
-
-    for (const { mesh, body } of this.activeChunks) {
-      mesh.position.set(body.position.x, body.position.y, body.position.z);
-      mesh.quaternion.set(
-        body.quaternion.x,
-        body.quaternion.y,
-        body.quaternion.z,
-        body.quaternion.w
-      );
+    if (!this.world) return;
+    for (const { mesh, rb } of this.activeChunks) {
+      const t = rb.translation();
+      const r = rb.rotation();
+      mesh.position.set(t.x, t.y, t.z);
+      mesh.quaternion.set(r.x, r.y, r.z, r.w);
     }
   }
 }
