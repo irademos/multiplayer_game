@@ -18,53 +18,69 @@ export function createPlayerModel(
       loader.load(
         modelPath,
         (fbx) => {
-          const model = fbx;
-
-      try {
-        // --- make FBX unlit and remove its internal lights ---
-        model.traverse((obj) => {
-          // Remove lights embedded in the FBX
-          if (obj.isLight) {
-            obj.parent && obj.parent.remove(obj);
+          // Guard: make sure we actually got an Object3D
+          if (!fbx || typeof fbx.traverse !== 'function') {
+            console.warn('FBXLoader returned an unexpected result:', fbx);
             return;
           }
 
-          // Replace any lit materials with MeshBasicMaterial
+          const model = fbx;
+
+      try {
+            const lightsToRemove = [];
+
+        model.traverse((obj) => {
+              // Mark embedded lights for removal (don't remove yet!)
+          if (obj.isLight) {
+                lightsToRemove.push(obj);
+            return;
+          }
+
+              // Make meshes unlit
           if (obj.isMesh) {
-            // turn off shadows so lighting side-effects don't show up
             obj.castShadow = false;
             obj.receiveShadow = false;
 
             const toBasic = (mat) => {
               if (!mat) return mat;
-              // Preserve the most important props; MeshBasicMaterial ignores lights
+
               const basicParams = {
                 map: mat.map || null,
                 color: (mat.color && mat.color.clone()) || new THREE.Color(0xffffff),
-                transparent: mat.transparent || false,
+                    transparent: !!mat.transparent,
                 opacity: (typeof mat.opacity === 'number') ? mat.opacity : 1,
-                side: mat.side || THREE.FrontSide,
-                // keep vertex colors if present
+                    side: mat.side ?? THREE.FrontSide,
                 vertexColors: !!mat.vertexColors,
-                // keep alpha maps if any
                 alphaMap: mat.alphaMap || null,
-                // skinned meshes need this flag even on basic materials
-                skinning: obj.isSkinnedMesh === true
-              };
-              // Note: normal/roughness/metalness maps are ignored by MeshBasicMaterial (by design)
-              return new THREE.MeshBasicMaterial(basicParams);
+                    skinning: obj.isSkinnedMesh === true, // keep skinning for skinned meshes
+                  };
+
+                  // dispose AFTER replacement to avoid disposing a material that might
+                  // still be referenced during traversal in some engines
+                  const newMat = new THREE.MeshBasicMaterial(basicParams);
+                  if (typeof mat.dispose === 'function') {
+                    // dispose old material on next tick to be extra safe
+                    queueMicrotask(() => mat.dispose());
+                  }
+                  return newMat;
             };
 
             if (Array.isArray(obj.material)) {
               obj.material = obj.material.map(toBasic);
-            } else {
+                } else if (obj.material) {
               obj.material = toBasic(obj.material);
             }
           }
         });
-      }
-      catch  (error) {
-        console.log(error);
+
+            // Now it's safe to remove the lights
+            for (const light of lightsToRemove) {
+              if (light.parent) light.parent.remove(light);
+            }
+
+            console.log('✅ FBX made unlit and internal lights removed (no in-traverse mutations)');
+          } catch (err) {
+            console.error('While making FBX unlit:', err);
       }
 
 
