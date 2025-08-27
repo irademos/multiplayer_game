@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { getTerrainHeightAt } from "./worldGeneration.js";
 import { pass } from "three/tsl";
+import RAPIER from "@dimforge/rapier3d-compat";
 
 // Movement constants
 const SPEED = 0.05;
@@ -24,8 +25,7 @@ export class PlayerControls {
     this.projectiles = projectiles;
     this.audioManager = audioManager;
     this.isKnocked = false;
-    this.knockbackVelocity = new THREE.Vector3();
-    this.knockbackRotationAxis = new THREE.Vector3(1, 0, 0);
+    this.knockbackBody = null;
     this.knockbackRestYaw = 0;
     this.slideMomentum = new THREE.Vector3();
     this.lastMoveDirection = new THREE.Vector3();
@@ -372,8 +372,23 @@ export class PlayerControls {
   }
 
   applyKnockback(impulse) {
+    const world = window.rapierWorld;
+    if (world) {
+      if (this.knockbackBody) {
+        world.removeRigidBody(this.knockbackBody);
+      }
+      const pos = this.playerModel.position;
+      const rbDesc = RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(pos.x, pos.y, pos.z)
+        .setLinearDamping(0.5)
+        .setAngularDamping(0.5);
+      this.knockbackBody = world.createRigidBody(rbDesc);
+      const colDesc = RAPIER.ColliderDesc.capsule(0.6, 0.3);
+      world.createCollider(colDesc, this.knockbackBody);
+      this.knockbackBody.applyImpulse({ x: impulse.x, y: impulse.y, z: impulse.z }, true);
+    }
     this.isKnocked = true;
-    this.knockbackVelocity.copy(impulse);
+    this.knockbackRestYaw = this.playerModel.rotation.y;
     const actions = this.playerModel.userData.actions;
     const current = this.playerModel.userData.currentAction;
     const hitAction = actions?.hit;
@@ -387,7 +402,68 @@ export class PlayerControls {
   processMovement() {
     // Skip movement processing if controls are disabled (e.g. when chat is open)
     if (!this.enabled) return;
-    
+
+    if (this.isKnocked && this.knockbackBody) {
+      const world = window.rapierWorld;
+      const t = this.knockbackBody.translation();
+      const r = this.knockbackBody.rotation();
+      const v = this.knockbackBody.linvel();
+      const newX = t.x;
+      const newY = t.y;
+      const newZ = t.z;
+
+      if (this.playerModel) {
+        this.playerModel.position.set(newX, newY, newZ);
+        this.playerModel.quaternion.set(r.x, r.y, r.z, r.w);
+      } else {
+        this.camera.position.set(newX, newY + 1.2, newZ);
+      }
+
+      if (Math.hypot(v.x, v.y, v.z) < 0.05) {
+        if (world) {
+          world.removeRigidBody(this.knockbackBody);
+        }
+        this.knockbackBody = null;
+        this.isKnocked = false;
+        this.velocity.set(0, 0, 0);
+        this.playerModel.rotation.set(0, this.knockbackRestYaw || this.playerModel.rotation.y, 0);
+        const actions = this.playerModel.userData.actions;
+        actions?.hit?.fadeOut(0.2);
+        actions?.idle?.reset().fadeIn(0.2).play();
+        this.playerModel.userData.currentAction = 'idle';
+        console.log("🤕 Got up");
+      }
+
+      const newTarget = new THREE.Vector3(
+        this.playerModel.position.x,
+        this.playerModel.position.y + 1,
+        this.playerModel.position.z
+      );
+      if (this.controls) {
+        this.controls.target.copy(newTarget);
+        this.controls.update();
+      }
+
+      if (this.multiplayer && (
+        Math.abs(this.lastPosition.x - newX) > 0.01 ||
+        Math.abs(this.lastPosition.y - newY) > 0.01 ||
+        Math.abs(this.lastPosition.z - newZ) > 0.01
+      )) {
+        this.multiplayer.send({
+          x: newX,
+          y: newY,
+          z: newZ,
+          rotation: this.playerModel.rotation.y,
+          moving: false
+        });
+
+        this.lastPosition.set(newX, newY, newZ);
+        this.wasMoving = false;
+      }
+
+      return;
+    }
+
     // Get current position
     let x = this.playerModel ? this.playerModel.position.x : this.camera.position.x;
     let y = this.playerModel ? this.playerModel.position.y : (this.camera.position.y - 1.2);
@@ -468,27 +544,6 @@ export class PlayerControls {
     }
 
     this.velocity.y -= GRAVITY;
-
-    if (this.isKnocked) {
-      // Apply knockback with simple physics
-      this.knockbackVelocity.y -= GRAVITY;
-      movement.set(this.knockbackVelocity.x, 0, this.knockbackVelocity.z);
-      this.velocity.y = this.knockbackVelocity.y;
-      this.knockbackVelocity.multiplyScalar(0.98); // damping
-      // this.playerModel.setRotationFromAxisAngle(this.knockbackRotationAxis || new THREE.Vector3(-1, 0, 0), Math.PI / 2);
-
-
-      if (this.knockbackVelocity.length() < 0.01 && this.velocity.y === 0) {
-        this.isKnocked = false;
-        this.velocity.set(0, 0, 0);
-        this.playerModel.setRotationFromAxisAngle(new THREE.Vector3(0, 1, 0), this.playerModel.rotation.y);
-        const actions = this.playerModel.userData.actions;
-        actions?.hit?.fadeOut(0.2);
-        actions?.idle?.reset().fadeIn(0.2).play();
-        this.playerModel.userData.currentAction = 'idle';
-        console.log("🤕 Got up");
-      }
-    }
     
     let newX = x + movement.x;
     let newY = y + this.velocity.y;
@@ -573,21 +628,6 @@ export class PlayerControls {
       }
     }
 
-    if (this.isKnocked && this.velocity.y === 0) {
-      this.knockbackVelocity.y = 0;
-    }
-
-    if (this.isKnocked && this.knockbackVelocity.length() < 0.05 && this.velocity.y === 0) {
-      this.isKnocked = false;
-      this.knockbackVelocity.set(0, 0, 0);
-      this.velocity.set(0, 0, 0);
-      this.playerModel.rotation.set(0, this.knockbackRestYaw || this.playerModel.rotation.y, 0);
-      const actions = this.playerModel.userData.actions;
-      actions?.hit?.fadeOut(0.2);
-      actions?.idle?.reset().fadeIn(0.2).play();
-      this.playerModel.userData.currentAction = 'idle';
-      console.log("🤕 Got up");
-    }
     
     const isMovingNow = movement.length() > 0;
     this.isMoving = isMovingNow;
