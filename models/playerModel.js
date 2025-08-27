@@ -26,32 +26,32 @@ export function createPlayerModel(
 
           const model = fbx;
 
-      try {
+          try {
             const lightsToRemove = [];
 
-        model.traverse((obj) => {
+            model.traverse((obj) => {
               // Mark embedded lights for removal (don't remove yet!)
-          if (obj.isLight) {
+              if (obj.isLight) {
                 lightsToRemove.push(obj);
-            return;
-          }
+                return;
+              }
 
               // Make meshes unlit
-          if (obj.isMesh) {
-            obj.castShadow = false;
-            obj.receiveShadow = false;
+              if (obj.isMesh) {
+                obj.castShadow = false;
+                obj.receiveShadow = false;
 
-            const toBasic = (mat) => {
-              if (!mat) return mat;
+                const toBasic = (mat) => {
+                  if (!mat) return mat;
 
-              const basicParams = {
-                map: mat.map || null,
-                color: (mat.color && mat.color.clone()) || new THREE.Color(0xffffff),
+                  const basicParams = {
+                    map: mat.map || null,
+                    color: (mat.color && mat.color.clone()) || new THREE.Color(0xffffff),
                     transparent: !!mat.transparent,
-                opacity: (typeof mat.opacity === 'number') ? mat.opacity : 1,
+                    opacity: (typeof mat.opacity === 'number') ? mat.opacity : 1,
                     side: mat.side ?? THREE.FrontSide,
-                vertexColors: !!mat.vertexColors,
-                alphaMap: mat.alphaMap || null,
+                    vertexColors: !!mat.vertexColors,
+                    alphaMap: mat.alphaMap || null,
                     skinning: obj.isSkinnedMesh === true, // keep skinning for skinned meshes
                   };
 
@@ -63,15 +63,15 @@ export function createPlayerModel(
                     queueMicrotask(() => mat.dispose());
                   }
                   return newMat;
-            };
+                };
 
-            if (Array.isArray(obj.material)) {
-              obj.material = obj.material.map(toBasic);
+                if (Array.isArray(obj.material)) {
+                  obj.material = obj.material.map(toBasic);
                 } else if (obj.material) {
-              obj.material = toBasic(obj.material);
-            }
-          }
-        });
+                  obj.material = toBasic(obj.material);
+                }
+              }
+            });
 
             // Now it's safe to remove the lights
             for (const light of lightsToRemove) {
@@ -81,7 +81,7 @@ export function createPlayerModel(
             console.log('✅ FBX made unlit and internal lights removed (no in-traverse mutations)');
           } catch (err) {
             console.error('While making FBX unlit:', err);
-      }
+          }
 
 
           // Scale and center the model so it rotates around its midpoint
@@ -101,46 +101,46 @@ export function createPlayerModel(
           playerGroup.add(pivot);
           playerGroup.userData.pivot = pivot;
 
-      const mixer = new THREE.AnimationMixer(model);
-      const actions = {};
+          const mixer = new THREE.AnimationMixer(model);
+          const actions = {};
 
-      // Load Mixamo animations
-      const fbxLoader = new FBXLoader();
-      const animationFiles = {
-        idle: 'Breathing Idle.fbx',
-        walk: 'Old Man Walk.fbx',
-        run: 'Drunk Run Forward.fbx',
-        jump: 'Joyful Jump.fbx',
-        hit: 'Flying Back Death.fbx',
-        mutantPunch: 'Mutant Punch.fbx',
-        mmaKick: 'Mma Kick.fbx',
-        runningKick: 'Female Laying Pose.fbx',
-        hurricaneKick: 'Hurricane Kick.fbx',
-        projectile: 'Projectile.fbx',
-        die: 'Dying.fbx',
-      };
+          // Load Mixamo animations
+          const fbxLoader = new FBXLoader();
+          const animationFiles = {
+            idle: 'Breathing Idle.fbx',
+            walk: 'Old Man Walk.fbx',
+            run: 'Drunk Run Forward.fbx',
+            jump: 'Joyful Jump.fbx',
+            hit: 'Flying Back Death.fbx',
+            mutantPunch: 'Mutant Punch.fbx',
+            mmaKick: 'Mma Kick.fbx',
+            runningKick: 'Female Laying Pose.fbx',
+            hurricaneKick: 'Hurricane Kick.fbx',
+            projectile: 'Projectile.fbx',
+            die: 'Dying.fbx',
+          };
 
-      const promises = Object.entries(animationFiles).map(([name, file]) => {
-        return new Promise((resolve, reject) => {
-          fbxLoader.load(
-            `/models/animations/${encodeURIComponent(file)}`,
-            (anim) => {
-              const clip = anim.animations[0];
-              const action = mixer.clipAction(clip);
-              if (
-                ['jump', 'hit', 'mutantPunch', 'mmaKick', 'runningKick', 'hurricaneKick', 'projectile', 'die'].includes(name)
-              ) {
-                action.loop = THREE.LoopOnce;
-                action.clampWhenFinished = true;
-              }
-              actions[name] = action;
-              resolve();
-            },
-            undefined,
-            reject
-          );
-        });
-      });
+          const promises = Object.entries(animationFiles).map(([name, file]) => {
+            return new Promise((resolve, reject) => {
+              fbxLoader.load(
+                `/models/animations/${encodeURIComponent(file)}`,
+                (anim) => {
+                  const clip = anim.animations[0];
+                  const action = mixer.clipAction(clip);
+                  if (
+                    ['jump', 'hit', 'mutantPunch', 'mmaKick', 'runningKick', 'hurricaneKick', 'projectile', 'die'].includes(name)
+                  ) {
+                    action.loop = THREE.LoopOnce;
+                    action.clampWhenFinished = true;
+                  }
+                  actions[name] = action;
+                  resolve();
+                },
+                undefined,
+                reject
+              );
+            });
+          });
 
           Promise.all(promises).then(() => {
             actions.idle.play();
