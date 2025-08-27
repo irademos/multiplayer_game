@@ -1,21 +1,39 @@
 import * as THREE from "three";
+import RAPIER from '@dimforge/rapier3d-compat';
 import { updateMonster, switchMonsterAnimation } from './characters/MonsterCharacter.js';
 import { getTerrainHeightAt } from "./worldGeneration.js";
 
 export function spawnProjectile(scene, projectiles, position, direction) {
-  const geometry = new THREE.SphereGeometry(0.1, 16, 16);
-  const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-  const sphere = new THREE.Mesh(geometry, material);
-  sphere.position.copy(position.clone().add(direction.clone().normalize().multiplyScalar(1.2)));
-  const groundY = getTerrainHeightAt(position.x, position.z) + 0.1;
-  if (sphere.position.y < groundY) {
-    sphere.position.y = groundY;
+  const size = 0.1;
+  const half = size / 2;
+  const geometry = new THREE.BoxGeometry(size, size, size);
+  const color = new THREE.Color(Math.random(), Math.random(), Math.random());
+  const material = new THREE.MeshStandardMaterial({ color });
+  const box = new THREE.Mesh(geometry, material);
+  box.position.copy(position.clone().add(direction.clone().normalize().multiplyScalar(1.2)));
+  const groundY = getTerrainHeightAt(position.x, position.z) + half;
+  if (box.position.y < groundY) {
+    box.position.y = groundY;
   }
-  sphere.userData.velocity = direction.clone().multiplyScalar(0.1);
-  sphere.userData.lifetime = 4000;
-  sphere.userData.spawnTime = Date.now();
-  scene.add(sphere);
-  projectiles.push(sphere);
+
+  // Rapier body
+  const world = window.rapierWorld;
+  const rbDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(box.position.x, box.position.y, box.position.z);
+  const rb = world.createRigidBody(rbDesc);
+  const colDesc = RAPIER.ColliderDesc.cuboid(half, half, half).setRestitution(0.2).setFriction(0.5);
+  world.createCollider(colDesc, rb);
+  const speed = 10;
+  const vel = direction.clone().normalize().multiplyScalar(speed);
+  rb.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);
+
+  window.rbToMesh.set(rb, box);
+
+  box.userData.rb = rb;
+  box.userData.velocity = vel.clone();
+  box.userData.lifetime = 4000;
+  box.userData.spawnTime = Date.now();
+  scene.add(box);
+  projectiles.push(box);
 }
 
 export function updateProjectiles({
@@ -27,35 +45,19 @@ export function updateProjectiles({
   monster,
   clock
 }) {
-  const gravity = -0.0008;
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const proj = projectiles[i];
-    const vel = proj.userData.velocity;
-    vel.y += gravity;
-    proj.position.add(vel);
-
-    const terrainY = getTerrainHeightAt(proj.position.x, proj.position.z) + 0.1;
-    if (proj.position.y <= terrainY) {
-      proj.position.y = terrainY;
-      vel.y = Math.abs(vel.y) > 0.01 ? vel.y * -0.5 : 0;
-    }
-
-    const barriers = scene.children.filter(obj => obj.userData?.isBarrier);
-
-    for (const barrier of barriers) {
-      const projBox = new THREE.Box3().setFromObject(proj);
-      const barrierBox = new THREE.Box3().setFromObject(barrier);
-      if (projBox.intersectsBox(barrierBox)) {
-        vel.reflect(new THREE.Vector3(0, 1, 0));
-        proj.position.add(vel.clone().multiplyScalar(0.5));
-        break;
-      }
-    }
+    const rb = proj.userData.rb;
+    const linvel = rb.linvel();
+    const vel = new THREE.Vector3(linvel.x, linvel.y, linvel.z);
+    proj.userData.velocity = vel.clone();
 
     proj.userData.lifetime -= 16;
     if (proj.userData.lifetime <= 0) {
       scene.remove(proj);
       projectiles.splice(i, 1);
+      window.rbToMesh.delete(rb);
+      window.rapierWorld.removeRigidBody(rb);
       continue;
     }
 
