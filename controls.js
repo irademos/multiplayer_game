@@ -1,12 +1,12 @@
 import * as THREE from "three";
 import { getTerrainHeightAt } from "./worldGeneration.js";
-import { pass } from "three/tsl";
 import RAPIER from "@dimforge/rapier3d-compat";
 
 // Movement constants
-const SPEED = 0.05;
-const GRAVITY = 0.01;
-const JUMP_FORCE = 0.25;
+const SPEED = 5;
+const JUMP_FORCE = 5;
+const PLAYER_RADIUS = 0.3;
+const PLAYER_HALF_HEIGHT = 0.6;
 
 export class PlayerControls {
   constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager }) {
@@ -20,18 +20,17 @@ export class PlayerControls {
     this.camera = camera;
     this.multiplayer = multiplayer;
     this.lastPosition = new THREE.Vector3();
+    this.wasMoving = false;
     this.isMoving = false;
     this.spawnProjectile = spawnProjectile;
     this.projectiles = projectiles;
     this.audioManager = audioManager;
     this.isKnocked = false;
-    this.knockbackBody = null;
     this.knockbackRestYaw = 0;
     this.slideMomentum = new THREE.Vector3();
     this.lastMoveDirection = new THREE.Vector3();
-    
+
     // Player state
-    this.velocity = new THREE.Vector3();
     this.canJump = true;
     this.keysPressed = new Set();
     this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -63,16 +62,27 @@ export class PlayerControls {
       this.lastPosition.set(this.playerX, this.playerY, this.playerZ);
     }
     
+    const world = window.rapierWorld;
+    if (world) {
+      const rbDesc = RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(this.playerX, this.playerY, this.playerZ)
+        .setLinearDamping(0.9)
+        .setAngularDamping(0.9);
+      this.body = world.createRigidBody(rbDesc);
+      const colDesc = RAPIER.ColliderDesc.capsule(PLAYER_HALF_HEIGHT, PLAYER_RADIUS);
+      world.createCollider(colDesc, this.body);
+    }
+
     // Set camera to third-person perspective
     this.camera.position.set(this.playerX, this.playerY + 2, this.playerZ + 5);
     this.camera.lookAt(this.playerX, this.playerY + 1, this.playerZ);
     // Store the initial camera offset (relative to player's target position)
     this.cameraOffset = new THREE.Vector3();
     this.cameraOffset.copy(this.camera.position).sub(new THREE.Vector3(this.playerX, this.playerY + 1, this.playerZ));
-    
+
     // Initialize controls based on device
     this.initializeControls();
-    
+
     // Setup event listeners
     this.setupEventListeners();
     
@@ -83,10 +93,9 @@ export class PlayerControls {
     if (this.isMobile) {
       this.initializeMobileControls();
     } else {
-      pass
       // this.setupPointerLock(); // leave pointer lock in PlayerControls
     }
-  }  
+  }
   
   initializeMobileControls() {
     // Add joystick container for mobile
@@ -110,8 +119,8 @@ export class PlayerControls {
     document.getElementById('jump-button').addEventListener('touchstart', (event) => {
       if (!this.enabled) return;
       this.jumpButtonPressed = true;
-      if (this.canJump) {
-        this.velocity.y = JUMP_FORCE;
+      if (this.canJump && this.body) {
+        this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
         this.canJump = false;
       }
       event.preventDefault();
@@ -257,15 +266,15 @@ export class PlayerControls {
       this.keysPressed.add(key);
 
       if (e.key === " ") {
-      if (this.canJump) {
-        this.velocity.y = JUMP_FORCE;
-        this.canJump = false;
-        this.hasDoubleJumped = false;
-      } else if (!this.hasDoubleJumped) {
-        this.velocity.y = JUMP_FORCE;
-        this.hasDoubleJumped = true;
-        this.playAction('hurricaneKick');
-      }
+        if (this.canJump && this.body) {
+          this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
+          this.canJump = false;
+          this.hasDoubleJumped = false;
+        } else if (!this.hasDoubleJumped && this.body) {
+          this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
+          this.hasDoubleJumped = true;
+          this.playAction('hurricaneKick');
+        }
     } else if (key === 'e') {
       if (this.isMoving) {
         this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
@@ -372,20 +381,8 @@ export class PlayerControls {
   }
 
   applyKnockback(impulse) {
-    const world = window.rapierWorld;
-    if (world) {
-      if (this.knockbackBody) {
-        world.removeRigidBody(this.knockbackBody);
-      }
-      const pos = this.playerModel.position;
-      const rbDesc = RAPIER.RigidBodyDesc.dynamic()
-        .setTranslation(pos.x, pos.y, pos.z)
-        .setLinearDamping(0.5)
-        .setAngularDamping(0.5);
-      this.knockbackBody = world.createRigidBody(rbDesc);
-      const colDesc = RAPIER.ColliderDesc.capsule(0.6, 0.3);
-      world.createCollider(colDesc, this.knockbackBody);
-      this.knockbackBody.applyImpulse({ x: impulse.x, y: impulse.y, z: impulse.z }, true);
+    if (this.body) {
+      this.body.applyImpulse({ x: impulse.x, y: impulse.y, z: impulse.z }, true);
     }
     this.isKnocked = true;
     this.knockbackRestYaw = this.playerModel.rotation.y;
@@ -400,79 +397,17 @@ export class PlayerControls {
   }
 
   processMovement() {
-    // Skip movement processing if controls are disabled (e.g. when chat is open)
-    if (!this.enabled) return;
-
-    if (this.isKnocked && this.knockbackBody) {
-      const world = window.rapierWorld;
-      const t = this.knockbackBody.translation();
-      const r = this.knockbackBody.rotation();
-      const v = this.knockbackBody.linvel();
-      const newX = t.x;
-      const newY = t.y;
-      const newZ = t.z;
-
-      if (this.playerModel) {
-        this.playerModel.position.set(newX, newY, newZ);
-        this.playerModel.quaternion.set(r.x, r.y, r.z, r.w);
-      } else {
-        this.camera.position.set(newX, newY + 1.2, newZ);
-      }
-
-      if (Math.hypot(v.x, v.y, v.z) < 0.05) {
-        if (world) {
-          world.removeRigidBody(this.knockbackBody);
-        }
-        this.knockbackBody = null;
-        this.isKnocked = false;
-        this.velocity.set(0, 0, 0);
-        this.playerModel.rotation.set(0, this.knockbackRestYaw || this.playerModel.rotation.y, 0);
-        const actions = this.playerModel.userData.actions;
-        actions?.hit?.fadeOut(0.2);
-        actions?.idle?.reset().fadeIn(0.2).play();
-        this.playerModel.userData.currentAction = 'idle';
-        console.log("🤕 Got up");
-      }
-
-      const newTarget = new THREE.Vector3(
-        this.playerModel.position.x,
-        this.playerModel.position.y + 1,
-        this.playerModel.position.z
-      );
-      if (this.controls) {
-        this.controls.target.copy(newTarget);
-        this.controls.update();
-      }
-
-      if (this.multiplayer && (
-        Math.abs(this.lastPosition.x - newX) > 0.01 ||
-        Math.abs(this.lastPosition.y - newY) > 0.01 ||
-        Math.abs(this.lastPosition.z - newZ) > 0.01
-      )) {
-        this.multiplayer.send({
-          x: newX,
-          y: newY,
-          z: newZ,
-          rotation: this.playerModel.rotation.y,
-          moving: false
-        });
-
-        this.lastPosition.set(newX, newY, newZ);
-        this.wasMoving = false;
-      }
-
-      return;
+    if (!this.enabled || !this.body) return;
+    const t = this.body.translation();
+    const vel = this.body.linvel();
+    const terrainY = getTerrainHeightAt(t.x, t.z);
+    const expectedY = terrainY + PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
+    if (t.y <= expectedY + 0.05 && Math.abs(vel.y) < 0.1) {
+      this.canJump = true;
+      this.hasDoubleJumped = false;
     }
-
-    // Get current position
-    let x = this.playerModel ? this.playerModel.position.x : this.camera.position.x;
-    let y = this.playerModel ? this.playerModel.position.y : (this.camera.position.y - 1.2);
-    let z = this.playerModel ? this.playerModel.position.z : this.camera.position.z;
-    
-    // Create movement vector
     const moveDirection = new THREE.Vector3(0, 0, 0);
     const movementLocked = ['mutantPunch', 'mmaKick', 'runningKick'].includes(this.currentSpecialAction);
-
     if (!movementLocked) {
       if (this.isMobile) {
         if (this.joystickForce > 0.1) {
@@ -480,212 +415,91 @@ export class PlayerControls {
           this.camera.getWorldDirection(cameraForward);
           cameraForward.y = 0;
           cameraForward.normalize();
-
           const cameraRight = new THREE.Vector3().crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
-
-          // Decompose joystick input into directional components
-          const dx = Math.cos(this.joystickAngle); // right-left
-          const dz = Math.sin(this.joystickAngle); // forward-back
-
-          moveDirection.addScaledVector(cameraForward, dz * this.joystickForce * SPEED);
-          moveDirection.addScaledVector(cameraRight, dx * this.joystickForce * SPEED);
+          const dx = Math.cos(this.joystickAngle);
+          const dz = Math.sin(this.joystickAngle);
+          moveDirection.addScaledVector(cameraForward, dz * this.joystickForce);
+          moveDirection.addScaledVector(cameraRight, dx * this.joystickForce);
         }
       } else {
-        if (this.keysPressed.has("w")) {
-          moveDirection.z = 1;
-        } else if (this.keysPressed.has("s")) {
-          moveDirection.z = -1;
-        }
-
-        if (this.keysPressed.has("a")) {
-          moveDirection.x = 1;
-        } else if (this.keysPressed.has("d")) {
-          moveDirection.x = -1;
-        }
+        if (this.keysPressed.has("w")) moveDirection.z = 1;
+        if (this.keysPressed.has("s")) moveDirection.z = -1;
+        if (this.keysPressed.has("a")) moveDirection.x = 1;
+        if (this.keysPressed.has("d")) moveDirection.x = -1;
       }
     }
-    
-    if (!this.isMobile && moveDirection.length() > 0) {
-      moveDirection.normalize();
-    }
-    
+    if (!this.isMobile && moveDirection.length() > 0) moveDirection.normalize();
     const cameraDirection = new THREE.Vector3();
     this.camera.getWorldDirection(cameraDirection);
-    cameraDirection.y = 0; 
+    cameraDirection.y = 0;
     cameraDirection.normalize();
-    
     const rightVector = new THREE.Vector3();
     rightVector.crossVectors(this.camera.up, cameraDirection).normalize();
-    
     const movement = new THREE.Vector3();
     if (!this.isMobile) {
-      if (moveDirection.z !== 0) {
-        movement.add(cameraDirection.clone().multiplyScalar(moveDirection.z));
-      }
-      if (moveDirection.x !== 0) {
-        movement.add(rightVector.clone().multiplyScalar(moveDirection.x));
-      }
-
-      if (movement.length() > 0) {
-        movement.normalize().multiplyScalar(SPEED);
-      }
+      if (moveDirection.z !== 0) movement.add(cameraDirection.clone().multiplyScalar(moveDirection.z));
+      if (moveDirection.x !== 0) movement.add(rightVector.clone().multiplyScalar(moveDirection.x));
+      if (movement.length() > 0) movement.normalize();
     } else {
       movement.copy(moveDirection);
     }
-
     if (movementLocked) {
       movement.copy(this.slideMomentum);
       this.slideMomentum.multiplyScalar(0.99);
-      if (this.slideMomentum.length() < 0.01) {
-        this.slideMomentum.set(0, 0, 0);
-      }
+      if (this.slideMomentum.length() < 0.01) this.slideMomentum.set(0, 0, 0);
     } else if (movement.length() > 0) {
       this.lastMoveDirection.copy(movement);
     }
-
-    this.velocity.y -= GRAVITY;
-    
-    let newX = x + movement.x;
-    let newY = y + this.velocity.y;
-    let newZ = z + movement.z;
-
-    if (!this.scene || !(this.scene && this.scene.children ? this.scene.children : [])) return;
-    
-    const blockMeshes = (this.scene && this.scene.children ? this.scene.children : []).filter(child => 
-      child.userData.isBlock || child.userData.isBarrier || 
-      (child.type === "Group" && child.userData.isTree));
-    
-    const playerRadius = 0.3;
-    const playerHeight = 1.8;
-    
-    let standingOnBlock = false;
-    blockMeshes.forEach(block => {
-      if (block.type === "Group" && block.userData.isTree) {
-        checkCollision.call(this, block, 1.0, 2.0, 1.0); 
-      } else {
-        checkCollision.call(this, block);
+    if (this.isKnocked) {
+      if (Math.hypot(vel.x, vel.y, vel.z) < 0.05) {
+        this.isKnocked = false;
+        this.playerModel.rotation.set(0, this.knockbackRestYaw || this.playerModel.rotation.y, 0);
+        const actions = this.playerModel.userData.actions;
+        actions?.hit?.fadeOut(0.2);
+        actions?.idle?.reset().fadeIn(0.2).play();
+        this.playerModel.userData.currentAction = 'idle';
       }
-    });
-    
-    function checkCollision(block, overrideWidth, overrideHeight, overrideDepth) {
-      const blockSize = new THREE.Vector3();
-      if (block.geometry) {
-        const boundingBox = new THREE.Box3().setFromObject(block);
-        boundingBox.getSize(blockSize);
-      } else {
-        blockSize.set(1, 1, 1);
-      }
-      
-      const blockWidth = overrideWidth || blockSize.x;
-      const blockHeight = overrideHeight || blockSize.y;
-      const blockDepth = overrideDepth || blockSize.z;
-      
-      if (
-        this.velocity.y <= 0 &&
-        Math.abs(newX - block.position.x) < (blockWidth / 2 + playerRadius) &&
-        Math.abs(newZ - block.position.z) < (blockDepth / 2 + playerRadius) &&
-        Math.abs(y - (block.position.y + blockHeight / 2)) < 0.2 &&
-        y >= block.position.y
-      ) {
-        standingOnBlock = true;
-        newY = block.position.y + blockHeight / 2 + 0.01;
-        this.velocity.y = 0;
-        this.canJump = true;
-        this.hasDoubleJumped = false;
-        if (this.currentSpecialAction === 'hurricaneKick') {
-          const actions = this.playerModel?.userData?.actions;
-          actions?.hurricaneKick?.stop();
-          this.currentSpecialAction = null;
-        }
-
-      } else if (
-        Math.abs(newX - block.position.x) < (blockWidth / 2 + playerRadius) &&
-        Math.abs(newZ - block.position.z) < (blockDepth / 2 + playerRadius) &&
-        newY < block.position.y + blockHeight / 2 &&
-        newY + playerHeight > block.position.y - blockHeight / 2
-      ) {
-        if (Math.abs(movement.x) > 0) {
-          newX = x;
-        }
-        if (Math.abs(movement.z) > 0) {
-          newZ = z;
-        }
-      }
+    } else {
+      this.body.setLinvel({ x: movement.x * SPEED, y: vel.y, z: movement.z * SPEED }, true);
     }
-    
-    if (!standingOnBlock) {
-      const terrainY = getTerrainHeightAt(newX, newZ);
-      if (newY <= terrainY + 0.01) {
-        newY = terrainY;
-        this.velocity.y = 0;
-        this.canJump = true;
-        this.hasDoubleJumped = false;
-        if (this.currentSpecialAction === 'hurricaneKick') {
-          const actions = this.playerModel?.userData?.actions;
-          actions?.hurricaneKick?.stop();
-          this.currentSpecialAction = null;
-        }
-      }
-    }
-
-    
+    const newX = t.x;
+    const newY = t.y;
+    const newZ = t.z;
     const isMovingNow = movement.length() > 0;
     this.isMoving = isMovingNow;
     if (isMovingNow && this.canJump) {
       this.audioManager?.playFootstep();
     }
-    
     if (this.playerModel) {
       this.playerModel.position.set(newX, newY, newZ);
-      
-        if (movement.length() > 0) {
-          const angle = Math.atan2(movement.x, movement.z);
-          this.playerModel.rotation.y = angle;
+      if (movement.length() > 0) {
+        const angle = Math.atan2(movement.x, movement.z);
+        this.playerModel.rotation.y = angle;
+      }
+      const actions = this.playerModel.userData.actions;
+      if (actions && !this.isKnocked && !this.currentSpecialAction) {
+        let actionName = 'idle';
+        if (!this.canJump) actionName = 'jump';
+        else if (isMovingNow) actionName = 'run';
+        const current = this.playerModel.userData.currentAction;
+        if (actionName && current !== actionName) {
+          actions[current]?.fadeOut(0.2);
+          actions[actionName].reset().fadeIn(0.2).play();
+          this.playerModel.userData.currentAction = actionName;
         }
-
-        const actions = this.playerModel.userData.actions;
-        if (actions && !this.isKnocked && !this.currentSpecialAction) {
-          let actionName = 'idle';
-          if (!this.canJump) {
-            actionName = 'jump';
-          } else if (isMovingNow) {
-            actionName = 'run';
-          }
-
-          const current = this.playerModel.userData.currentAction;
-          if (actionName && current !== actionName) {
-            actions[current]?.fadeOut(0.2);
-            actions[actionName].reset().fadeIn(0.2).play();
-            this.playerModel.userData.currentAction = actionName;
-          }
-        }
-      
+      }
       const newTarget = new THREE.Vector3(this.playerModel.position.x, this.playerModel.position.y + 1, this.playerModel.position.z);
       if (this.controls) {
         this.controls.target.copy(newTarget);
       }
-      
-      if (this.multiplayer && (
-          Math.abs(this.lastPosition.x - newX) > 0.01 ||
-          Math.abs(this.lastPosition.y - newY) > 0.01 ||
-          Math.abs(this.lastPosition.z - newZ) > 0.01 ||
-          this.isMoving !== this.wasMoving
-        )) {
-        this.multiplayer.send({
-          x: newX,
-          y: newY,
-          z: newZ,
-          rotation: this.playerModel.rotation.y,
-          moving: this.isMoving
-        });
-        
+      if (this.multiplayer && (Math.abs(this.lastPosition.x - newX) > 0.01 || Math.abs(this.lastPosition.y - newY) > 0.01 || Math.abs(this.lastPosition.z - newZ) > 0.01 || this.isMoving !== this.wasMoving)) {
+        this.multiplayer.send({ x: newX, y: newY, z: newZ, rotation: this.playerModel.rotation.y, moving: this.isMoving });
         this.lastPosition.set(newX, newY, newZ);
         this.wasMoving = this.isMoving;
       }
     } else {
       this.camera.position.set(newX, newY + 1.2, newZ);
     }
-    
     if (this.isMobile && this.controls) {
       this.controls.target.set(newX, newY + 1, newZ);
       this.controls.update();
@@ -758,9 +572,9 @@ export class PlayerControls {
    * Useful for alternative input methods like voice commands.
    */
   triggerJump() {
-    if (!this.enabled) return;
+    if (!this.enabled || !this.body) return;
     if (this.canJump) {
-      this.velocity.y = JUMP_FORCE;
+      this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
       this.canJump = false;
     }
   }

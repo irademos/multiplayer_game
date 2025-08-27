@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import RAPIER from "@dimforge/rapier3d-compat";
 
 export function createClouds(scene) {
   const rng = () => Math.random();
@@ -61,6 +62,18 @@ export function generateTerrainChunk(scene, chunkX, chunkZ, size = 50) {
   terrain.receiveShadow = true;
   terrain.position.set(chunkX * size, 0, chunkZ * size);
   scene.add(terrain);
+
+  const world = window.rapierWorld;
+  if (world) {
+    const rb = world.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed().setTranslation(chunkX * size, 0, chunkZ * size)
+    );
+    const vertices = Float32Array.from(geometry.attributes.position.array);
+    const indices = Uint32Array.from(geometry.index.array);
+    const colDesc = RAPIER.ColliderDesc.trimesh(vertices, indices);
+    world.createCollider(colDesc, rb);
+    terrain.userData.rb = rb;
+  }
 
   terrainChunks.set(`${chunkX},${chunkZ}`, { mesh: terrain, heightFunction });
 }
