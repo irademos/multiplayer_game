@@ -47,7 +47,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rootnode_chunks"
       }
     },
     {
@@ -70,7 +70,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rootnode_001_chunks"
       }
     },
     {
@@ -93,7 +93,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rootnode_002_chunks"
       }
     },
     {
@@ -116,7 +116,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rootnode_003_chunks"
       }
     },
     {
@@ -139,7 +139,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "stop_sign_chunks"
       }
     },
     {
@@ -162,7 +162,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rootnode_005_chunks"
       }
     },
     {
@@ -185,7 +185,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rootnode_006_chunks"
       }
     },
     {
@@ -208,7 +208,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rock_band_poster_plane_002_chunks"
       }
     },
     {
@@ -231,7 +231,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "rootnode_007_chunks"
       }
     },
     {
@@ -254,7 +254,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "node_chunks"
       }
     },
     {
@@ -262,7 +262,7 @@
       "asset": "building3_big_intact",
       "position": [
         0.0,
-        16.724899,
+        0.0,
         0.0
       ],
       "rotationEuler": [
@@ -277,7 +277,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": "",
+        "fractureId": "building3_big_chunks",
         "scaleVec": [
           221.299286,
           221.299255,
@@ -305,7 +305,7 @@
       ],
       "meta": {
         "health": 50,
-        "fractureId": ""
+        "fractureId": "node_001_chunks"
       }
     }
   ]
