@@ -435,7 +435,6 @@ export class PlayerControls {
     const velVec = new THREE.Vector3(vel.x, vel.y, vel.z);
     const radialVel = up.clone().multiplyScalar(velVec.dot(up));
     const surfaceDist = SPHERE_RADIUS + PLAYER_RADIUS;
-
     if (Math.abs(pos.length() - surfaceDist) < 0.05 && radialVel.length() < 0.1) {
       this.canJump = true;
       this.hasDoubleJumped = false;
@@ -491,12 +490,22 @@ export class PlayerControls {
         this.playerModel.userData.currentAction = 'idle';
       }
     } else {
-      const newVel = radialVel.add(movement.clone().multiplyScalar(SPEED));
+      const tangential = velVec.clone().sub(radialVel);
+      let newVel = movement.length() > 0
+        ? movement.clone().multiplyScalar(SPEED)
+        : tangential;
+      if (!this.canJump) {
+        newVel.add(radialVel);
+      } else {
+        const surfacePos = up.clone().multiplyScalar(surfaceDist);
+        this.body.setTranslation({ x: surfacePos.x, y: surfacePos.y, z: surfacePos.z }, true);
+        pos.copy(surfacePos);
+      }
       this.body.setLinvel({ x: newVel.x, y: newVel.y, z: newVel.z }, true);
     }
-    const newX = t.x;
-    const newY = t.y;
-    const newZ = t.z;
+    const newX = pos.x;
+    const newY = pos.y;
+    const newZ = pos.z;
     const isMovingNow = movement.length() > 0;
     this.isMoving = isMovingNow;
     if (isMovingNow && this.canJump) {
