@@ -576,8 +576,16 @@ async function main() {
       // Simple cleanup: remove if it falls far below the world
       if (mesh.position.y < -50) {
         scene.remove(mesh);
-        mesh.geometry.dispose();
-        mesh.material.dispose();
+        if (mesh.geometry) {
+          mesh.geometry.dispose();
+        }
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach((m) => m.dispose && m.dispose());
+          } else if (mesh.material.dispose) {
+            mesh.material.dispose();
+          }
+        }
         rbToMesh.delete(rb);
         rapierWorld.removeRigidBody(rb);
       }

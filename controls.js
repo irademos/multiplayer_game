@@ -6,7 +6,6 @@ import RAPIER from "@dimforge/rapier3d-compat";
 const SPEED = 5;
 const JUMP_FORCE = 5;
 const PLAYER_RADIUS = 0.3;
-const PLAYER_HALF_HEIGHT = 0.6;
 
 export class PlayerControls {
   constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager }) {
@@ -56,8 +55,7 @@ export class PlayerControls {
     // Initial player position on the sphere surface
     this.playerX = 0;
     this.playerZ = 0;
-    this.playerY = SPHERE_RADIUS + PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
-
+    this.playerY = SPHERE_RADIUS + PLAYER_RADIUS;
     
     // Set initial player model position if it exists
     if (this.playerModel) {
@@ -72,7 +70,7 @@ export class PlayerControls {
         .setLinearDamping(0.9)
         .setAngularDamping(0.9);
       this.body = world.createRigidBody(rbDesc);
-      const colDesc = RAPIER.ColliderDesc.capsule(PLAYER_HALF_HEIGHT, PLAYER_RADIUS);
+      const colDesc = RAPIER.ColliderDesc.ball(PLAYER_RADIUS);
       world.createCollider(colDesc, this.body);
     }
 
@@ -436,7 +434,8 @@ export class PlayerControls {
     const up = pos.clone().normalize();
     const velVec = new THREE.Vector3(vel.x, vel.y, vel.z);
     const radialVel = up.clone().multiplyScalar(velVec.dot(up));
-    const surfaceDist = SPHERE_RADIUS + PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
+    const surfaceDist = SPHERE_RADIUS + PLAYER_RADIUS;
+
     if (Math.abs(pos.length() - surfaceDist) < 0.05 && radialVel.length() < 0.1) {
       this.canJump = true;
       this.hasDoubleJumped = false;
