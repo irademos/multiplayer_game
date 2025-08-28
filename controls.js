@@ -56,7 +56,6 @@ export class PlayerControls {
     this.playerX = 0;
     this.playerZ = 0;
     this.playerY = SPHERE_RADIUS + PLAYER_RADIUS;
-
     
     // Set initial player model position if it exists
     if (this.playerModel) {
@@ -436,6 +435,7 @@ export class PlayerControls {
     const velVec = new THREE.Vector3(vel.x, vel.y, vel.z);
     const radialVel = up.clone().multiplyScalar(velVec.dot(up));
     const surfaceDist = SPHERE_RADIUS + PLAYER_RADIUS;
+
     if (Math.abs(pos.length() - surfaceDist) < 0.05 && radialVel.length() < 0.1) {
       this.canJump = true;
       this.hasDoubleJumped = false;
