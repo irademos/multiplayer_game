@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
 import { createOrcVoice } from "./orcVoice.js";
-import { createClouds, generateTerrainChunk, getTerrainHeightAt } from "./worldGeneration.js";
+import { createClouds, createTerrainSphere, SPHERE_RADIUS } from "./worldGeneration.js";
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -54,6 +54,8 @@ async function main() {
   let monster = null;
   loadMonsterModel(scene, data => {
     monster = data.model;
+    monster.position.set(0, SPHERE_RADIUS + 1, 0);
+    monster.up.copy(monster.position.clone().normalize());
     // Expose monster globally for interactions like grabbing
     window.monster = monster;
     monster.userData.mixer = data.mixer;
@@ -99,28 +101,11 @@ async function main() {
 
   // --- RAPIER INIT ---
   await RAPIER.init();
-  rapierWorld = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+  rapierWorld = new RAPIER.World({ x: 0, y: 0, z: 0 });
   window.rapierWorld = rapierWorld;
   window.rbToMesh = rbToMesh;
   breakManager.setWorld(rapierWorld);
-
-  // Huge static ground so the blocks land (visual terrain stays as-is)
-  {
-    const groundRb = rapierWorld.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -1, 0));
-    rapierWorld.createCollider(
-      RAPIER.ColliderDesc.cuboid(200, 1, 200), // half-extents
-      groundRb
-    );
-
-    // Optional: faint ground helper (invisible if you prefer)
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(400, 400),
-      new THREE.MeshStandardMaterial({ color: 0x556b2f, metalness: 0, roughness: 1, transparent: true, opacity: 0.12 })
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.99;
-    scene.add(ground);
-  }
+  createTerrainSphere(scene, SPHERE_RADIUS);
 
   function attachMonsterPhysics(mon) {
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
@@ -143,6 +128,7 @@ async function main() {
   scene.add(playerModel);
   document.body.appendChild(player.nameLabel);
   window.playerModel = playerModel;
+  playerModel.up.copy(playerModel.position.clone().normalize());
   audioManager.playBGS('Forest Day/Forest Day.ogg');
 
   window.localHealth = 100;
@@ -320,10 +306,14 @@ async function main() {
   function respawnPlayer() {
     window.localHealth = 100;
     updateHealthUI();
-    const newX = (Math.random() * 10) - 5;
-    const newZ = (Math.random() * 10) - 5;
-    const newY = getTerrainHeightAt(newX, newZ) + 0.5;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = SPHERE_RADIUS + 0.5;
+    const newX = r * Math.sin(phi) * Math.cos(theta);
+    const newY = r * Math.cos(phi);
+    const newZ = r * Math.sin(phi) * Math.sin(theta);
     playerModel.position.set(newX, newY, newZ);
+    playerModel.up.copy(playerModel.position.clone().normalize());
     playerControls.playerX = newX;
     playerControls.playerY = newY;
     playerControls.playerZ = newZ;
@@ -368,25 +358,6 @@ async function main() {
     window.addEventListener('touchcancel', stopTalking);
   }
 
-  const generatedChunks = new Set();
-  const chunkSize = 50;
-
-  function updateTerrain() {
-    const playerPos = playerModel.position;
-    const cx = Math.floor(playerPos.x / chunkSize);
-    const cz = Math.floor(playerPos.z / chunkSize);
-
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dz = -1; dz <= 1; dz++) {
-        const key = `${cx + dx},${cz + dz}`;
-        if (!generatedChunks.has(key)) {
-          generateTerrainChunk(scene, cx + dx, cz + dz, chunkSize);
-          generatedChunks.add(key);
-        }
-      }
-    }
-  }
-
   const otherPlayers = {};
   // Expose remote players map for global access (e.g., controls)
   window.otherPlayers = otherPlayers;
@@ -404,22 +375,8 @@ async function main() {
       const player = otherPlayers[data.id];
       player.name = data.name;
       // Update remote player position and rotation
-      player.model.position.x = data.x;
-      player.model.position.z = data.z;
-
-      // Ensure terrain chunk exists locally for remote player position
-      const rcx = Math.floor(data.x / chunkSize);
-      const rcz = Math.floor(data.z / chunkSize);
-      const rkey = `${rcx},${rcz}`;
-      if (!generatedChunks.has(rkey)) {
-        generateTerrainChunk(scene, rcx, rcz, chunkSize);
-        generatedChunks.add(rkey);
-      }
-
-      // Adjust vertical placement against local terrain height
-      const terrainY = getTerrainHeightAt(data.x, data.z);
-      const targetY = Math.max(data.y ?? terrainY, terrainY);
-      player.model.position.y = targetY;
+      player.model.position.set(data.x, data.y, data.z);
+      player.model.up.copy(player.model.position.clone().normalize());
       player.model.rotation.y = data.rotation;
 
       // Sync animation state if provided
@@ -592,6 +549,19 @@ async function main() {
     // Accumulate variable rAF time into fixed physics steps
     physicsAccumulator += clock.getDelta();
     while (physicsAccumulator >= FIXED_DT) {
+      rapierWorld.bodies.forEach((body) => {
+        if (!body.isDynamic()) return;
+        const t = body.translation();
+        const dir = { x: -t.x, y: -t.y, z: -t.z };
+        const len = Math.hypot(dir.x, dir.y, dir.z) || 1;
+        const mass = body.mass();
+        const g = 9.81;
+        body.addForce({
+          x: (dir.x / len) * g * mass,
+          y: (dir.y / len) * g * mass,
+          z: (dir.z / len) * g * mass,
+        }, true);
+      });
       rapierWorld.step();
       physicsAccumulator -= FIXED_DT;
     }
@@ -606,8 +576,16 @@ async function main() {
       // Simple cleanup: remove if it falls far below the world
       if (mesh.position.y < -50) {
         scene.remove(mesh);
-        mesh.geometry.dispose();
-        mesh.material.dispose();
+        if (mesh.geometry) {
+          mesh.geometry.dispose();
+        }
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach((m) => m.dispose && m.dispose());
+          } else if (mesh.material.dispose) {
+            mesh.material.dispose();
+          }
+        }
         rbToMesh.delete(rb);
         rapierWorld.removeRigidBody(rb);
       }
@@ -617,7 +595,6 @@ async function main() {
 
 
     playerControls.update();
-    updateTerrain();
 
     updateHealthUI();
     if (window.localHealth <= 0 && !playerDead) {
