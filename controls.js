@@ -34,6 +34,8 @@ export class PlayerControls {
     this.grabberId = null;
     this.externalGrabPos = null;
 
+    this.vehicle = null;
+
     // Player state
     this.canJump = true;
     this.keysPressed = new Set();
@@ -269,6 +271,13 @@ export class PlayerControls {
       const key = e.key.toLowerCase();
       this.keysPressed.add(key);
 
+      if (this.vehicle) {
+        if (key === 'x') {
+          this.vehicle.dismount();
+        }
+        return;
+      }
+
       if (e.key === " ") {
         if (this.canJump && this.body) {
           this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
@@ -407,7 +416,49 @@ export class PlayerControls {
   }
 
   processMovement() {
-    if (!this.enabled || !this.body) return;
+    if (!this.enabled) return;
+
+    if (this.vehicle) {
+      const moveDirection = new THREE.Vector3(0, 0, 0);
+      if (this.isMobile) {
+        if (this.joystickForce > 0.1) {
+          const cameraForward = new THREE.Vector3();
+          this.camera.getWorldDirection(cameraForward);
+          cameraForward.y = 0;
+          cameraForward.normalize();
+          const cameraRight = new THREE.Vector3().crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
+          const dx = Math.cos(this.joystickAngle);
+          const dz = Math.sin(this.joystickAngle);
+          moveDirection.addScaledVector(cameraForward, dz * this.joystickForce);
+          moveDirection.addScaledVector(cameraRight, dx * this.joystickForce);
+        }
+      } else {
+        if (this.keysPressed.has("w")) moveDirection.z = 1;
+        if (this.keysPressed.has("s")) moveDirection.z = -1;
+        if (this.keysPressed.has("a")) moveDirection.x = 1;
+        if (this.keysPressed.has("d")) moveDirection.x = -1;
+      }
+      if (!this.isMobile && moveDirection.length() > 0) moveDirection.normalize();
+      const cameraDirection = new THREE.Vector3();
+      this.camera.getWorldDirection(cameraDirection);
+      cameraDirection.y = 0;
+      cameraDirection.normalize();
+      const rightVector = new THREE.Vector3();
+      rightVector.crossVectors(this.camera.up, cameraDirection).normalize();
+      const movement = new THREE.Vector3();
+      if (!this.isMobile) {
+        if (moveDirection.z !== 0) movement.add(cameraDirection.clone().multiplyScalar(moveDirection.z));
+        if (moveDirection.x !== 0) movement.add(rightVector.clone().multiplyScalar(moveDirection.x));
+        if (movement.length() > 0) movement.normalize();
+      } else {
+        movement.copy(moveDirection);
+      }
+      this.vehicle.applyInput(movement);
+      this.isMoving = movement.length() > 0;
+      return;
+    }
+
+    if (!this.body) return;
     const t = this.body.translation();
     const vel = this.body.linvel();
 

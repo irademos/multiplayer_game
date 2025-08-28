@@ -14,31 +14,11 @@ import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
 import { LevelBuilder } from './levelBuilderMode.js';
 import { AudioManager } from './audioManager.js';
+import { Spaceship } from './spaceship.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 
 const clock = new THREE.Clock();
 const mixerClock = new THREE.Clock();
-
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
-
-function loadSpaceship(scene) {
-  const loader = new FBXLoader();
-  loader.load('/assets/props/spaceship.fbx', fbx => {
-    console.log("Children:", fbx.children.map(c => c.name));
-
-    // Example: load just the first mesh
-    const ship = fbx.children.find(c => c.name === "drt"); //c => c.isMesh || c.type === 'Group');
-
-    const scale = .1;
-    if (ship) {
-      // Detach it from parent group so only this one is added
-      ship.scale.set(scale, scale, scale); // adjust size
-      ship.position.set(0, 3, 5);
-      scene.add(ship.clone());
-      
-    }
-  });
-}
 
 
 // --- Rapier demo state ---
@@ -65,6 +45,8 @@ async function main() {
   scene.background = new THREE.Color(0x87CEEB);
 
   createClouds(scene);
+
+  let spaceship;
 
   // Load additional level data (destructible props, etc.)
   const breakManager = new BreakManager(scene);
@@ -95,10 +77,6 @@ async function main() {
     monster.userData.voice = createOrcVoice(orcPhrases);
     if (rapierWorld) attachMonsterPhysics(monster);
   });
-
-  //load spaceship
-  loadSpaceship(scene);
-
 
   // Allow mode switching from console or other scripts
   window.setMonsterMode = mode => {
@@ -147,6 +125,9 @@ async function main() {
     ground.position.y = -0.99;
     scene.add(ground);
   }
+
+  spaceship = new Spaceship(scene, rapierWorld, rbToMesh);
+  await spaceship.load();
 
   function attachMonsterPhysics(mon) {
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
@@ -641,8 +622,8 @@ async function main() {
 
 
 
-
     playerControls.update();
+    spaceship.update(playerControls);
     updateTerrain();
 
     updateHealthUI();
