@@ -490,13 +490,16 @@ export class PlayerControls {
         this.playerModel.userData.currentAction = 'idle';
       }
     } else {
-      const tangential = velVec.clone().sub(radialVel);
-      let newVel = movement.length() > 0
-        ? movement.clone().multiplyScalar(SPEED)
-        : tangential;
-      if (!this.canJump) {
-        newVel.add(radialVel);
+      let newVel;
+      if (movement.length() > 0) {
+        newVel = movement.clone().multiplyScalar(SPEED);
+        if (!this.canJump) {
+          newVel.add(radialVel);
+        }
       } else {
+        newVel = this.canJump ? new THREE.Vector3(0, 0, 0) : velVec;
+      }
+      if (this.canJump) {
         const surfacePos = up.clone().multiplyScalar(surfaceDist);
         this.body.setTranslation({ x: surfacePos.x, y: surfacePos.y, z: surfacePos.z }, true);
         pos.copy(surfacePos);
