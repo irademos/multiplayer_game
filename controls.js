@@ -1,12 +1,11 @@
 import * as THREE from "three";
-import { getTerrainHeightAt } from "./worldGeneration.js";
+import { SPHERE_RADIUS } from "./worldGeneration.js";
 import RAPIER from "@dimforge/rapier3d-compat";
 
 // Movement constants
 const SPEED = 5;
 const JUMP_FORCE = 5;
 const PLAYER_RADIUS = 0.3;
-const PLAYER_HALF_HEIGHT = 0.6;
 
 export class PlayerControls {
   constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager }) {
@@ -53,11 +52,10 @@ export class PlayerControls {
     this.moveForward = 0;
     this.moveRight = 0;
     
-    // Initial player position
-    // const initialPos = { x: 0, y: 0.5, z: 0 };
-    this.playerX = (Math.random() * 10) - 5;
-    this.playerZ = (Math.random() * 10) - 5;
-    this.playerY = getTerrainHeightAt(this.playerX, this.playerZ) + 0.5;
+    // Initial player position on the sphere surface
+    this.playerX = 0;
+    this.playerZ = 0;
+    this.playerY = SPHERE_RADIUS + PLAYER_RADIUS;
 
     
     // Set initial player model position if it exists
@@ -73,7 +71,7 @@ export class PlayerControls {
         .setLinearDamping(0.9)
         .setAngularDamping(0.9);
       this.body = world.createRigidBody(rbDesc);
-      const colDesc = RAPIER.ColliderDesc.capsule(PLAYER_HALF_HEIGHT, PLAYER_RADIUS);
+      const colDesc = RAPIER.ColliderDesc.ball(PLAYER_RADIUS);
       world.createCollider(colDesc, this.body);
     }
 
@@ -82,7 +80,8 @@ export class PlayerControls {
     this.camera.lookAt(this.playerX, this.playerY + 1, this.playerZ);
     // Store the initial camera offset (relative to player's target position)
     this.cameraOffset = new THREE.Vector3();
-    this.cameraOffset.copy(this.camera.position).sub(new THREE.Vector3(this.playerX, this.playerY + 1, this.playerZ));
+    const initialUp = new THREE.Vector3(this.playerX, this.playerY, this.playerZ).normalize();
+    this.cameraOffset.copy(this.camera.position).sub(new THREE.Vector3(this.playerX, this.playerY, this.playerZ).add(initialUp));
 
     // Initialize controls based on device
     this.initializeControls();
@@ -124,7 +123,9 @@ export class PlayerControls {
       if (!this.enabled) return;
       this.jumpButtonPressed = true;
       if (this.canJump && this.body) {
-        this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
+        const t = this.body.translation();
+        const up = new THREE.Vector3(t.x, t.y, t.z).normalize();
+        this.body.applyImpulse({ x: up.x * JUMP_FORCE, y: up.y * JUMP_FORCE, z: up.z * JUMP_FORCE }, true);
         this.canJump = false;
       }
       event.preventDefault();
@@ -271,11 +272,15 @@ export class PlayerControls {
 
       if (e.key === " ") {
         if (this.canJump && this.body) {
-          this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
+          const t = this.body.translation();
+          const up = new THREE.Vector3(t.x, t.y, t.z).normalize();
+          this.body.applyImpulse({ x: up.x * JUMP_FORCE, y: up.y * JUMP_FORCE, z: up.z * JUMP_FORCE }, true);
           this.canJump = false;
           this.hasDoubleJumped = false;
         } else if (!this.hasDoubleJumped && this.body) {
-          this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
+          const t = this.body.translation();
+          const up = new THREE.Vector3(t.x, t.y, t.z).normalize();
+          this.body.applyImpulse({ x: up.x * JUMP_FORCE, y: up.y * JUMP_FORCE, z: up.z * JUMP_FORCE }, true);
           this.hasDoubleJumped = true;
           this.playAction('hurricaneKick');
         }
@@ -426,9 +431,12 @@ export class PlayerControls {
       return;
     }
 
-    const terrainY = getTerrainHeightAt(t.x, t.z);
-    const expectedY = terrainY + PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
-    if (t.y <= expectedY + 0.05 && Math.abs(vel.y) < 0.1) {
+    const pos = new THREE.Vector3(t.x, t.y, t.z);
+    const up = pos.clone().normalize();
+    const velVec = new THREE.Vector3(vel.x, vel.y, vel.z);
+    const radialVel = up.clone().multiplyScalar(velVec.dot(up));
+    const surfaceDist = SPHERE_RADIUS + PLAYER_RADIUS;
+    if (Math.abs(pos.length() - surfaceDist) < 0.05 && radialVel.length() < 0.1) {
       this.canJump = true;
       this.hasDoubleJumped = false;
     }
@@ -439,9 +447,8 @@ export class PlayerControls {
         if (this.joystickForce > 0.1) {
           const cameraForward = new THREE.Vector3();
           this.camera.getWorldDirection(cameraForward);
-          cameraForward.y = 0;
-          cameraForward.normalize();
-          const cameraRight = new THREE.Vector3().crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
+          cameraForward.projectOnPlane(up).normalize();
+          const cameraRight = new THREE.Vector3().crossVectors(cameraForward, up).normalize();
           const dx = Math.cos(this.joystickAngle);
           const dz = Math.sin(this.joystickAngle);
           moveDirection.addScaledVector(cameraForward, dz * this.joystickForce);
@@ -457,10 +464,8 @@ export class PlayerControls {
     if (!this.isMobile && moveDirection.length() > 0) moveDirection.normalize();
     const cameraDirection = new THREE.Vector3();
     this.camera.getWorldDirection(cameraDirection);
-    cameraDirection.y = 0;
-    cameraDirection.normalize();
-    const rightVector = new THREE.Vector3();
-    rightVector.crossVectors(this.camera.up, cameraDirection).normalize();
+    cameraDirection.projectOnPlane(up).normalize();
+    const rightVector = new THREE.Vector3().crossVectors(cameraDirection, up).normalize();
     const movement = new THREE.Vector3();
     if (!this.isMobile) {
       if (moveDirection.z !== 0) movement.add(cameraDirection.clone().multiplyScalar(moveDirection.z));
@@ -486,11 +491,22 @@ export class PlayerControls {
         this.playerModel.userData.currentAction = 'idle';
       }
     } else {
-      this.body.setLinvel({ x: movement.x * SPEED, y: vel.y, z: movement.z * SPEED }, true);
+      const tangential = velVec.clone().sub(radialVel);
+      let newVel = movement.length() > 0
+        ? movement.clone().multiplyScalar(SPEED)
+        : tangential;
+      if (!this.canJump) {
+        newVel.add(radialVel);
+      } else {
+        const surfacePos = up.clone().multiplyScalar(surfaceDist);
+        this.body.setTranslation({ x: surfacePos.x, y: surfacePos.y, z: surfacePos.z }, true);
+        pos.copy(surfacePos);
+      }
+      this.body.setLinvel({ x: newVel.x, y: newVel.y, z: newVel.z }, true);
     }
-    const newX = t.x;
-    const newY = t.y;
-    const newZ = t.z;
+    const newX = pos.x;
+    const newY = pos.y;
+    const newZ = pos.z;
     const isMovingNow = movement.length() > 0;
     this.isMoving = isMovingNow;
     if (isMovingNow && this.canJump) {
@@ -498,9 +514,10 @@ export class PlayerControls {
     }
     if (this.playerModel) {
       this.playerModel.position.set(newX, newY, newZ);
+      this.playerModel.up.copy(up);
       if (movement.length() > 0) {
-        const angle = Math.atan2(movement.x, movement.z);
-        this.playerModel.rotation.y = angle;
+        const target = this.playerModel.position.clone().add(movement);
+        this.playerModel.lookAt(target);
       }
       const actions = this.playerModel.userData.actions;
       if (actions && !this.isKnocked && !this.currentSpecialAction) {
@@ -514,7 +531,7 @@ export class PlayerControls {
           this.playerModel.userData.currentAction = actionName;
         }
       }
-      const newTarget = new THREE.Vector3(this.playerModel.position.x, this.playerModel.position.y + 1, this.playerModel.position.z);
+      const newTarget = this.playerModel.position.clone().add(up);
       if (this.controls) {
         this.controls.target.copy(newTarget);
       }
@@ -555,14 +572,16 @@ export class PlayerControls {
       this.pitch = Math.max(minPitch, this.pitch - 0.02);
     }
 
-    const orbitCenter = this.playerModel.position.clone().add(new THREE.Vector3(0, 1, 0));
+    const up = this.playerModel.position.clone().normalize();
+    const orbitCenter = this.playerModel.position.clone().add(up);
     const rotatedOffset = new THREE.Vector3(
       this.cameraOffset.x * Math.cos(this.yaw) - this.cameraOffset.z * Math.sin(this.yaw),
       this.cameraOffset.y + 5 * Math.sin(this.pitch),
       this.cameraOffset.x * Math.sin(this.yaw) + this.cameraOffset.z * Math.cos(this.yaw)
-    );
+    ).applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up));
 
     this.camera.position.copy(orbitCenter).add(rotatedOffset);
+    this.camera.up.copy(up);
     this.camera.lookAt(orbitCenter);
 
       const now = performance.now();
@@ -603,7 +622,9 @@ export class PlayerControls {
   triggerJump() {
     if (!this.enabled || !this.body) return;
     if (this.canJump) {
-      this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
+      const t = this.body.translation();
+      const up = new THREE.Vector3(t.x, t.y, t.z).normalize();
+      this.body.applyImpulse({ x: up.x * JUMP_FORCE, y: up.y * JUMP_FORCE, z: up.z * JUMP_FORCE }, true);
       this.canJump = false;
     }
   }
