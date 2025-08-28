@@ -56,7 +56,6 @@ export class PlayerControls {
     this.playerX = 0;
     this.playerZ = 0;
     this.playerY = SPHERE_RADIUS + PLAYER_RADIUS;
-
     
     // Set initial player model position if it exists
     if (this.playerModel) {
