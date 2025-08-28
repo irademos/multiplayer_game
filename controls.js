@@ -29,6 +29,10 @@ export class PlayerControls {
     this.knockbackRestYaw = 0;
     this.slideMomentum = new THREE.Vector3();
     this.lastMoveDirection = new THREE.Vector3();
+    this.grabbedTarget = null;
+    this.isGrabbed = false;
+    this.grabberId = null;
+    this.externalGrabPos = null;
 
     // Player state
     this.canJump = true;
@@ -275,22 +279,28 @@ export class PlayerControls {
           this.hasDoubleJumped = true;
           this.playAction('hurricaneKick');
         }
-    } else if (key === 'e') {
-      if (this.isMoving) {
-        this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
-      }
-      this.playAction('mutantPunch');
-      this.audioManager?.playAttack();
-    } else if (key === 'r') {
-      if (this.isMoving) {
-        this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
-        this.playAction('runningKick');
+      } else if (key === 'e') {
+        if (this.isMoving) {
+          this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
+        }
+        this.playAction('mutantPunch');
         this.audioManager?.playAttack();
-      } else {
-        this.playAction('mmaKick');
-        this.audioManager?.playAttack();
+      } else if (key === 'r') {
+        if (this.isMoving) {
+          this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
+          this.playAction('runningKick');
+          this.audioManager?.playAttack();
+        } else {
+          this.playAction('mmaKick');
+          this.audioManager?.playAttack();
+        }
+      } else if (key === 'g') {
+        if (this.grabbedTarget) {
+          this.releaseGrab();
+        } else {
+          this.attemptGrab();
+        }
       }
-    }
     });
 
     document.addEventListener("keyup", (e) => {
@@ -400,6 +410,22 @@ export class PlayerControls {
     if (!this.enabled || !this.body) return;
     const t = this.body.translation();
     const vel = this.body.linvel();
+
+    if (this.isGrabbed) {
+      // Freeze movement and follow externally provided position
+      this.body.setLinvel({ x: 0, y: vel.y, z: 0 }, true);
+      if (this.externalGrabPos) {
+        t.x = this.externalGrabPos.x;
+        t.y = this.externalGrabPos.y;
+        t.z = this.externalGrabPos.z;
+        this.body.setTranslation(this.externalGrabPos, true);
+      }
+      if (this.playerModel) {
+        this.playerModel.position.set(t.x, t.y, t.z);
+      }
+      return;
+    }
+
     const terrainY = getTerrainHeightAt(t.x, t.z);
     const expectedY = terrainY + PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
     if (t.y <= expectedY + 0.05 && Math.abs(vel.y) < 0.1) {
@@ -552,7 +578,10 @@ export class PlayerControls {
       if (this.enabled) {
         this.processMovement();
       }
-    
+      if (this.grabbedTarget) {
+        this.updateGrabbedTarget();
+      }
+
     // Always update controls even when movement is disabled
     if (this.controls) {
       this.controls.update();
@@ -597,6 +626,87 @@ export class PlayerControls {
 
     this.playAction('projectile');
     this.spawnProjectile(this.scene, this.projectiles, position, direction);
+  }
+
+  updateGrabbedTarget() {
+    if (!this.grabbedTarget || !this.playerModel) return;
+    const forward = new THREE.Vector3(0, 0, 1).applyEuler(this.playerModel.rotation).normalize();
+    const targetPos = this.playerModel.position.clone().addScaledVector(forward, 1);
+    const target = this.grabbedTarget;
+    if (target.type === 'player') {
+      target.model.position.copy(targetPos);
+      this.multiplayer.send({ type: 'grabMove', from: this.multiplayer.getId(), target: target.id, position: targetPos.toArray() });
+    } else if (target.type === 'monster') {
+      target.model.position.copy(targetPos);
+      target.model.userData.rb?.setTranslation(targetPos, true);
+    } else if (target.type === 'object') {
+      target.object.position.copy(targetPos);
+      if (target.object.userData?.rb) {
+        target.object.userData.rb.setTranslation(targetPos, true);
+      }
+    }
+  }
+
+  attemptGrab() {
+    const playerPos = this.playerModel.position;
+    let closest = null;
+    let minDist = 1.5;
+
+    const others = window.otherPlayers || {};
+    for (const [id, p] of Object.entries(others)) {
+      const dist = playerPos.distanceTo(p.model.position);
+      if (dist < minDist) {
+        closest = { type: 'player', id, model: p.model };
+        minDist = dist;
+      }
+    }
+
+    const mon = window.monster;
+    if (mon) {
+      const dist = playerPos.distanceTo(mon.position);
+      if (dist < minDist) {
+        closest = { type: 'monster', model: mon };
+        minDist = dist;
+      }
+    }
+
+    const bm = window.breakManager;
+    if (bm) {
+      for (const [id, data] of bm.registry.entries()) {
+        const obj = data.object;
+        const dist = playerPos.distanceTo(obj.position);
+        if (dist < minDist) {
+          closest = { type: 'object', id, object: obj };
+          minDist = dist;
+        }
+      }
+    }
+
+    if (closest) {
+      this.grabbedTarget = closest;
+      if (closest.type === 'player') {
+        this.multiplayer.send({ type: 'grab', from: this.multiplayer.getId(), target: closest.id, active: true });
+      }
+    }
+  }
+
+  releaseGrab() {
+    if (this.grabbedTarget && this.grabbedTarget.type === 'player') {
+      this.multiplayer.send({ type: 'grab', from: this.multiplayer.getId(), target: this.grabbedTarget.id, active: false });
+    }
+    this.grabbedTarget = null;
+  }
+
+  setGrabbed(active, grabberId = null) {
+    this.isGrabbed = active;
+    this.grabberId = grabberId;
+    if (!active) {
+      this.externalGrabPos = null;
+    }
+  }
+
+  updateGrabbedPosition(pos) {
+    this.externalGrabPos = new THREE.Vector3(...pos);
   }
 
   setupPointerLock() {

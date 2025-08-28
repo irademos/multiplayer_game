@@ -54,6 +54,8 @@ async function main() {
   let monster = null;
   loadMonsterModel(scene, data => {
     monster = data.model;
+    // Expose monster globally for interactions like grabbing
+    window.monster = monster;
     monster.userData.mixer = data.mixer;
     monster.userData.actions = data.actions;
     monster.userData.currentAction = "Idle";
@@ -386,6 +388,8 @@ async function main() {
   }
 
   const otherPlayers = {};
+  // Expose remote players map for global access (e.g., controls)
+  window.otherPlayers = otherPlayers;
 
   function handleIncomingData(peerId, data) {
     console.log('📡 Incoming data:', data);
@@ -469,6 +473,29 @@ async function main() {
     if (data.type === "monster" && monster) {
       const target = { x: data.x, y: data.y, z: data.z };
       monster.userData.rb?.setTranslation(target, true);
+    }
+
+    if (data.type === 'grab') {
+      if (data.target === multiplayer.getId()) {
+        playerControls.setGrabbed(data.active, data.from);
+      } else {
+        const targetPlayer = otherPlayers[data.target];
+        if (targetPlayer) {
+          targetPlayer.grabbed = data.active;
+        }
+      }
+    }
+
+    if (data.type === 'grabMove') {
+      const pos = new THREE.Vector3(...data.position);
+      if (data.target === multiplayer.getId()) {
+        playerControls.updateGrabbedPosition(data.position);
+      } else {
+        const targetPlayer = otherPlayers[data.target];
+        if (targetPlayer) {
+          targetPlayer.model.position.copy(pos);
+        }
+      }
     }
   }
 
