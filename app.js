@@ -19,6 +19,28 @@ import RAPIER from '@dimforge/rapier3d-compat';
 const clock = new THREE.Clock();
 const mixerClock = new THREE.Clock();
 
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+
+function loadSpaceship(scene) {
+  const loader = new FBXLoader();
+  loader.load('/assets/props/spaceship.fbx', fbx => {
+    console.log("Children:", fbx.children.map(c => c.name));
+
+    // Example: load just the first mesh
+    const ship = fbx.children.find(c => c.name === "drt"); //c => c.isMesh || c.type === 'Group');
+
+    const scale = .1;
+    if (ship) {
+      // Detach it from parent group so only this one is added
+      ship.scale.set(scale, scale, scale); // adjust size
+      ship.position.set(0, 3, 5);
+      scene.add(ship.clone());
+      
+    }
+  });
+}
+
+
 // --- Rapier demo state ---
 let rapierWorld;
 const rbToMesh = new Map(); // RigidBody -> THREE.Mesh
@@ -73,6 +95,10 @@ async function main() {
     monster.userData.voice = createOrcVoice(orcPhrases);
     if (rapierWorld) attachMonsterPhysics(monster);
   });
+
+  //load spaceship
+  loadSpaceship(scene);
+
 
   // Allow mode switching from console or other scripts
   window.setMonsterMode = mode => {
