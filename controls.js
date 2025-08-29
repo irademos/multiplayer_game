@@ -424,7 +424,6 @@ export class PlayerControls {
         if (this.joystickForce > 0.1) {
           const cameraForward = new THREE.Vector3();
           this.camera.getWorldDirection(cameraForward);
-          cameraForward.y = 0;
           cameraForward.normalize();
           const cameraRight = new THREE.Vector3().crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
           const dx = Math.cos(this.joystickAngle);
@@ -441,7 +440,6 @@ export class PlayerControls {
       if (!this.isMobile && moveDirection.length() > 0) moveDirection.normalize();
       const cameraDirection = new THREE.Vector3();
       this.camera.getWorldDirection(cameraDirection);
-      cameraDirection.y = 0;
       cameraDirection.normalize();
       const rightVector = new THREE.Vector3();
       rightVector.crossVectors(this.camera.up, cameraDirection).normalize();

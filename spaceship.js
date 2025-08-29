@@ -40,14 +40,16 @@ export class Spaceship {
       const rbDesc = RAPIER.RigidBodyDesc.dynamic()
         .setTranslation(ship.position.x, ship.position.y, ship.position.z)
         .setLinearDamping(0.5)
-        .setAngularDamping(0.5);
+        .setAngularDamping(0.5)
+        .setGravityScale(0);
       this.body = this.world.createRigidBody(rbDesc);
 
       const offset = new THREE.Vector3().subVectors(center, ship.position);
       const colDesc = RAPIER.ColliderDesc.cuboid(size.x * 0.5, size.y * 0.5, size.z * 0.5)
         .setTranslation(offset.x, offset.y, offset.z);
-      this.world.createCollider(colDesc, this.body);      
-        
+      this.world.createCollider(colDesc, this.body);
+      this.rbToMesh.set(this.body, this.mesh);
+
       // Optional: mount point on top of the box
       this.mountOffset.set(0, size.y * 0.5, 0);
 
@@ -74,13 +76,23 @@ export class Spaceship {
 
   applyInput(dir) {
     if (!this.body) return;
-    const vel = this.body.linvel();
-    this.body.setLinvel({ x: dir.x * 5, y: vel.y, z: dir.z * 5 }, true);
+    const speed = 5;
+    this.body.setLinvel({ x: dir.x * speed, y: dir.y * speed, z: dir.z * speed }, true);
   }
 
   dismount() {
     if (!this.occupant) return;
-    this.occupant.vehicle = null;
+    const playerControls = this.occupant;
+    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.mesh.quaternion);
+    const dismountPos = this.mesh.position.clone().add(forward.multiplyScalar(-3)).add(this.mountOffset);
+    if (playerControls.playerModel) {
+      playerControls.playerModel.position.copy(dismountPos);
+    }
+    if (playerControls.body) {
+      playerControls.body.setTranslation(dismountPos, true);
+      playerControls.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    }
+    playerControls.vehicle = null;
     this.occupant = null;
   }
 }
