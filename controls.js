@@ -484,8 +484,19 @@ export class PlayerControls {
     }
 
     const terrainY = getTerrainHeightAt(t.x, t.z);
-    const expectedY = terrainY + PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
-    if (t.y <= expectedY + 0.05 && Math.abs(vel.y) < 0.1) {
+    let groundY = terrainY;
+    const world = window.rapierWorld;
+    if (world) {
+      const ray = new RAPIER.Ray({ x: t.x, y: t.y, z: t.z }, { x: 0, y: -1, z: 0 });
+      const hit = world.castRay(ray, t.y + 10, true, undefined, undefined, undefined, this.body);
+      if (hit) {
+        const hitDist = hit.toi ?? hit.timeOfImpact;
+        const hitY = t.y - hitDist;
+        if (hitY > groundY) groundY = hitY;
+      }
+    }
+    const expectedY = groundY + PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
+    if (t.y <= expectedY + 0.15 && Math.abs(vel.y) < 0.2) {
       this.canJump = true;
       this.hasDoubleJumped = false;
     }
