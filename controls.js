@@ -278,6 +278,11 @@ export class PlayerControls {
         return;
       }
 
+      if (key === 'x') {
+        window.spaceship?.tryMount(this);
+        return;
+      }
+
       if (e.key === " ") {
         if (this.canJump && this.body) {
           this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
