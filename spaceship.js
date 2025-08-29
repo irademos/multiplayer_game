@@ -46,6 +46,9 @@ export class Spaceship {
       .setTranslation(offset.x, offset.y, offset.z);
     this.world.createCollider(colDesc, this.body);
 
+    // Register with global rigid-body map so physics sync updates the mesh
+    this.rbToMesh?.set(this.body, this.mesh);
+
     // Mount point on top of the box
     this.mountOffset.set(0, size.y * 0.5, 0);
   }
