@@ -19,7 +19,7 @@ export class Spaceship {
     const loader = new GLTFLoader();
     const gltf = await loader.loadAsync('/assets/props/mother_spaceship.glb');
     const ship = gltf.scene;
-    const scale = 1;
+    const scale = 0.7;
     ship.scale.set(scale, scale, scale);
     ship.position.set(1, 5, 50);
 
@@ -40,7 +40,7 @@ export class Spaceship {
       .setTranslation(ship.position.x, ship.position.y, ship.position.z)
       .setLinearDamping(0.5)
       .setAngularDamping(0.5)
-      .setGravityScale(0.1);
+      .setGravityScale(0.3);
     this.body = this.world.createRigidBody(rbDesc);
 
     // Build a triangle-mesh collider from the spaceship geometry so the
@@ -88,7 +88,7 @@ export class Spaceship {
     this.rbToMesh?.set(this.body, this.mesh);
 
     // Mount point on top of the box
-    this.mountOffset.set(0, size.y * 0.5, 0);
+    this.mountOffset.set(0, size.y * 0.5 - 2, 0);
     this.halfHeight = size.y * 0.5;
   }
 
@@ -123,7 +123,7 @@ export class Spaceship {
   tryMount(playerControls) {
     if (this.occupant || !playerControls?.playerModel || !this.mesh) return;
     const dist = playerControls.playerModel.position.distanceTo(this.mesh.position);
-    if (dist < 2) {
+    if (dist < 10) {
       this.occupant = playerControls;
       playerControls.vehicle = this;
     }
@@ -142,15 +142,15 @@ export class Spaceship {
   dismount() {
     if (!this.occupant) return;
     const playerControls = this.occupant;
-    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.mesh.quaternion);
-    const dismountPos = this.mesh.position.clone().add(forward.multiplyScalar(-3)).add(this.mountOffset);
-    if (playerControls.playerModel) {
-      playerControls.playerModel.position.copy(dismountPos);
-    }
-    if (playerControls.body) {
-      playerControls.body.setTranslation(dismountPos, true);
-      playerControls.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    }
+    // const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.mesh.quaternion);
+    // const dismountPos = this.mesh.position.clone().add(forward.multiplyScalar(-3)).add(this.mountOffset);
+    // if (playerControls.playerModel) {
+    //   playerControls.playerModel.position.copy(dismountPos);
+    // }
+    // if (playerControls.body) {
+    //   playerControls.body.setTranslation(dismountPos, true);
+    //   playerControls.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    // }
     playerControls.vehicle = null;
     this.occupant = null;
   }
