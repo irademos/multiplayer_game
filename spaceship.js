@@ -45,7 +45,9 @@ export class Spaceship {
 
     const offset = new THREE.Vector3().subVectors(center, ship.position);
     const colDesc = RAPIER.ColliderDesc.cuboid(size.x * 0.5, size.y * 0.5, size.z * 0.5)
-      .setTranslation(offset.x, offset.y, offset.z);
+      .setTranslation(offset.x, offset.y, offset.z)
+      .setRestitution(0)
+      .setFriction(1);
     this.world.createCollider(colDesc, this.body);
 
     // Register with global rigid-body map so physics sync updates the mesh
