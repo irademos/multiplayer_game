@@ -622,6 +622,21 @@ async function main() {
       mesh.position.set(t.x, t.y, t.z);
       mesh.quaternion.set(r.x, r.y, r.z, r.w);
 
+      if (!mesh.userData?.isTerrain) {
+        mesh.updateMatrixWorld();
+        const bbox = new THREE.Box3().setFromObject(mesh);
+        const terrainY = getTerrainHeightAt(mesh.position.x, mesh.position.z);
+        if (bbox.min.y < terrainY) {
+          const correction = terrainY - bbox.min.y;
+          mesh.position.y += correction;
+          rb.setTranslation({ x: mesh.position.x, y: mesh.position.y, z: mesh.position.z }, true);
+          const lv = rb.linvel();
+          if (lv.y < 0) {
+            rb.setLinvel({ x: lv.x, y: 0, z: lv.z }, true);
+          }
+        }
+      }
+
       // Simple cleanup: remove if it falls far below the world
       if (mesh.position.y < -50) {
         scene.remove(mesh);
