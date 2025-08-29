@@ -35,6 +35,10 @@ export class Spaceship {
     bbox.getSize(size);
     bbox.getCenter(center);
 
+    // Store size and center offset for camera calculations
+    this.boundingSize = size.clone();
+    this.boundingCenterOffset = new THREE.Vector3().subVectors(center, ship.position);
+
     // Create physics body centered on mesh
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(ship.position.x, ship.position.y, ship.position.z)

@@ -630,11 +630,24 @@ export class PlayerControls {
       this.pitch = Math.max(minPitch, this.pitch - 0.02);
     }
 
-    const orbitCenter = this.playerModel.position.clone().add(new THREE.Vector3(0, 1, 0));
+    let orbitCenter;
+    let offset;
+    if (this.vehicle && this.vehicle.mesh) {
+      const size = this.vehicle.boundingSize;
+      const centerOffset = this.vehicle.boundingCenterOffset || new THREE.Vector3();
+      orbitCenter = this.vehicle.mesh.position.clone().add(centerOffset);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const fov = THREE.MathUtils.degToRad(this.camera.fov);
+      const distance = (maxDim * 0.5) / Math.tan(fov / 2) + maxDim * 0.5;
+      offset = new THREE.Vector3(0, maxDim * 0.5, distance);
+    } else {
+      orbitCenter = this.playerModel.position.clone().add(new THREE.Vector3(0, 1, 0));
+      offset = this.cameraOffset;
+    }
     const rotatedOffset = new THREE.Vector3(
-      this.cameraOffset.x * Math.cos(this.yaw) - this.cameraOffset.z * Math.sin(this.yaw),
-      this.cameraOffset.y + 5 * Math.sin(this.pitch),
-      this.cameraOffset.x * Math.sin(this.yaw) + this.cameraOffset.z * Math.cos(this.yaw)
+      offset.x * Math.cos(this.yaw) - offset.z * Math.sin(this.yaw),
+      offset.y + 5 * Math.sin(this.pitch),
+      offset.x * Math.sin(this.yaw) + offset.z * Math.cos(this.yaw)
     );
 
     this.camera.position.copy(orbitCenter).add(rotatedOffset);
