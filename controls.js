@@ -75,7 +75,10 @@ export class PlayerControls {
         .setLinearDamping(0.9)
         .setAngularDamping(0.9);
       this.body = world.createRigidBody(rbDesc);
-      const colDesc = RAPIER.ColliderDesc.capsule(PLAYER_HALF_HEIGHT, PLAYER_RADIUS);
+      const colDesc = RAPIER.ColliderDesc
+        .capsule(PLAYER_HALF_HEIGHT, PLAYER_RADIUS)
+        .setRestitution(0)
+        .setFriction(1);
       world.createCollider(colDesc, this.body);
     }
 
