@@ -11,6 +11,8 @@ export class Spaceship {
     this.body = null;
     this.occupant = null; // PlayerControls instance
     this.mountOffset = new THREE.Vector3(0, 1, 0);
+    this.locked = false;
+    this.halfHeight = 0;
   }
 
   async load() {
@@ -51,16 +53,34 @@ export class Spaceship {
 
     // Mount point on top of the box
     this.mountOffset.set(0, size.y * 0.5, 0);
+    this.halfHeight = size.y * 0.5;
   }
 
   update() {
-    if (!this.occupant) return;
-    const top = this.mesh.position.clone().add(this.mountOffset);
-    const player = this.occupant.playerModel;
-    player.position.copy(top);
-    if (this.occupant.body) {
-      this.occupant.body.setTranslation(top, true);
-      this.occupant.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    if (this.occupant) {
+      const top = this.mesh.position.clone().add(this.mountOffset);
+      const player = this.occupant.playerModel;
+      player.position.copy(top);
+      if (this.occupant.body) {
+        this.occupant.body.setTranslation(top, true);
+        this.occupant.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      }
+    }
+    if (this.body) {
+      const vel = this.body.linvel();
+      const speed = Math.hypot(vel.x, vel.y, vel.z);
+      const onGround = this.body.translation().y - this.halfHeight <= 0.05;
+      if (onGround && speed < 0.1) {
+        if (!this.locked) {
+          this.locked = true;
+          this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+          this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+          this.body.sleep();
+        }
+      } else if (this.locked && speed > 0.1) {
+        this.locked = false;
+        this.body.wakeUp();
+      }
     }
   }
 
@@ -76,6 +96,10 @@ export class Spaceship {
   applyInput(dir) {
     if (!this.body) return;
     const speed = 5;
+    if (this.locked) {
+      this.locked = false;
+      this.body.wakeUp();
+    }
     this.body.setLinvel({ x: dir.x * speed, y: dir.y * speed, z: dir.z * speed }, true);
   }
 
