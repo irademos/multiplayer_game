@@ -43,8 +43,42 @@ export class Spaceship {
       .setGravityScale(0.1);
     this.body = this.world.createRigidBody(rbDesc);
 
+    // Build a triangle-mesh collider from the spaceship geometry so the
+    // collider matches the visible model and leaves the doorway open.
+    const vertices = [];
+    const indices = [];
+    let indexOffset = 0;
+    const v = new THREE.Vector3();
+
+    ship.updateMatrixWorld(true);
+    ship.traverse((child) => {
+      if (!child.isMesh || !child.geometry) return;
+      const pos = child.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i);
+        v.applyMatrix4(child.matrixWorld);
+        v.sub(center);
+        vertices.push(v.x, v.y, v.z);
+      }
+
+      const geomIndex = child.geometry.index;
+      if (geomIndex) {
+        for (let i = 0; i < geomIndex.count; i++) {
+          indices.push(geomIndex.array[i] + indexOffset);
+        }
+      } else {
+        for (let i = 0; i < pos.count; i++) {
+          indices.push(i + indexOffset);
+        }
+      }
+      indexOffset += pos.count;
+    });
+
     const offset = new THREE.Vector3().subVectors(center, ship.position);
-    const colDesc = RAPIER.ColliderDesc.cuboid(size.x * 0.5, size.y * 0.5, size.z * 0.5)
+    const colDesc = RAPIER.ColliderDesc.trimesh(
+      new Float32Array(vertices),
+      new Uint32Array(indices)
+    )
       .setTranslation(offset.x, offset.y, offset.z)
       .setRestitution(0)
       .setFriction(1);
