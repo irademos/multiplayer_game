@@ -133,14 +133,37 @@ export class Spaceship {
     }
   }
 
-  applyInput(dir) {
-    if (!this.body) return;
-    const speed = 5;
-    if (this.locked) {
-      this.locked = false;
-      this.body.wakeUp();
+  applyInput(input) {
+    if (!this.body || !this.mesh) return;
+    const rotationSpeed = 0.03;
+
+    // Handle rotation first
+    if (input.yaw !== 0 || input.pitch !== 0) {
+      const euler = new THREE.Euler(input.pitch * rotationSpeed, input.yaw * rotationSpeed, 0, 'XYZ');
+      const q = new THREE.Quaternion().setFromEuler(euler);
+      const currentRot = this.body.rotation();
+      const current = new THREE.Quaternion(currentRot.x, currentRot.y, currentRot.z, currentRot.w);
+      current.multiply(q);
+      this.body.setRotation(current, true);
+      this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     }
-    this.body.setLinvel({ x: dir.x * speed, y: dir.y * speed, z: dir.z * speed }, true);
+
+    // Apply forward thrust along the ship's current forward direction
+    if (input.thrust) {
+      if (this.locked) {
+        this.locked = false;
+        this.body.wakeUp();
+      }
+      const forward = new THREE.Vector3(0, 0, -1);
+      const rot = this.body.rotation();
+      forward.applyQuaternion(new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w));
+      const thrustForce = 0.5;
+      this.body.applyImpulse({
+        x: forward.x * thrustForce,
+        y: forward.y * thrustForce,
+        z: forward.z * thrustForce
+      }, true);
+    }
   }
 
   dismount() {

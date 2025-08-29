@@ -427,40 +427,11 @@ export class PlayerControls {
     if (!this.enabled) return;
 
     if (this.vehicle) {
-      const moveDirection = new THREE.Vector3(0, 0, 0);
-      if (this.isMobile) {
-        if (this.joystickForce > 0.1) {
-          const cameraForward = new THREE.Vector3();
-          this.camera.getWorldDirection(cameraForward);
-          cameraForward.normalize();
-          const cameraRight = new THREE.Vector3().crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
-          const dx = Math.cos(this.joystickAngle);
-          const dz = Math.sin(this.joystickAngle);
-          moveDirection.addScaledVector(cameraForward, dz * this.joystickForce);
-          moveDirection.addScaledVector(cameraRight, dx * this.joystickForce);
-        }
-      } else {
-        if (this.keysPressed.has("w")) moveDirection.z = 1;
-        if (this.keysPressed.has("s")) moveDirection.z = -1;
-        if (this.keysPressed.has("a")) moveDirection.x = 1;
-        if (this.keysPressed.has("d")) moveDirection.x = -1;
-      }
-      if (!this.isMobile && moveDirection.length() > 0) moveDirection.normalize();
-      const cameraDirection = new THREE.Vector3();
-      this.camera.getWorldDirection(cameraDirection);
-      cameraDirection.normalize();
-      const rightVector = new THREE.Vector3();
-      rightVector.crossVectors(this.camera.up, cameraDirection).normalize();
-      const movement = new THREE.Vector3();
-      if (!this.isMobile) {
-        if (moveDirection.z !== 0) movement.add(cameraDirection.clone().multiplyScalar(moveDirection.z));
-        if (moveDirection.x !== 0) movement.add(rightVector.clone().multiplyScalar(moveDirection.x));
-        if (movement.length() > 0) movement.normalize();
-      } else {
-        movement.copy(moveDirection);
-      }
-      this.vehicle.applyInput(movement);
-      this.isMoving = movement.length() > 0;
+      const yaw = (this.keysPressed.has("a") ? 1 : 0) + (this.keysPressed.has("d") ? -1 : 0);
+      const pitch = (this.keysPressed.has("w") ? 1 : 0) + (this.keysPressed.has("s") ? -1 : 0);
+      const thrust = this.keysPressed.has(" ");
+      this.vehicle.applyInput({ thrust, yaw, pitch });
+      this.isMoving = thrust;
       return;
     }
 
