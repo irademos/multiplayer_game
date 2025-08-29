@@ -51,7 +51,7 @@ async function main() {
   // Load additional level data (destructible props, etc.)
   const breakManager = new BreakManager(scene);
   const levelLoader = new LevelLoader(scene, { breakManager });
-  await levelLoader.loadManifest('/areas/demo/demo_area.json');
+  // await levelLoader.loadManifest('/areas/demo/demo_area.json');
   // Expose to window for debugging
   window.breakManager = breakManager;
 

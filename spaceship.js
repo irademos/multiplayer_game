@@ -17,9 +17,9 @@ export class Spaceship {
     const loader = new GLTFLoader();
     const gltf = await loader.loadAsync('/assets/props/mother_spaceship.glb');
     const ship = gltf.scene;
-    const scale = 0.1;
+    const scale = 1;
     ship.scale.set(scale, scale, scale);
-    ship.position.set(0, 3, 5);
+    ship.position.set(1, 5, 50);
 
     // Add mesh and update transforms
     this.mesh = ship;
@@ -38,7 +38,7 @@ export class Spaceship {
       .setTranslation(ship.position.x, ship.position.y, ship.position.z)
       .setLinearDamping(0.5)
       .setAngularDamping(0.5)
-      .setGravityScale(0);
+      .setGravityScale(0.1);
     this.body = this.world.createRigidBody(rbDesc);
 
     const offset = new THREE.Vector3().subVectors(center, ship.position);
