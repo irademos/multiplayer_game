@@ -489,6 +489,13 @@ export class PlayerControls {
       this.canJump = true;
       this.hasDoubleJumped = false;
     }
+    if (t.y < expectedY) {
+      this.body.setTranslation({ x: t.x, y: expectedY, z: t.z }, true);
+      if (vel.y < 0) {
+        this.body.setLinvel({ x: vel.x, y: 0, z: vel.z }, true);
+      }
+      t.y = expectedY;
+    }
     const moveDirection = new THREE.Vector3(0, 0, 0);
     const movementLocked = ['mutantPunch', 'mmaKick', 'runningKick'].includes(this.currentSpecialAction);
     if (!movementLocked) {
