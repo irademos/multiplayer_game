@@ -128,6 +128,7 @@ async function main() {
 
   spaceship = new Spaceship(scene, rapierWorld, rbToMesh);
   await spaceship.load();
+  window.spaceship = spaceship;
 
   function attachMonsterPhysics(mon) {
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
@@ -623,7 +624,7 @@ async function main() {
 
 
     playerControls.update();
-    spaceship.update(playerControls);
+    spaceship.update();
     updateTerrain();
 
     updateHealthUI();
