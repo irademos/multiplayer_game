@@ -48,7 +48,7 @@ export class Spaceship {
       const colDesc = RAPIER.ColliderDesc.cuboid(size.x * 0.5, size.y * 0.5, size.z * 0.5)
         .setTranslation(offset.x, offset.y, offset.z);
       this.world.createCollider(colDesc, this.body);
-      this.rbToMesh.set(this.body, this.mesh);
+      // this.rbToMesh.set(this.body, this.mesh);
 
       // Optional: mount point on top of the box
       this.mountOffset.set(0, size.y * 0.5, 0);
