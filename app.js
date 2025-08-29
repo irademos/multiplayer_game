@@ -130,6 +130,13 @@ async function main() {
   await spaceship.load();
   window.spaceship = spaceship;
 
+  // Pre-generate the central terrain chunk so the player doesn't spawn
+  // before terrain colliders exist.
+  const chunkSize = 50;
+  const generatedChunks = new Set();
+  generateTerrainChunk(scene, 0, 0, chunkSize);
+  generatedChunks.add('0,0');
+
   function attachMonsterPhysics(mon) {
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(mon.position.x, mon.position.y, mon.position.z)
@@ -330,6 +337,13 @@ async function main() {
     updateHealthUI();
     const newX = (Math.random() * 10) - 5;
     const newZ = (Math.random() * 10) - 5;
+    const cx = Math.floor(newX / chunkSize);
+    const cz = Math.floor(newZ / chunkSize);
+    const key = `${cx},${cz}`;
+    if (!generatedChunks.has(key)) {
+      generateTerrainChunk(scene, cx, cz, chunkSize);
+      generatedChunks.add(key);
+    }
     const newY = getTerrainHeightAt(newX, newZ) + 0.5;
     playerModel.position.set(newX, newY, newZ);
     playerControls.playerX = newX;
@@ -375,9 +389,6 @@ async function main() {
     window.addEventListener('touchend', stopTalking);
     window.addEventListener('touchcancel', stopTalking);
   }
-
-  const generatedChunks = new Set();
-  const chunkSize = 50;
 
   function updateTerrain() {
     const playerPos = playerModel.position;
