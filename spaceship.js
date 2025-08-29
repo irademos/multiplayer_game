@@ -23,28 +23,34 @@ export class Spaceship {
     if (ship) {
       ship.scale.set(scale, scale, scale);
       ship.position.set(0, 3, 5);
-      this.mesh = ship.clone();
+      // 1) Add mesh and update transforms
+      this.mesh = ship;                  // avoid clone unless you need it
       this.scene.add(this.mesh);
+      this.mesh.updateMatrixWorld(true);
 
+      // 2) Compute world-space AABB
+      const bbox   = new THREE.Box3().setFromObject(this.mesh);
+      const size   = new THREE.Vector3();
+      const center = new THREE.Vector3();
+      bbox.getSize(size);
+      bbox.getCenter(center);
+
+      // 3B) Option B: keep the body at ship.position, but offset the collider to the box center
+      
       const rbDesc = RAPIER.RigidBodyDesc.dynamic()
         .setTranslation(ship.position.x, ship.position.y, ship.position.z)
         .setLinearDamping(0.5)
         .setAngularDamping(0.5);
       this.body = this.world.createRigidBody(rbDesc);
-      const bbox = new THREE.Box3().setFromObject(this.mesh);
-      const size = new THREE.Vector3();
-      const center = new THREE.Vector3();
-      bbox.getSize(size);
-      bbox.getCenter(center);
-      const offset = center.sub(this.mesh.position);
-      const colDesc = RAPIER.ColliderDesc.cuboid(
-        size.x / 2,
-        size.y / 2,
-        size.z / 2
-      ).setTranslation(offset.x, offset.y, offset.z);
-      this.world.createCollider(colDesc, this.body);
-      this.rbToMesh?.set(this.body, this.mesh);
-      this.mountOffset.set(0, size.y / 2 + 0.5, 0);
+
+      const offset = new THREE.Vector3().subVectors(center, ship.position);
+      const colDesc = RAPIER.ColliderDesc.cuboid(size.x * 0.5, size.y * 0.5, size.z * 0.5)
+        .setTranslation(offset.x, offset.y, offset.z);
+      this.world.createCollider(colDesc, this.body);      
+        
+      // Optional: mount point on top of the box
+      this.mountOffset.set(0, size.y * 0.5, 0);
+
     }
   }
 
