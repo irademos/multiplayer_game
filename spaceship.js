@@ -33,8 +33,15 @@ export class Spaceship {
       this.body = this.world.createRigidBody(rbDesc);
       const bbox = new THREE.Box3().setFromObject(this.mesh);
       const size = new THREE.Vector3();
+      const center = new THREE.Vector3();
       bbox.getSize(size);
-      const colDesc = RAPIER.ColliderDesc.cuboid(size.x / 2, size.y / 2, size.z / 2);
+      bbox.getCenter(center);
+      const offset = center.sub(this.mesh.position);
+      const colDesc = RAPIER.ColliderDesc.cuboid(
+        size.x / 2,
+        size.y / 2,
+        size.z / 2
+      ).setTranslation(offset.x, offset.y, offset.z);
       this.world.createCollider(colDesc, this.body);
       this.rbToMesh?.set(this.body, this.mesh);
       this.mountOffset.set(0, size.y / 2 + 0.5, 0);
