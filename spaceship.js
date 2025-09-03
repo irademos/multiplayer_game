@@ -148,21 +148,38 @@ export class Spaceship {
       this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     }
 
-    // Apply forward thrust along the ship's current forward direction
+    // Apply forward thrust along the ship's current forward direction.
+    // The rigid body representing the ship is extremely heavy because its
+    // mass is derived from the large triangle-mesh collider.  Using a small
+    // constant impulse therefore has almost no visible effect.  Scale the
+    // impulse by the body's mass and timestep so activating thrust produces a
+    // noticeable forward acceleration regardless of the ship's weight.
     if (input.thrust) {
       if (this.locked) {
         this.locked = false;
         this.body.wakeUp();
       }
+
+      // Determine the ship's forward direction in world space.
       const forward = new THREE.Vector3(0, 0, -1);
       const rot = this.body.rotation();
       forward.applyQuaternion(new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w));
-      const thrustForce = 0.5;
-      this.body.applyImpulse({
-        x: forward.x * thrustForce,
-        y: forward.y * thrustForce,
-        z: forward.z * thrustForce
-      }, true);
+
+      // Compute an impulse that results in a reasonable acceleration.  Use the
+      // physics timestep if available (defaulting to 60 Hz) so the result is
+      // frame-rate independent.
+      const dt = this.world?.integrationParameters?.dt ?? 1 / 60;
+      const acceleration = 10; // units per second squared
+      const impulseMagnitude = this.body.mass() * acceleration * dt;
+
+      this.body.applyImpulse(
+        {
+          x: forward.x * impulseMagnitude,
+          y: forward.y * impulseMagnitude,
+          z: forward.z * impulseMagnitude,
+        },
+        true
+      );
     }
   }
 
