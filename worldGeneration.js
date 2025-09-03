@@ -39,10 +39,16 @@ export function createClouds(scene) {
 
 export const terrainChunks = new Map();
 
+export const baseHeightFunction = (x, z) => {
+  return Math.sin(x * 0.1) * Math.cos(z * 0.1) * 2;
+};
+
+export function chunkIndex(value, size = 50) {
+  return Math.floor((value + size / 2) / size);
+}
+
 export function generateTerrainChunk(scene, chunkX, chunkZ, size = 50) {
-  const heightFunction = (x, z) => {
-    return Math.sin(x * 0.1) * Math.cos(z * 0.1) * 2;
-  };
+  const heightFunction = baseHeightFunction;
 
   const geometry = new THREE.PlaneGeometry(size, size, 32, 32);
   geometry.rotateX(-Math.PI / 2);
@@ -80,10 +86,8 @@ export function generateTerrainChunk(scene, chunkX, chunkZ, size = 50) {
 
 export function getTerrainHeightAt(x, z) {
   const chunkSize = 50;
-  const cx = Math.floor(x / chunkSize);
-  const cz = Math.floor(z / chunkSize);
-  const key = `${cx},${cz}`;
+  const key = `${chunkIndex(x, chunkSize)},${chunkIndex(z, chunkSize)}`;
   const chunk = terrainChunks.get(key);
-  if (!chunk) return 0;
-  return chunk.heightFunction(x, z);
+  const heightFn = chunk ? chunk.heightFunction : baseHeightFunction;
+  return heightFn(x, z);
 }

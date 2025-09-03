@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
 import { createOrcVoice } from "./orcVoice.js";
-import { createClouds, generateTerrainChunk, getTerrainHeightAt } from "./worldGeneration.js";
+import { createClouds, generateTerrainChunk, getTerrainHeightAt, chunkIndex } from "./worldGeneration.js";
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -337,8 +337,8 @@ async function main() {
     updateHealthUI();
     const newX = (Math.random() * 10) - 5;
     const newZ = (Math.random() * 10) - 5;
-    const cx = Math.floor(newX / chunkSize);
-    const cz = Math.floor(newZ / chunkSize);
+    const cx = chunkIndex(newX, chunkSize);
+    const cz = chunkIndex(newZ, chunkSize);
     const key = `${cx},${cz}`;
     if (!generatedChunks.has(key)) {
       generateTerrainChunk(scene, cx, cz, chunkSize);
@@ -392,8 +392,8 @@ async function main() {
 
   function updateTerrain() {
     const playerPos = playerModel.position;
-    const cx = Math.floor(playerPos.x / chunkSize);
-    const cz = Math.floor(playerPos.z / chunkSize);
+    const cx = chunkIndex(playerPos.x, chunkSize);
+    const cz = chunkIndex(playerPos.z, chunkSize);
 
     for (let dx = -1; dx <= 1; dx++) {
       for (let dz = -1; dz <= 1; dz++) {
@@ -427,8 +427,8 @@ async function main() {
       player.model.position.z = data.z;
 
       // Ensure terrain chunk exists locally for remote player position
-      const rcx = Math.floor(data.x / chunkSize);
-      const rcz = Math.floor(data.z / chunkSize);
+      const rcx = chunkIndex(data.x, chunkSize);
+      const rcz = chunkIndex(data.z, chunkSize);
       const rkey = `${rcx},${rcz}`;
       if (!generatedChunks.has(rkey)) {
         generateTerrainChunk(scene, rcx, rcz, chunkSize);
