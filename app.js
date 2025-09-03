@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
 import { createOrcVoice } from "./orcVoice.js";
-import { createClouds, generateTerrainChunk, getTerrainHeightAt, chunkIndex } from "./worldGeneration.js";
+import { createClouds } from "./worldGeneration.js";
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -129,13 +129,6 @@ async function main() {
   spaceship = new Spaceship(scene, rapierWorld, rbToMesh);
   await spaceship.load();
   window.spaceship = spaceship;
-
-  // Pre-generate the central terrain chunk so the player doesn't spawn
-  // before terrain colliders exist.
-  const chunkSize = 50;
-  const generatedChunks = new Set();
-  generateTerrainChunk(scene, 0, 0, chunkSize);
-  generatedChunks.add('0,0');
 
   function attachMonsterPhysics(mon) {
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
@@ -337,14 +330,7 @@ async function main() {
     updateHealthUI();
     const newX = (Math.random() * 10) - 5;
     const newZ = (Math.random() * 10) - 5;
-    const cx = chunkIndex(newX, chunkSize);
-    const cz = chunkIndex(newZ, chunkSize);
-    const key = `${cx},${cz}`;
-    if (!generatedChunks.has(key)) {
-      generateTerrainChunk(scene, cx, cz, chunkSize);
-      generatedChunks.add(key);
-    }
-    const newY = getTerrainHeightAt(newX, newZ) + 0.5;
+    const newY = 0.5;
     playerModel.position.set(newX, newY, newZ);
     playerControls.playerX = newX;
     playerControls.playerY = newY;
@@ -390,22 +376,6 @@ async function main() {
     window.addEventListener('touchcancel', stopTalking);
   }
 
-  function updateTerrain() {
-    const playerPos = playerModel.position;
-    const cx = chunkIndex(playerPos.x, chunkSize);
-    const cz = chunkIndex(playerPos.z, chunkSize);
-
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dz = -1; dz <= 1; dz++) {
-        const key = `${cx + dx},${cz + dz}`;
-        if (!generatedChunks.has(key)) {
-          generateTerrainChunk(scene, cx + dx, cz + dz, chunkSize);
-          generatedChunks.add(key);
-        }
-      }
-    }
-  }
-
   const otherPlayers = {};
   // Expose remote players map for global access (e.g., controls)
   window.otherPlayers = otherPlayers;
@@ -426,17 +396,8 @@ async function main() {
       player.model.position.x = data.x;
       player.model.position.z = data.z;
 
-      // Ensure terrain chunk exists locally for remote player position
-      const rcx = chunkIndex(data.x, chunkSize);
-      const rcz = chunkIndex(data.z, chunkSize);
-      const rkey = `${rcx},${rcz}`;
-      if (!generatedChunks.has(rkey)) {
-        generateTerrainChunk(scene, rcx, rcz, chunkSize);
-        generatedChunks.add(rkey);
-      }
-
       // Adjust vertical placement against local terrain height
-      const terrainY = getTerrainHeightAt(data.x, data.z);
+      const terrainY = 0;
       const targetY = Math.max(data.y ?? terrainY, terrainY);
       player.model.position.y = targetY;
       player.model.rotation.y = data.rotation;
@@ -625,7 +586,7 @@ async function main() {
       if (!mesh.userData?.isTerrain) {
         mesh.updateMatrixWorld();
         const bbox = new THREE.Box3().setFromObject(mesh);
-        const terrainY = getTerrainHeightAt(mesh.position.x, mesh.position.z);
+        const terrainY = 0;
         if (bbox.min.y < terrainY) {
           const correction = terrainY - bbox.min.y;
           mesh.position.y += correction;
@@ -651,7 +612,6 @@ async function main() {
 
     playerControls.update();
     spaceship.update();
-    updateTerrain();
 
     updateHealthUI();
     if (window.localHealth <= 0 && !playerDead) {

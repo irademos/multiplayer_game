@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import RAPIER from '@dimforge/rapier3d-compat';
 import { updateMonster, switchMonsterAnimation } from './characters/MonsterCharacter.js';
-import { getTerrainHeightAt } from "./worldGeneration.js";
 
 export function spawnProjectile(scene, projectiles, position, direction) {
   const size = 0.1;
@@ -11,7 +10,7 @@ export function spawnProjectile(scene, projectiles, position, direction) {
   const material = new THREE.MeshStandardMaterial({ color });
   const box = new THREE.Mesh(geometry, material);
   box.position.copy(position.clone().add(direction.clone().normalize().multiplyScalar(1.2)));
-  const groundY = getTerrainHeightAt(position.x, position.z) + half;
+  const groundY = half;
   if (box.position.y < groundY) {
     box.position.y = groundY;
   }

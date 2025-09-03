@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { getTerrainHeightAt } from "./worldGeneration.js";
 import RAPIER from "@dimforge/rapier3d-compat";
 
 // Movement constants
@@ -59,7 +58,7 @@ export class PlayerControls {
     // const initialPos = { x: 0, y: 0.5, z: 0 };
     this.playerX = (Math.random() * 10) - 5;
     this.playerZ = (Math.random() * 10) - 5;
-    this.playerY = getTerrainHeightAt(this.playerX, this.playerZ) + 0.5;
+    this.playerY = 0.5;
 
     
     // Set initial player model position if it exists
@@ -454,7 +453,7 @@ export class PlayerControls {
       return;
     }
 
-    const terrainY = getTerrainHeightAt(t.x, t.z);
+    const terrainY = 0;
     let groundY = terrainY;
     const world = window.rapierWorld;
     if (world) {
