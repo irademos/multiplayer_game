@@ -1,13 +1,13 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
-import { isPointInWater } from './water.js';
+import { getWaterDepth, SWIM_DEPTH_THRESHOLD } from './water.js';
 
 // Movement constants
 const SPEED = 5;
 const JUMP_FORCE = 5;
 const PLAYER_RADIUS = 0.3;
 const PLAYER_HALF_HEIGHT = 0.6;
-const WATER_SINK_OFFSET = 1.2;
+const WATER_SINK_OFFSET = 1.5;
 
 export class PlayerControls {
   constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager }) {
@@ -38,6 +38,7 @@ export class PlayerControls {
     this.vehicle = null;
 
     this.isInWater = false;
+    this.waterDepth = 0;
 
     // Player state
     this.canJump = true;
@@ -445,7 +446,8 @@ export class PlayerControls {
     const t = this.body.translation();
     const vel = this.body.linvel();
 
-    this.isInWater = isPointInWater(t.x, t.z);
+    this.waterDepth = getWaterDepth(t.x, t.z);
+    this.isInWater = this.waterDepth > SWIM_DEPTH_THRESHOLD;
 
     if (this.isGrabbed) {
       // Freeze movement and follow externally provided position
@@ -548,7 +550,7 @@ export class PlayerControls {
     const newX = t.x;
     const newY = t.y;
     const newZ = t.z;
-    const sink = this.isInWater ? WATER_SINK_OFFSET : 0;
+    const sink = this.isInWater ? WATER_SINK_OFFSET : this.waterDepth;
     const isMovingNow = movement.length() > 0;
     this.isMoving = isMovingNow;
     if (isMovingNow && this.canJump) {

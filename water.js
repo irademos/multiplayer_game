@@ -3,6 +3,34 @@ import * as THREE from 'three';
 // Store all water bodies for later lookup
 const waterBodies = [];
 
+const MAX_LAKE_DEPTH = 1.5;
+export const SWIM_DEPTH_THRESHOLD = 0.7;
+
+export function getWaterDepth(x, z) {
+  for (const body of waterBodies) {
+    if (body.type === 'lake') {
+      const dx = x - body.position.x;
+      const dz = z - body.position.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist < body.radius) {
+        return ((body.radius - dist) / body.radius) * MAX_LAKE_DEPTH;
+      }
+    } else if (body.type === 'river') {
+      const halfW = body.size.width / 2;
+      const halfL = body.size.length / 2;
+      if (
+        x >= body.position.x - halfW &&
+        x <= body.position.x + halfW &&
+        z >= body.position.z - halfL &&
+        z <= body.position.z + halfL
+      ) {
+        return MAX_LAKE_DEPTH;
+      }
+    }
+  }
+  return 0;
+}
+
 export function generateLake(scene, position, radius) {
   const lake = new THREE.Mesh(
     new THREE.CircleGeometry(radius, 32),
@@ -41,27 +69,7 @@ export function generateRiver(scene, position, size) {
 }
 
 export function isPointInWater(x, z) {
-  for (const body of waterBodies) {
-    if (body.type === 'lake') {
-      const dx = x - body.position.x;
-      const dz = z - body.position.z;
-      if (Math.hypot(dx, dz) < body.radius) {
-        return true;
-      }
-    } else if (body.type === 'river') {
-      const halfW = body.size.width / 2;
-      const halfL = body.size.length / 2;
-      if (
-        x >= body.position.x - halfW &&
-        x <= body.position.x + halfW &&
-        z >= body.position.z - halfL &&
-        z <= body.position.z + halfL
-      ) {
-        return true;
-      }
-    }
-  }
-  return false;
+  return getWaterDepth(x, z) > 0;
 }
 
-export { waterBodies };
+export { waterBodies, MAX_LAKE_DEPTH };
