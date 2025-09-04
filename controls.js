@@ -6,6 +6,7 @@ const SPEED = 5;
 const JUMP_FORCE = 5;
 const PLAYER_RADIUS = 0.3;
 const PLAYER_HALF_HEIGHT = 0.6;
+const WATER_SINK_OFFSET = 0.5;
 
 export class PlayerControls {
   constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager }) {
@@ -34,6 +35,8 @@ export class PlayerControls {
     this.externalGrabPos = null;
 
     this.vehicle = null;
+
+    this.isInWater = false;
 
     // Player state
     this.canJump = true;
@@ -125,7 +128,7 @@ export class PlayerControls {
     
     // Jump button event listeners
     document.getElementById('jump-button').addEventListener('touchstart', (event) => {
-      if (!this.enabled) return;
+      if (!this.enabled || this.isInWater) return;
       this.jumpButtonPressed = true;
       if (this.canJump && this.body) {
         this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
@@ -135,7 +138,7 @@ export class PlayerControls {
     });
 
     document.getElementById('jump-button').addEventListener('touchend', (event) => {
-      if (!this.enabled) return;
+      if (!this.enabled || this.isInWater) return;
       this.jumpButtonPressed = false;
       event.preventDefault();
     });
@@ -245,7 +248,7 @@ export class PlayerControls {
       kickButton.innerText = 'KICK';
       actionContainer.appendChild(kickButton);
       kickButton.addEventListener('touchstart', (event) => {
-        if (!this.enabled) return;
+        if (!this.enabled || this.isInWater) return;
         this.playAction('mmaKick');
         event.preventDefault();
       });
@@ -259,7 +262,7 @@ export class PlayerControls {
       punchButton.innerText = 'PUNCH';
       actionContainer.appendChild(punchButton);
       punchButton.addEventListener('touchstart', (event) => {
-        if (!this.enabled) return;
+        if (!this.enabled || this.isInWater) return;
         this.playAction('mutantPunch');
         event.preventDefault();
       });
@@ -286,6 +289,7 @@ export class PlayerControls {
       }
 
       if (e.key === " ") {
+        if (this.isInWater) return;
         if (this.canJump && this.body) {
           this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
           this.canJump = false;
@@ -296,12 +300,14 @@ export class PlayerControls {
           this.playAction('hurricaneKick');
         }
       } else if (key === 'e') {
+        if (this.isInWater) return;
         if (this.isMoving) {
           this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
         }
         this.playAction('mutantPunch');
         this.audioManager?.playAttack();
       } else if (key === 'r') {
+        if (this.isInWater) return;
         if (this.isMoving) {
           this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
           this.playAction('runningKick');
@@ -438,6 +444,10 @@ export class PlayerControls {
     const t = this.body.translation();
     const vel = this.body.linvel();
 
+    const lakeRadius = window.LAKE_RADIUS || 20;
+    const distFromCenter = Math.hypot(t.x, t.z);
+    this.isInWater = distFromCenter < lakeRadius;
+
     if (this.isGrabbed) {
       // Freeze movement and follow externally provided position
       this.body.setLinvel({ x: 0, y: vel.y, z: 0 }, true);
@@ -467,7 +477,7 @@ export class PlayerControls {
     }
     const expectedY = groundY + PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
     const grounded = t.y <= expectedY + 0.05;
-    if (grounded) {
+    if (grounded && !this.isInWater) {
       this.canJump = true;
       this.hasDoubleJumped = false;
     } else {
@@ -539,22 +549,29 @@ export class PlayerControls {
     const newX = t.x;
     const newY = t.y;
     const newZ = t.z;
+    const sink = this.isInWater ? WATER_SINK_OFFSET : 0;
     const isMovingNow = movement.length() > 0;
     this.isMoving = isMovingNow;
     if (isMovingNow && this.canJump) {
       this.audioManager?.playFootstep();
     }
     if (this.playerModel) {
-      this.playerModel.position.set(newX, newY, newZ);
+      const displayY = newY - sink;
+      this.playerModel.position.set(newX, displayY, newZ);
       if (movement.length() > 0) {
         const angle = Math.atan2(movement.x, movement.z);
         this.playerModel.rotation.y = angle;
       }
       const actions = this.playerModel.userData.actions;
       if (actions && !this.isKnocked && !this.currentSpecialAction) {
-        let actionName = 'idle';
-        if (!this.canJump) actionName = 'jump';
-        else if (isMovingNow) actionName = 'run';
+        let actionName;
+        if (this.isInWater) {
+          actionName = isMovingNow ? 'swim' : 'float';
+        } else {
+          actionName = 'idle';
+          if (!this.canJump) actionName = 'jump';
+          else if (isMovingNow) actionName = 'run';
+        }
         const current = this.playerModel.userData.currentAction;
         if (actionName && current !== actionName) {
           actions[current]?.fadeOut(0.2);
@@ -566,9 +583,9 @@ export class PlayerControls {
       if (this.controls) {
         this.controls.target.copy(newTarget);
       }
-      if (this.multiplayer && (Math.abs(this.lastPosition.x - newX) > 0.01 || Math.abs(this.lastPosition.y - newY) > 0.01 || Math.abs(this.lastPosition.z - newZ) > 0.01 || this.isMoving !== this.wasMoving)) {
-        this.multiplayer.send({ x: newX, y: newY, z: newZ, rotation: this.playerModel.rotation.y, moving: this.isMoving });
-        this.lastPosition.set(newX, newY, newZ);
+      if (this.multiplayer && (Math.abs(this.lastPosition.x - newX) > 0.01 || Math.abs(this.lastPosition.y - displayY) > 0.01 || Math.abs(this.lastPosition.z - newZ) > 0.01 || this.isMoving !== this.wasMoving)) {
+        this.multiplayer.send({ x: newX, y: displayY, z: newZ, rotation: this.playerModel.rotation.y, moving: this.isMoving, action: this.playerModel.userData.currentAction });
+        this.lastPosition.set(newX, displayY, newZ);
         this.wasMoving = this.isMoving;
       }
     } else {
