@@ -466,9 +466,12 @@ export class PlayerControls {
       }
     }
     const expectedY = groundY + PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
-    if (t.y <= expectedY + 0.15 && Math.abs(vel.y) < 0.2) {
+    const grounded = t.y <= expectedY + 0.05;
+    if (grounded) {
       this.canJump = true;
       this.hasDoubleJumped = false;
+    } else {
+      this.canJump = false;
     }
     if (t.y < expectedY) {
       this.body.setTranslation({ x: t.x, y: expectedY, z: t.z }, true);

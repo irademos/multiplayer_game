@@ -108,21 +108,23 @@ async function main() {
   window.rbToMesh = rbToMesh;
   breakManager.setWorld(rapierWorld);
 
-  // Huge static ground so the blocks land (visual terrain stays as-is)
+  // Flat ground plane
   {
-    const groundRb = rapierWorld.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -1, 0));
+    const groundRb = rapierWorld.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed().setTranslation(0, -1, 0)
+    );
     rapierWorld.createCollider(
-      RAPIER.ColliderDesc.cuboid(200, 1, 200), // half-extents
+      RAPIER.ColliderDesc.cuboid(200, 1, 200),
       groundRb
     );
 
-    // Optional: faint ground helper (invisible if you prefer)
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(400, 400),
-      new THREE.MeshStandardMaterial({ color: 0x556b2f, metalness: 0, roughness: 1, transparent: true, opacity: 0.12 })
+      new THREE.MeshStandardMaterial({ color: 0x228B22 })
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.99;
+    ground.position.y = 0;
+    ground.receiveShadow = true;
     scene.add(ground);
   }
 
