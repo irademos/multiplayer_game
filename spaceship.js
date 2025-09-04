@@ -302,16 +302,31 @@ export class Spaceship {
     this.thrusting = input.thrust;
     const rotationStrength = 20;
 
-    // Handle rotation using Rapier torque impulses
-    if (input.yaw !== 0 || (input.pitch !== 0 && input.thrust)) {
+    // Handle rotation using Rapier torque impulses.  Apply torque along the
+    // ship's local axes so the direction of rotation always matches the
+    // ship's current forward orientation.  Also wake the body if it was
+    // previously put to sleep while sitting on the ground.
+    if (input.yaw !== 0 || input.pitch !== 0) {
+      if (this.locked) {
+        this.locked = false;
+        this.body.wakeUp();
+      }
+
       const dt = this.world?.integrationParameters?.dt ?? 1 / 60;
       const torqueImpulse = rotationStrength * this.body.mass() * dt;
+
+      // Determine the ship's local axes in world space.
+      const rot = this.body.rotation();
+      const q = new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w);
+      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
+
+      const torque = new THREE.Vector3();
+      torque.add(right.clone().multiplyScalar(input.pitch * torqueImpulse));
+      torque.add(up.clone().multiplyScalar(-input.yaw * torqueImpulse));
+
       this.body.applyTorqueImpulse(
-        {
-          x: input.thrust ? input.pitch * torqueImpulse : 0,
-          y: 0,
-          z: -input.yaw * torqueImpulse,
-        },
+        { x: torque.x, y: torque.y, z: torque.z },
         true
       );
     }
