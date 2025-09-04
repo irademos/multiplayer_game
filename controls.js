@@ -6,7 +6,7 @@ const SPEED = 5;
 const JUMP_FORCE = 5;
 const PLAYER_RADIUS = 0.3;
 const PLAYER_HALF_HEIGHT = 0.6;
-const WATER_SINK_OFFSET = 0.5;
+const WATER_SINK_OFFSET = 1.2;
 
 export class PlayerControls {
   constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager }) {
