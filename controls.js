@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
+import { isPointInWater } from './water.js';
 
 // Movement constants
 const SPEED = 5;
@@ -444,9 +445,7 @@ export class PlayerControls {
     const t = this.body.translation();
     const vel = this.body.linvel();
 
-    const lakeRadius = window.LAKE_RADIUS || 20;
-    const distFromCenter = Math.hypot(t.x, t.z);
-    this.isInWater = distFromCenter < lakeRadius;
+    this.isInWater = isPointInWater(t.x, t.z);
 
     if (this.isGrabbed) {
       // Freeze movement and follow externally provided position

@@ -14,6 +14,7 @@ import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
 import { LevelBuilder } from './levelBuilderMode.js';
 import { AudioManager } from './audioManager.js';
+import { generateLake } from './water.js';
 import { Spaceship } from './spaceship.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 
@@ -129,17 +130,7 @@ async function main() {
   }
 
   // Central lake
-  const lakeRadius = 20;
-  const lake = new THREE.Mesh(
-    new THREE.CircleGeometry(lakeRadius, 32),
-    new THREE.MeshStandardMaterial({ color: 0x1E90FF, transparent: true, opacity: 0.7 })
-  );
-  lake.rotation.x = -Math.PI / 2;
-  lake.position.set(0, 0.01, 0);
-  scene.add(lake);
-
-  // Expose lake radius for other modules
-  window.LAKE_RADIUS = lakeRadius;
+  generateLake(scene, { x: 0, y: 0.01, z: 0 }, 20);
 
   spaceship = new Spaceship(scene, rapierWorld, rbToMesh);
   await spaceship.load();
