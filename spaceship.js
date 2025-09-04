@@ -14,6 +14,9 @@ export class Spaceship {
     this.locked = false;
     this.halfHeight = 0;
     this.wings = [];
+    this.thrusterGroup = null;
+    this.fireSprite = null;
+    this.smokeSprite = null;
   }
 
   async load() {
@@ -103,6 +106,45 @@ export class Spaceship {
     // Mount point on top of the box
     this.mountOffset.set(0, size.y * 0.5 - 2, 0);
     this.halfHeight = size.y * 0.5;
+
+    this.createThrusterEffects(size);
+  }
+
+  createThrusterEffects(size) {
+    // Create simple radial textures for fire and smoke using canvas
+    const createRadialTexture = (inner, outer) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = canvas.height = 64;
+      const grd = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grd.addColorStop(0, inner);
+      grd.addColorStop(1, outer);
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(canvas);
+    };
+
+    this.thrusterGroup = new THREE.Group();
+    this.thrusterGroup.position.set(0, 0, -size.z * 0.5);
+    this.mesh.add(this.thrusterGroup);
+
+    const fireTex = createRadialTexture('rgba(255,255,0,1)', 'rgba(255,0,0,0)');
+    const smokeTex = createRadialTexture('rgba(80,80,80,0.5)', 'rgba(80,80,80,0)');
+
+    this.fireSprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: fireTex, transparent: true, blending: THREE.AdditiveBlending })
+    );
+    this.smokeSprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false })
+    );
+
+    this.fireSprite.scale.set(2, 2, 2);
+    this.smokeSprite.scale.set(3, 3, 3);
+    this.smokeSprite.position.z -= 1;
+
+    this.thrusterGroup.add(this.smokeSprite);
+    this.thrusterGroup.add(this.fireSprite);
+    this.thrusterGroup.visible = false;
   }
 
   update() {
@@ -179,17 +221,20 @@ export class Spaceship {
 
   applyInput(input) {
     if (!this.body || !this.mesh) return;
-    const rotationSpeed = 0.01;
+    const rotationStrength = 20;
 
-    // Handle rotation first
+    // Handle rotation using Rapier torque impulses
     if (input.yaw !== 0 || input.pitch !== 0) {
-      const euler = new THREE.Euler(input.pitch * rotationSpeed, 0, -input.yaw * rotationSpeed, 'XYZ');
-      const q = new THREE.Quaternion().setFromEuler(euler);
-      const currentRot = this.body.rotation();
-      const current = new THREE.Quaternion(currentRot.x, currentRot.y, currentRot.z, currentRot.w);
-      current.multiply(q);
-      this.body.setRotation(current, true);
-      this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      const dt = this.world?.integrationParameters?.dt ?? 1 / 60;
+      const torqueImpulse = rotationStrength * this.body.mass() * dt;
+      this.body.applyTorqueImpulse(
+        {
+          x: input.pitch * torqueImpulse,
+          y: 0,
+          z: -input.yaw * torqueImpulse,
+        },
+        true
+      );
     }
 
     // Apply forward thrust along the ship's current forward direction.
@@ -224,6 +269,12 @@ export class Spaceship {
         },
         true
       );
+
+      if (this.thrusterGroup) {
+        this.thrusterGroup.visible = true;
+      }
+    } else if (this.thrusterGroup) {
+      this.thrusterGroup.visible = false;
     }
   }
 
