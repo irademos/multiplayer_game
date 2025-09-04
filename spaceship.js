@@ -21,7 +21,7 @@ export class Spaceship {
     const ship = gltf.scene;
     const scale = 0.7;
     ship.scale.set(scale, scale, scale);
-    ship.position.set(1, 5, 50);
+    ship.position.set(1, 5, 20);
 
     // Add mesh and update transforms
     this.mesh = ship;
@@ -44,7 +44,7 @@ export class Spaceship {
       .setTranslation(ship.position.x, ship.position.y, ship.position.z)
       .setLinearDamping(0.5)
       .setAngularDamping(0.5)
-      .setGravityScale(0.2);
+      .setGravityScale(1.0);
     this.body = this.world.createRigidBody(rbDesc);
 
     // Build a triangle-mesh collider from the spaceship geometry so the
@@ -139,7 +139,7 @@ export class Spaceship {
 
     // Handle rotation first
     if (input.yaw !== 0 || input.pitch !== 0) {
-      const euler = new THREE.Euler(input.pitch * rotationSpeed, input.yaw * rotationSpeed, 0, 'XYZ');
+      const euler = new THREE.Euler(input.pitch * rotationSpeed, 0, input.yaw * rotationSpeed, 'XYZ');
       const q = new THREE.Quaternion().setFromEuler(euler);
       const currentRot = this.body.rotation();
       const current = new THREE.Quaternion(currentRot.x, currentRot.y, currentRot.z, currentRot.w);

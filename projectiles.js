@@ -3,7 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { updateMonster, switchMonsterAnimation } from './characters/MonsterCharacter.js';
 
 export function spawnProjectile(scene, projectiles, position, direction) {
-  const size = 0.1;
+  const size = 0.5;
   const half = size / 2;
   const geometry = new THREE.BoxGeometry(size, size, size);
   const color = new THREE.Color(Math.random(), Math.random(), Math.random());
