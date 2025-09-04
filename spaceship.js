@@ -17,6 +17,7 @@ export class Spaceship {
     this.thrusterGroup = null;
     this.fireSprite = null;
     this.smokeSprite = null;
+    this.thrusting = false;
   }
 
   async load() {
@@ -190,9 +191,68 @@ export class Spaceship {
         this.locked = false;
         this.body.wakeUp();
       }
+      this.autoStabilizeAndDrift();
     }
 
     // this.applyWindForces();
+  }
+
+  autoStabilizeAndDrift() {
+    if (!this.body) return;
+    const rot = this.body.rotation();
+    const q = new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w);
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
+    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
+    const dt = this.world?.integrationParameters?.dt ?? 1 / 60;
+
+    // Level the ship toward world-up
+    const worldUp = new THREE.Vector3(0, 1, 0);
+    const levelAxis = new THREE.Vector3().crossVectors(up, worldUp);
+    const levelAmount = levelAxis.length();
+    if (levelAmount > 0.0001) {
+      levelAxis.normalize();
+      let strength = 5 * this.body.mass() * dt;
+      if (this.thrusting) strength *= 2;
+      const torque = levelAxis.multiplyScalar(strength);
+      this.body.applyTorqueImpulse({ x: torque.x, y: torque.y, z: torque.z }, true);
+    }
+
+    // Apply yaw torque based on roll (downward wing)
+    if (Math.abs(right.y) > 0.01) {
+      let yawStrength = 2 * this.body.mass() * dt;
+      if (this.thrusting) yawStrength *= 2;
+      const yawTorque = -right.y * yawStrength;
+      this.body.applyTorqueImpulse({ x: 0, y: yawTorque, z: 0 }, true);
+    }
+
+    // Lateral movement based on roll
+    const lateral = new THREE.Vector3(up.x, 0, up.z);
+    if (lateral.lengthSq() > 1e-5) {
+      lateral.normalize();
+      let forceMag = this.thrusting ? 40 : 20;
+      const force = lateral.multiplyScalar(forceMag);
+      this.body.applyForce({ x: force.x, y: force.y, z: force.z }, true);
+    }
+
+    // Forward/backward movement based on pitch
+    const planarForward = new THREE.Vector3(forward.x, 0, forward.z);
+    if (planarForward.lengthSq() > 1e-5) {
+      planarForward.normalize();
+      if (forward.y < -0.01) {
+        let forceMag = Math.abs(forward.y) * (this.thrusting ? 40 : 20);
+        const force = planarForward.clone().multiplyScalar(forceMag);
+        this.body.applyForce({ x: force.x, y: force.y, z: force.z }, true);
+      } else if (forward.y > 0.01 && !this.thrusting) {
+        const vel = this.body.linvel();
+        const velVec = new THREE.Vector3(vel.x, 0, vel.z);
+        if (velVec.dot(planarForward) <= 0) {
+          let forceMag = forward.y * 20;
+          const force = planarForward.clone().multiplyScalar(-forceMag);
+          this.body.applyForce({ x: force.x, y: force.y, z: force.z }, true);
+        }
+      }
+    }
   }
 
   applyWindForces() {
@@ -239,15 +299,16 @@ export class Spaceship {
 
   applyInput(input) {
     if (!this.body || !this.mesh) return;
+    this.thrusting = input.thrust;
     const rotationStrength = 20;
 
     // Handle rotation using Rapier torque impulses
-    if (input.yaw !== 0 || input.pitch !== 0) {
+    if (input.yaw !== 0 || (input.pitch !== 0 && input.thrust)) {
       const dt = this.world?.integrationParameters?.dt ?? 1 / 60;
       const torqueImpulse = rotationStrength * this.body.mass() * dt;
       this.body.applyTorqueImpulse(
         {
-          x: input.pitch * torqueImpulse,
+          x: input.thrust ? input.pitch * torqueImpulse : 0,
           y: 0,
           z: -input.yaw * torqueImpulse,
         },

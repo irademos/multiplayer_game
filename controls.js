@@ -435,8 +435,8 @@ export class PlayerControls {
 
     if (this.vehicle) {
       const yaw = (this.keysPressed.has("a") ? 1 : 0) + (this.keysPressed.has("d") ? -1 : 0);
-      const pitch = (this.keysPressed.has("w") ? 1 : 0) + (this.keysPressed.has("s") ? -1 : 0);
       const thrust = this.keysPressed.has(" ");
+      const pitch = thrust ? (this.keysPressed.has("w") ? 1 : 0) + (this.keysPressed.has("s") ? -1 : 0) : 0;
       this.vehicle.applyInput({ thrust, yaw, pitch });
       this.isMoving = thrust;
       return;
