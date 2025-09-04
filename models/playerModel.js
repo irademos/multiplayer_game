@@ -118,6 +118,8 @@ export function createPlayerModel(
             hurricaneKick: 'Hurricane Kick.fbx',
             projectile: 'Projectile.fbx',
             die: 'Dying.fbx',
+            float: 'Floating.fbx',
+            swim: 'Swimming.fbx',
           };
 
           const promises = Object.entries(animationFiles).map(([name, file]) => {
