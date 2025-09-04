@@ -135,11 +135,11 @@ export class Spaceship {
 
   applyInput(input) {
     if (!this.body || !this.mesh) return;
-    const rotationSpeed = 0.03;
+    const rotationSpeed = 0.01;
 
     // Handle rotation first
     if (input.yaw !== 0 || input.pitch !== 0) {
-      const euler = new THREE.Euler(input.pitch * rotationSpeed, 0, input.yaw * rotationSpeed, 'XYZ');
+      const euler = new THREE.Euler(input.pitch * rotationSpeed, 0, -input.yaw * rotationSpeed, 'XYZ');
       const q = new THREE.Quaternion().setFromEuler(euler);
       const currentRot = this.body.rotation();
       const current = new THREE.Quaternion(currentRot.x, currentRot.y, currentRot.z, currentRot.w);
@@ -161,7 +161,7 @@ export class Spaceship {
       }
 
       // Determine the ship's forward direction in world space.
-      const forward = new THREE.Vector3(0, 0, -1);
+      const forward = new THREE.Vector3(0, 0, 1);
       const rot = this.body.rotation();
       forward.applyQuaternion(new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w));
 
@@ -170,7 +170,7 @@ export class Spaceship {
       // frame-rate independent.
       const dt = this.world?.integrationParameters?.dt ?? 1 / 60;
       const acceleration = 10; // units per second squared
-      const impulseMagnitude = this.body.mass() * acceleration * dt;
+      const impulseMagnitude = 10 * this.body.mass() * acceleration * dt;
 
       this.body.applyImpulse(
         {
