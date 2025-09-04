@@ -232,7 +232,7 @@ export class Spaceship {
       lateral.normalize();
       let forceMag = this.thrusting ? 40 : 20;
       const force = lateral.multiplyScalar(forceMag);
-      this.body.applyForce({ x: force.x, y: force.y, z: force.z }, true);
+      this.body.applyTorqueImpulse({ x: force.x, y: force.y, z: force.z }, true);
     }
 
     // Forward/backward movement based on pitch
@@ -242,14 +242,14 @@ export class Spaceship {
       if (forward.y < -0.01) {
         let forceMag = Math.abs(forward.y) * (this.thrusting ? 40 : 20);
         const force = planarForward.clone().multiplyScalar(forceMag);
-        this.body.applyForce({ x: force.x, y: force.y, z: force.z }, true);
+        this.body.applyTorqueImpulse({ x: force.x, y: force.y, z: force.z }, true);
       } else if (forward.y > 0.01 && !this.thrusting) {
         const vel = this.body.linvel();
         const velVec = new THREE.Vector3(vel.x, 0, vel.z);
         if (velVec.dot(planarForward) <= 0) {
           let forceMag = forward.y * 20;
           const force = planarForward.clone().multiplyScalar(-forceMag);
-          this.body.applyForce({ x: force.x, y: force.y, z: force.z }, true);
+          this.body.applyTorqueImpulse({ x: force.x, y: force.y, z: force.z }, true);
         }
       }
     }
@@ -310,7 +310,7 @@ export class Spaceship {
         {
           x: input.thrust ? input.pitch * torqueImpulse : 0,
           y: 0,
-          z: -input.yaw * torqueImpulse,
+          z: input.yaw * torqueImpulse,
         },
         true
       );
