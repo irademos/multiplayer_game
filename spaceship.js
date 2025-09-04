@@ -104,9 +104,9 @@ export class Spaceship {
     // mass lies below the geometric center.  This makes the ship more
     // stable while falling and encourages it to remain upright instead
     // of flipping onto its back.
-    const ballastHeight = size.y * 0.2;
+    const ballastHeight = size.y * 0.1;
     const ballastDesc = RAPIER.ColliderDesc.cuboid(
-      size.x * 0.2,
+      size.x * 0.3,
       ballastHeight * 0.5,
       size.z * 0.2
     )
@@ -115,7 +115,7 @@ export class Spaceship {
         offset.y - size.y * 0.5 + ballastHeight * 0.5,
         offset.z
       )
-      .setDensity(10);
+      .setDensity(100);
     this.world.createCollider(ballastDesc, this.body);
 
     // Register with global rigid-body map so physics sync updates the mesh
@@ -192,7 +192,7 @@ export class Spaceship {
       }
     }
 
-    this.applyWindForces();
+    // this.applyWindForces();
   }
 
   applyWindForces() {
