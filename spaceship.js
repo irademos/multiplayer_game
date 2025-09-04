@@ -13,6 +13,7 @@ export class Spaceship {
     this.mountOffset = new THREE.Vector3(0, 1, 0);
     this.locked = false;
     this.halfHeight = 0;
+    this.wings = [];
   }
 
   async load() {
@@ -27,6 +28,14 @@ export class Spaceship {
     this.mesh = ship;
     this.scene.add(this.mesh);
     this.mesh.updateMatrixWorld(true);
+
+    // Find wings for wind-force calculations
+    this.wings = [];
+    this.mesh.traverse((child) => {
+      if (child.isMesh && /wing/i.test(child.name)) {
+        this.wings.push(child);
+      }
+    });
 
     // Compute world-space AABB
     const bbox = new THREE.Box3().setFromObject(this.mesh);
@@ -121,6 +130,41 @@ export class Spaceship {
         this.locked = false;
         this.body.wakeUp();
       }
+    }
+
+    this.applyWindForces();
+  }
+
+  applyWindForces() {
+    if (!this.body || this.wings.length === 0) return;
+
+    const linvel = this.body.linvel();
+    const velocity = new THREE.Vector3(linvel.x, linvel.y, linvel.z);
+    const speed = velocity.length();
+    if (speed < 0.1) return;
+
+    const dt = this.world?.integrationParameters?.dt ?? 1 / 60;
+    const windDir = velocity.clone().normalize();
+    const bodyPos = this.body.translation();
+    const shipPos = new THREE.Vector3(bodyPos.x, bodyPos.y, bodyPos.z);
+    const forceCoeff = 0.02;
+
+    for (const wing of this.wings) {
+      const wingPos = wing.getWorldPosition(new THREE.Vector3());
+      const wingQuat = wing.getWorldQuaternion(new THREE.Quaternion());
+      const wingNormal = new THREE.Vector3(0, 1, 0).applyQuaternion(wingQuat).normalize();
+      const facing = windDir.dot(wingNormal);
+      if (Math.abs(facing) < 0.01) continue;
+
+      const forceMag = -facing * speed * speed * forceCoeff;
+      const force = wingNormal.clone().multiplyScalar(forceMag);
+
+      const impulse = force.clone().multiplyScalar(dt);
+      this.body.applyImpulse({ x: impulse.x, y: impulse.y, z: impulse.z }, true);
+
+      const r = wingPos.sub(shipPos);
+      const torque = r.clone().cross(force).multiplyScalar(dt);
+      this.body.applyTorqueImpulse({ x: torque.x, y: torque.y, z: torque.z }, true);
     }
   }
 
