@@ -56,7 +56,7 @@ export class Spaceship {
       .setTranslation(ship.position.x, ship.position.y, ship.position.z)
       .setLinearDamping(0.5)
       .setAngularDamping(0.5)
-      .setGravityScale(1.0);
+      .setGravityScale(3.0);
     this.body = this.world.createRigidBody(rbDesc);
 
     // Build a triangle-mesh collider from the spaceship geometry so the
@@ -138,9 +138,9 @@ export class Spaceship {
       new THREE.SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false })
     );
 
-    this.fireSprite.scale.set(2, 2, 2);
-    this.smokeSprite.scale.set(3, 3, 3);
-    this.smokeSprite.position.z -= 1;
+    this.fireSprite.scale.set(4, 4, 4);
+    this.smokeSprite.scale.set(6, 6, 6);
+    this.smokeSprite.position.z -= 2.5;
 
     this.thrusterGroup.add(this.smokeSprite);
     this.thrusterGroup.add(this.fireSprite);
@@ -189,7 +189,7 @@ export class Spaceship {
     const windDir = velocity.clone().normalize();
     const bodyPos = this.body.translation();
     const shipPos = new THREE.Vector3(bodyPos.x, bodyPos.y, bodyPos.z);
-    const forceCoeff = 0.02;
+    const forceCoeff = 0.001;
 
     for (const wing of this.wings) {
       const wingPos = wing.getWorldPosition(new THREE.Vector3());
@@ -221,7 +221,7 @@ export class Spaceship {
 
   applyInput(input) {
     if (!this.body || !this.mesh) return;
-    const rotationStrength = 20;
+    const rotationStrength = 8;
 
     // Handle rotation using Rapier torque impulses
     if (input.yaw !== 0 || input.pitch !== 0) {
