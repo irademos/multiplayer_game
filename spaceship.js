@@ -56,7 +56,7 @@ export class Spaceship {
       .setTranslation(ship.position.x, ship.position.y, ship.position.z)
       .setLinearDamping(0.5)
       .setAngularDamping(0.5)
-      .setGravityScale(3.0);
+      .setGravityScale(2.4);
     this.body = this.world.createRigidBody(rbDesc);
 
     // Build a triangle-mesh collider from the spaceship geometry so the
@@ -104,9 +104,9 @@ export class Spaceship {
     // mass lies below the geometric center.  This makes the ship more
     // stable while falling and encourages it to remain upright instead
     // of flipping onto its back.
-    const ballastHeight = size.y * 0.1;
+    const ballastHeight = size.y * 0.2;
     const ballastDesc = RAPIER.ColliderDesc.cuboid(
-      size.x * 0.3,
+      size.x * 0.2,
       ballastHeight * 0.5,
       size.z * 0.2
     )
@@ -115,7 +115,7 @@ export class Spaceship {
         offset.y - size.y * 0.5 + ballastHeight * 0.5,
         offset.z
       )
-      .setDensity(100);
+      .setDensity(30);
     this.world.createCollider(ballastDesc, this.body);
 
     // Register with global rigid-body map so physics sync updates the mesh
@@ -156,8 +156,8 @@ export class Spaceship {
       new THREE.SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false })
     );
 
-    this.fireSprite.scale.set(4, 4, 4);
-    this.smokeSprite.scale.set(6, 6, 6);
+    this.fireSprite.scale.set(8, 8, 8);
+    this.smokeSprite.scale.set(12, 12, 12);
     this.smokeSprite.position.z -= 2.5;
 
     this.thrusterGroup.add(this.smokeSprite);
@@ -239,7 +239,7 @@ export class Spaceship {
 
   applyInput(input) {
     if (!this.body || !this.mesh) return;
-    const rotationStrength = 8;
+    const rotationStrength = 20;
 
     // Handle rotation using Rapier torque impulses
     if (input.yaw !== 0 || input.pitch !== 0) {
@@ -299,15 +299,6 @@ export class Spaceship {
   dismount() {
     if (!this.occupant) return;
     const playerControls = this.occupant;
-    // const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.mesh.quaternion);
-    // const dismountPos = this.mesh.position.clone().add(forward.multiplyScalar(-3)).add(this.mountOffset);
-    // if (playerControls.playerModel) {
-    //   playerControls.playerModel.position.copy(dismountPos);
-    // }
-    // if (playerControls.body) {
-    //   playerControls.body.setTranslation(dismountPos, true);
-    //   playerControls.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    // }
     playerControls.vehicle = null;
     this.occupant = null;
   }
