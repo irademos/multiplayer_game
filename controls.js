@@ -40,6 +40,8 @@ export class PlayerControls {
     this.isInWater = false;
     this.waterDepth = 0;
 
+    this.parachute = null;
+
     // Player state
     this.canJump = true;
     this.keysPressed = new Set();
@@ -291,6 +293,10 @@ export class PlayerControls {
       }
 
       if (e.key === " ") {
+        if (this.parachute) {
+          this.removeParachute();
+          return;
+        }
         if (this.isInWater) return;
         if (this.canJump && this.body) {
           this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
@@ -594,7 +600,15 @@ export class PlayerControls {
           const target = playerPos.clone().add(forward);
           this.playerModel.lookAt(target);
           this.camera.up.copy(up);
+        } else {
+          this.playerModel.up.set(0, 1, 0);
+          this.playerModel.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawAngle);
+          this.camera.up.set(0, 1, 0);
         }
+      } else {
+        this.playerModel.up.set(0, 1, 0);
+        this.playerModel.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawAngle);
+        this.camera.up.set(0, 1, 0);
       }
       const actions = this.playerModel.userData.actions;
       if (actions && !this.isKnocked && !this.currentSpecialAction) {
@@ -819,6 +833,24 @@ export class PlayerControls {
 
   updateGrabbedPosition(pos) {
     this.externalGrabPos = new THREE.Vector3(...pos);
+  }
+
+  deployParachute() {
+    if (!this.playerModel || this.parachute) return;
+    const geom = new THREE.SphereGeometry(1.5, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xff0000, side: THREE.DoubleSide });
+    const chute = new THREE.Mesh(geom, mat);
+    chute.rotation.x = Math.PI;
+    chute.position.set(0, 2, 0);
+    this.playerModel.add(chute);
+    this.parachute = chute;
+  }
+
+  removeParachute() {
+    if (this.parachute) {
+      this.parachute.parent.remove(this.parachute);
+      this.parachute = null;
+    }
   }
 
   setupPointerLock() {

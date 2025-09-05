@@ -376,9 +376,16 @@ export class Spaceship {
   dismount() {
     if (!this.occupant) return;
     const playerControls = this.occupant;
-    const top = this.mesh
-      ? this.mesh.position.clone().add(this.mountOffset)
-      : new THREE.Vector3();
+    let top = new THREE.Vector3();
+    if (this.mesh) {
+      this.mesh.updateMatrixWorld(true);
+      const bbox = new THREE.Box3().setFromObject(this.mesh);
+      top.set(
+        (bbox.min.x + bbox.max.x) / 2,
+        bbox.max.y + 2,
+        (bbox.min.z + bbox.max.z) / 2
+      );
+    }
     if (playerControls.playerModel) {
       playerControls.playerModel.position.copy(top);
     }
@@ -389,6 +396,7 @@ export class Spaceship {
         playerControls.body.setLinvel(vel, true);
       }
     }
+    playerControls.deployParachute?.();
     playerControls.vehicle = null;
     this.occupant = null;
   }
