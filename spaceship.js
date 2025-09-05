@@ -57,7 +57,7 @@ export class Spaceship {
       .setTranslation(ship.position.x, ship.position.y, ship.position.z)
       .setLinearDamping(0.5)
       .setAngularDamping(0.5)
-      .setGravityScale(2.4);
+      .setGravityScale(1.6);
     this.body = this.world.createRigidBody(rbDesc);
 
     // Build a triangle-mesh collider from the spaceship geometry so the
@@ -322,8 +322,8 @@ export class Spaceship {
       const right = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
 
       const torque = new THREE.Vector3();
-      torque.add(right.clone().multiplyScalar(input.pitch * torqueImpulse));
-      torque.add(up.clone().multiplyScalar(-input.yaw * torqueImpulse));
+      torque.add(right.clone().multiplyScalar(-input.pitch * torqueImpulse));
+      torque.add(up.clone().multiplyScalar(input.yaw * torqueImpulse));
 
       this.body.applyTorqueImpulse(
         { x: torque.x, y: torque.y, z: torque.z },

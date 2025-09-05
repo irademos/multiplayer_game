@@ -37,7 +37,7 @@ export function createClouds(scene) {
   }
 }
 
-export const MOON_RADIUS = 35;
+export const MOON_RADIUS = 70;
 
 export function createMoon(scene, rapierWorld, rbToMesh) {
   const moonGeometry = new THREE.SphereGeometry(MOON_RADIUS, 32, 32);

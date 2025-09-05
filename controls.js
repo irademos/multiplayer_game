@@ -676,7 +676,7 @@ export class PlayerControls {
           }
           const dir = new THREE.Vector3().subVectors(moon.position, playerPos).normalize();
           const forceMag = this.body.mass() * MOON_GRAVITY;
-          this.body.applyForce({ x: dir.x * forceMag, y: dir.y * forceMag, z: dir.z * forceMag }, true);
+          this.body.applyTorqueImpulse({ x: dir.x * forceMag, y: dir.y * forceMag, z: dir.z * forceMag }, true);
         } else if (this.moonGravityActive) {
           this.body.setGravityScale(1, true);
           this.moonGravityActive = false;
