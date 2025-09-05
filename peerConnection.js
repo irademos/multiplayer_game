@@ -94,15 +94,15 @@ export class Multiplayer {
         // Filter for only currently active peer IDs
         const validPeerIds = allPeerIds.filter(pid => activePeers[pid]);
 
-        // Sort by join timestamp so the earliest joined peer is first
+        // Sort by join timestamp so the most recent becomes host
         validPeerIds.sort((a, b) => {
-          return activePeers[a]?.timestamp - activePeers[b]?.timestamp;
+          return activePeers[b]?.timestamp - activePeers[a]?.timestamp;
         });
 
         console.log("My ID:", this.id);
-        console.log("Valid Peers (earliest first):", validPeerIds);
+        console.log("Valid Peers (more recent first):", validPeerIds);
 
-        // The first joined player becomes the host
+        // The latest joined player becomes the host
         const hostPeerId = validPeerIds[0];
         this.isHost = (hostPeerId === this.id);
 
