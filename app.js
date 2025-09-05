@@ -15,6 +15,7 @@ import { initSpeechCommands } from './speechCommands.js';
 import { LevelBuilder } from './levelBuilderMode.js';
 import { AudioManager } from './audioManager.js';
 import { Spaceship } from './spaceship.js';
+import { Surfboard } from './surfboard.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { applyGlobalGravity } from "./gravity.js";
 
@@ -48,6 +49,7 @@ async function main() {
   createClouds(scene);
 
   let spaceship;
+  let surfboard;
 
   // Load additional level data (destructible props, etc.)
   const breakManager = new BreakManager(scene);
@@ -127,6 +129,10 @@ async function main() {
   await spaceship.load();
   window.spaceship = spaceship;
 
+  surfboard = new Surfboard(scene, rapierWorld, rbToMesh);
+  surfboard.load();
+  window.surfboard = surfboard;
+
   function attachMonsterPhysics(mon) {
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(mon.position.x, mon.position.y, mon.position.z)
@@ -183,6 +189,24 @@ async function main() {
     levelBuilder.toggle();
     playerControls.enabled = !levelBuilder.active;
   });
+
+  function applyWaveForces() {
+    const time = performance.now() / 1000;
+    const wave = Math.max(0, Math.sin(time * 2));
+    const strength = 2 * wave;
+
+    if (playerControls.body && playerControls.isInWater && (!playerControls.vehicle || playerControls.vehicle.type !== 'surfboard')) {
+      const t = playerControls.body.translation();
+      const dir = new THREE.Vector3(-t.x, 0, -t.z).normalize().multiplyScalar(strength);
+      playerControls.body.applyImpulse({ x: dir.x, y: 0, z: dir.z }, true);
+    }
+
+    if (surfboard?.body) {
+      const t = surfboard.body.translation();
+      const dir = new THREE.Vector3(-t.x, 0, -t.z).normalize().multiplyScalar(strength);
+      surfboard.body.applyImpulse({ x: dir.x, y: 0, z: dir.z }, true);
+    }
+  }
 
 
   // --- RAPIER HELPERS ---
@@ -597,6 +621,7 @@ async function main() {
     physicsAccumulator += clock.getDelta();
     while (physicsAccumulator >= FIXED_DT) {
       applyGlobalGravity(rapierWorld, window.moon);
+      applyWaveForces();
       rapierWorld.step();
       physicsAccumulator -= FIXED_DT;
     }
@@ -636,6 +661,7 @@ async function main() {
 
 
     playerControls.update();
+    surfboard.update();
     if (multiplayer.isHost) {
       spaceship.update();
       if (spaceship.body) {

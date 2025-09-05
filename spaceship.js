@@ -18,6 +18,7 @@ export class Spaceship {
     this.fireSprite = null;
     this.smokeSprite = null;
     this.thrusting = false;
+    this.type = 'spaceship';
   }
 
   async load() {
