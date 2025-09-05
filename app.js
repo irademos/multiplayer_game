@@ -412,7 +412,13 @@ async function main() {
             .normalize();
           const target = playerPos.clone().add(forward);
           player.model.lookAt(target);
+        } else {
+          player.model.up.set(0, 1, 0);
+          player.model.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), data.rotation);
         }
+      } else {
+        player.model.up.set(0, 1, 0);
+        player.model.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), data.rotation);
       }
 
       // Sync animation state if provided
