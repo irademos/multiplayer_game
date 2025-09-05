@@ -4,6 +4,7 @@ import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
 import { createOrcVoice } from "./orcVoice.js";
 import { createClouds, generateIsland, createMoon, MOON_RADIUS } from "./worldGeneration.js";
+import { isPointInWater, initWaves, spawnOceanWave, updateWaves, getWaveForceAt } from './water.js';
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -123,6 +124,9 @@ async function main() {
   }
 
   generateIsland(scene);
+  initWaves(scene);
+  // Prime with an initial distant wave
+  spawnOceanWave();
   createMoon(scene, rapierWorld, rbToMesh);
 
   spaceship = new Spaceship(scene, rapierWorld, rbToMesh);
@@ -190,21 +194,29 @@ async function main() {
     playerControls.enabled = !levelBuilder.active;
   });
 
-  function applyWaveForces() {
-    const time = performance.now() / 1000;
-    const wave = Math.max(0, Math.sin(time * 2));
-    const strength = 2 * wave;
+  // Wave spawn timing (less frequent) and constant push during pass
+  let nextWaveIn = 10 + Math.random() * 6; // seconds
+  function scheduleNextWave() {
+    nextWaveIn = 10 + Math.random() * 6; // 10–16s between waves
+  }
 
+  function applyWaveForces() {
     if (playerControls.body && playerControls.isInWater && (!playerControls.vehicle || playerControls.vehicle.type !== 'surfboard')) {
       const t = playerControls.body.translation();
-      const dir = new THREE.Vector3(-t.x, 0, -t.z).normalize().multiplyScalar(strength);
-      playerControls.body.applyImpulse({ x: dir.x, y: 0, z: dir.z }, true);
+      const f = getWaveForceAt(t.x, t.z);
+      if (f.x !== 0 || f.z !== 0) {
+        playerControls.body.applyImpulse({ x: f.x, y: 0, z: f.z }, true);
+      }
     }
 
     if (surfboard?.body) {
       const t = surfboard.body.translation();
-      const dir = new THREE.Vector3(-t.x, 0, -t.z).normalize().multiplyScalar(strength);
-      surfboard.body.applyImpulse({ x: dir.x, y: 0, z: dir.z }, true);
+      if (isPointInWater(t.x, t.z)) {
+        const f = getWaveForceAt(t.x, t.z);
+        if (f.x !== 0 || f.z !== 0) {
+          surfboard.body.applyImpulse({ x: f.x, y: 0, z: f.z }, true);
+        }
+      }
     }
   }
 
@@ -696,6 +708,14 @@ async function main() {
     }
 
     const delta = mixerClock.getDelta();
+    // Update visible waves and spawn new ones less frequently
+    updateWaves(delta);
+    nextWaveIn -= delta;
+    if (nextWaveIn <= 0) {
+      spawnOceanWave();
+      scheduleNextWave();
+    }
+
     Object.values(otherPlayers).forEach(p => {
       p.model.userData.mixer?.update(delta);
     });

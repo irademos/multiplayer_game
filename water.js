@@ -3,6 +3,8 @@ import * as THREE from 'three';
 // Store all water bodies for later lookup
 const waterBodies = [];
 const islandAreas = [];
+const waterWaves = [];
+let wavesScene = null;
 
 export const SEA_FLOOR_Y = -2;
 const MAX_LAKE_DEPTH = 1.5;
@@ -130,6 +132,88 @@ export function generateOcean(scene, position, innerRadius, outerRadius) {
 
 export function isPointInWater(x, z) {
   return getWaterDepth(x, z) > 0;
+}
+
+// --- Wave system ---
+
+export function initWaves(scene) {
+  wavesScene = scene;
+  // Remove old wave meshes if any
+  for (const w of waterWaves) {
+    if (w.mesh && wavesScene) wavesScene.remove(w.mesh);
+  }
+  waterWaves.length = 0;
+}
+
+export function spawnOceanWave({
+  width = 3,
+  speed = 6,
+  strength = 3,
+  color = 0xffffff,
+  opacity = 0.5,
+} = {}) {
+  // Use the first ocean body (or all, but we’ll start with one)
+  const ocean = waterBodies.find(b => b.type === 'ocean');
+  if (!ocean || !wavesScene) return null;
+
+  const center = new THREE.Vector3(ocean.position.x, 0, ocean.position.z);
+  const radius = ocean.outerRadius - 0.5; // Start near outer edge
+
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    transparent: true,
+    opacity,
+    emissive: color,
+    emissiveIntensity: 0.2,
+    side: THREE.DoubleSide,
+  });
+  const geom = new THREE.RingGeometry(Math.max(0.01, radius - width * 0.5), radius + width * 0.5, 128);
+  const ring = new THREE.Mesh(geom, mat);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.set(center.x, 0.01, center.z);
+  ring.renderOrder = 2;
+  wavesScene.add(ring);
+
+  const wave = { type: 'ocean', center, radius, width, speed, strength, mesh: ring, innerRadius: ocean.innerRadius };
+  waterWaves.push(wave);
+  return wave;
+}
+
+export function updateWaves(dt) {
+  for (let i = waterWaves.length - 1; i >= 0; i--) {
+    const w = waterWaves[i];
+    w.radius -= w.speed * dt;
+    // Update mesh geometry to reflect new radius
+    if (w.mesh) {
+      const inner = Math.max(0.01, w.radius - w.width * 0.5);
+      const outer = Math.max(inner + 0.01, w.radius + w.width * 0.5);
+      const newGeom = new THREE.RingGeometry(inner, outer, 128);
+      w.mesh.geometry.dispose();
+      w.mesh.geometry = newGeom;
+    }
+    if (w.radius <= w.innerRadius) {
+      if (w.mesh && wavesScene) wavesScene.remove(w.mesh);
+      waterWaves.splice(i, 1);
+    }
+  }
+}
+
+export function getWaveForceAt(x, z) {
+  const force = new THREE.Vector3(0, 0, 0);
+  for (const w of waterWaves) {
+    const dx = x - w.center.x;
+    const dz = z - w.center.z;
+    const dist = Math.hypot(dx, dz);
+    const half = w.width * 0.5;
+    if (dist >= w.radius - half && dist <= w.radius + half) {
+      // Direction toward center (wave travels inward)
+      const dirX = -dx / (dist || 1);
+      const dirZ = -dz / (dist || 1);
+      force.x += dirX * w.strength;
+      force.z += dirZ * w.strength;
+    }
+  }
+  return force;
 }
 
 export { waterBodies, MAX_LAKE_DEPTH };

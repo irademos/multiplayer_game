@@ -284,6 +284,11 @@ export class PlayerControls {
       if (this.vehicle) {
         if (key === 'x') {
           this.vehicle.dismount();
+          return;
+        }
+        if (this.vehicle.type === 'surfboard' && key === 'e') {
+          this.vehicle.toggleStand();
+          return;
         }
         return;
       }
@@ -570,7 +575,12 @@ export class PlayerControls {
       }
     } else {
       const speed = this.isInWater ? SWIM_SPEED : SPEED;
-      if (this.vehicle && this.vehicle.type === 'surfboard') {
+      if (this.vehicle && this.vehicle.type === 'surfboard' && this.vehicle.standing) {
+        // Delegate surfboard standing controls (handles keys internally)
+        this.vehicle.handleControls(this);
+        return;
+      } else if (this.vehicle && this.vehicle.type === 'surfboard') {
+        // Legacy surf movement when not standing
         this.vehicle.applyInput(movement);
       } else {
         this.body.setLinvel({ x: movement.x * speed, y: vel.y, z: movement.z * speed }, true);
