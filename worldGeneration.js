@@ -44,6 +44,10 @@ export function createMoon(scene, rapierWorld, rbToMesh) {
   const moonMaterial = new THREE.MeshStandardMaterial({ color: 0xdddddd });
   const moon = new THREE.Mesh(moonGeometry, moonMaterial);
   moon.position.set(0, 200, -30);
+  moon.rotation.set(0, 0, 0);
+  moon.quaternion.set(0, 0, 0, 1);
+  moon.matrixAutoUpdate = false;
+  moon.updateMatrix();
   scene.add(moon);
   window.moon = moon;
 
@@ -59,7 +63,7 @@ export function createMoon(scene, rapierWorld, rbToMesh) {
       RAPIER.ColliderDesc.ball(MOON_RADIUS),
       rb
     );
-    if (rbToMesh) rbToMesh.set(rb, moon);
+    // Intentionally omit mapping to rbToMesh to keep the moon stationary
   }
 
   return moon;
