@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { getWaterDepth, SWIM_DEPTH_THRESHOLD } from './water.js';
+import { MOON_RADIUS } from "./worldGeneration.js";
 
 // Movement constants
 const SPEED = 5;
@@ -226,7 +227,7 @@ export class PlayerControls {
     document.getElementById('fire-button').addEventListener('touchstart', (event) => {
       if (!this.enabled) return;
       const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
-      const direction = new THREE.Vector3(0, 0, 1).applyEuler(this.playerModel.rotation);
+      const direction = new THREE.Vector3(0, 0, 1).applyQuaternion(this.playerModel.quaternion);
 
       this.multiplayer.send({
         type: 'projectile',
@@ -344,7 +345,7 @@ export class PlayerControls {
       if (!this.enabled || this.isMobile) return;
 
         const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
-        const direction = new THREE.Vector3(0, 0, 1).applyEuler(this.playerModel.rotation);
+        const direction = new THREE.Vector3(0, 0, 1).applyQuaternion(this.playerModel.quaternion);
 
         this.multiplayer.send({
           type: 'projectile',
@@ -569,9 +570,31 @@ export class PlayerControls {
     if (this.playerModel) {
       const displayY = newY - sink;
       this.playerModel.position.set(newX, displayY, newZ);
+      let yawAngle = this.playerModel.rotation.y;
       if (movement.length() > 0) {
-        const angle = Math.atan2(movement.x, movement.z);
-        this.playerModel.rotation.y = angle;
+        yawAngle = Math.atan2(movement.x, movement.z);
+        this.playerModel.rotation.y = yawAngle;
+      }
+
+      const moon = window.moon;
+      if (moon) {
+        const playerPos = this.playerModel.position;
+        const moonPos = moon.position;
+        const dist = playerPos.distanceTo(moonPos);
+        if (dist < MOON_RADIUS * 2) {
+          const up = new THREE.Vector3().subVectors(playerPos, moonPos).normalize();
+          this.playerModel.up.copy(up);
+          let forward;
+          if (movement.length() > 0) {
+            forward = movement.clone().normalize();
+          } else {
+            forward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.playerModel.quaternion);
+          }
+          forward.projectOnPlane(up).normalize();
+          const target = playerPos.clone().add(forward);
+          this.playerModel.lookAt(target);
+          this.camera.up.copy(up);
+        }
       }
       const actions = this.playerModel.userData.actions;
       if (actions && !this.isKnocked && !this.currentSpecialAction) {
@@ -595,7 +618,7 @@ export class PlayerControls {
         this.controls.target.copy(newTarget);
       }
       if (this.multiplayer && (Math.abs(this.lastPosition.x - newX) > 0.01 || Math.abs(this.lastPosition.y - displayY) > 0.01 || Math.abs(this.lastPosition.z - newZ) > 0.01 || this.isMoving !== this.wasMoving)) {
-        this.multiplayer.send({ x: newX, y: displayY, z: newZ, rotation: this.playerModel.rotation.y, moving: this.isMoving, action: this.playerModel.userData.currentAction });
+        this.multiplayer.send({ x: newX, y: displayY, z: newZ, rotation: yawAngle, moving: this.isMoving, action: this.playerModel.userData.currentAction });
         this.lastPosition.set(newX, displayY, newZ);
         this.wasMoving = this.isMoving;
       }
@@ -704,7 +727,7 @@ export class PlayerControls {
   triggerFire() {
     if (!this.enabled) return;
     const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
-    const direction = new THREE.Vector3(0, 0, 1).applyEuler(this.playerModel.rotation);
+    const direction = new THREE.Vector3(0, 0, 1).applyQuaternion(this.playerModel.quaternion);
 
     this.multiplayer.send({
       type: 'projectile',
@@ -719,7 +742,7 @@ export class PlayerControls {
 
   updateGrabbedTarget() {
     if (!this.grabbedTarget || !this.playerModel) return;
-    const forward = new THREE.Vector3(0, 0, 1).applyEuler(this.playerModel.rotation).normalize();
+    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.playerModel.quaternion).normalize();
     const targetPos = this.playerModel.position.clone().addScaledVector(forward, 1);
     const target = this.grabbedTarget;
     if (target.type === 'player') {
