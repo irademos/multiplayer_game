@@ -382,7 +382,7 @@ export class Spaceship {
       const bbox = new THREE.Box3().setFromObject(this.mesh);
       top.set(
         (bbox.min.x + bbox.max.x) / 2,
-        bbox.max.y + 2,
+        bbox.max.y + 4,
         (bbox.min.z + bbox.max.z) / 2
       );
     }

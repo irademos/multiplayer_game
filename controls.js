@@ -837,11 +837,11 @@ export class PlayerControls {
 
   deployParachute() {
     if (!this.playerModel || this.parachute) return;
-    const geom = new THREE.SphereGeometry(1.5, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    const geom = new THREE.SphereGeometry(1.5, 16, 8, 0, Math.PI * 2, Math.PI/2, Math.PI / 2);
     const mat = new THREE.MeshStandardMaterial({ color: 0xff0000, side: THREE.DoubleSide });
     const chute = new THREE.Mesh(geom, mat);
     chute.rotation.x = Math.PI;
-    chute.position.set(0, 2, 0);
+    chute.position.set(0, 3, 0);
     this.playerModel.add(chute);
     this.parachute = chute;
   }
