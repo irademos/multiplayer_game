@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { MOON_RADIUS } from "./worldGeneration.js";
 
-export const MOON_GRAVITY = 9.81;
+export const MOON_GRAVITY = 2.0;
 
 export function applyGlobalGravity(world, moon) {
   if (!world || !moon) return;

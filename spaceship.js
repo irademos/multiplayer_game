@@ -301,7 +301,7 @@ export class Spaceship {
   applyInput(input) {
     if (!this.body || !this.mesh) return;
     this.thrusting = input.thrust;
-    const rotationStrength = 20;
+    const rotationStrength = 15;
 
     // Handle rotation using Rapier torque impulses.  Apply torque along the
     // ship's local axes so the direction of rotation always matches the
@@ -354,7 +354,7 @@ export class Spaceship {
       // frame-rate independent.
       const dt = this.world?.integrationParameters?.dt ?? 1 / 60;
       const acceleration = 10; // units per second squared
-      const impulseMagnitude = 10 * this.body.mass() * acceleration * dt;
+      const impulseMagnitude = 4 * this.body.mass() * acceleration * dt;
 
       this.body.applyImpulse(
         {
