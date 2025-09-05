@@ -5,6 +5,7 @@ import { MOON_RADIUS } from "./worldGeneration.js";
 
 // Movement constants
 const SPEED = 5;
+const SWIM_SPEED = 2;
 const JUMP_FORCE = 5;
 const PLAYER_RADIUS = 0.3;
 const PLAYER_HALF_HEIGHT = 0.6;
@@ -289,6 +290,7 @@ export class PlayerControls {
 
       if (key === 'x') {
         window.spaceship?.tryMount(this);
+        window.surfboard?.tryMount(this);
         return;
       }
 
@@ -439,7 +441,7 @@ export class PlayerControls {
   processMovement() {
     if (!this.enabled) return;
 
-    if (this.vehicle) {
+    if (this.vehicle && this.vehicle.type === 'spaceship') {
       const yaw = (this.keysPressed.has("a") ? 1 : 0) + (this.keysPressed.has("d") ? -1 : 0);
       const thrust = this.keysPressed.has(" ");
       const pitch = thrust ? (this.keysPressed.has("w") ? 1 : 0) + (this.keysPressed.has("s") ? -1 : 0) : 0;
@@ -492,7 +494,7 @@ export class PlayerControls {
     } else {
       this.canJump = false;
     }
-    if (this.isInWater) {
+    if (this.isInWater && (!this.vehicle || this.vehicle.type !== 'surfboard')) {
       if (this.keysPressed.has(" ")) {
         const newY = t.y - 0.2;
         this.body.setTranslation({ x: t.x, y: newY, z: t.z }, true);
@@ -567,7 +569,12 @@ export class PlayerControls {
         this.playerModel.userData.currentAction = 'idle';
       }
     } else {
-      this.body.setLinvel({ x: movement.x * SPEED, y: vel.y, z: movement.z * SPEED }, true);
+      const speed = this.isInWater ? SWIM_SPEED : SPEED;
+      if (this.vehicle && this.vehicle.type === 'surfboard') {
+        this.vehicle.applyInput(movement);
+      } else {
+        this.body.setLinvel({ x: movement.x * speed, y: vel.y, z: movement.z * speed }, true);
+      }
     }
     const newX = t.x;
     const newY = t.y;
