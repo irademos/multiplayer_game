@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
 import { createOrcVoice } from "./orcVoice.js";
-import { createClouds } from "./worldGeneration.js";
+import { createClouds, generateIsland } from "./worldGeneration.js";
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -14,7 +14,6 @@ import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
 import { LevelBuilder } from './levelBuilderMode.js';
 import { AudioManager } from './audioManager.js';
-import { generateLake } from './water.js';
 import { Spaceship } from './spaceship.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 
@@ -109,7 +108,7 @@ async function main() {
   window.rbToMesh = rbToMesh;
   breakManager.setWorld(rapierWorld);
 
-  // Flat ground plane
+  // Ground collider
   {
     const groundRb = rapierWorld.createRigidBody(
       RAPIER.RigidBodyDesc.fixed().setTranslation(0, -1, 0)
@@ -118,19 +117,9 @@ async function main() {
       RAPIER.ColliderDesc.cuboid(200, 1, 200),
       groundRb
     );
-
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(400, 400),
-      new THREE.MeshStandardMaterial({ color: 0x228B22 })
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = 0;
-    ground.receiveShadow = true;
-    scene.add(ground);
   }
 
-  // Central lake
-  generateLake(scene, { x: 0, y: 0.01, z: 0 }, 20);
+  generateIsland(scene);
 
   spaceship = new Spaceship(scene, rapierWorld, rbToMesh);
   await spaceship.load();

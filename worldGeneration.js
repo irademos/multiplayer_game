@@ -1,6 +1,5 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import RAPIER from "@dimforge/rapier3d-compat";
+import { generateOcean } from "./water.js";
 
 export function createClouds(scene) {
   const rng = () => Math.random();
@@ -34,6 +33,62 @@ export function createClouds(scene) {
     cloudGroup.position.y = 20 + rng() * 15;
     cloudGroup.rotation.y = rng() * Math.PI * 2;
     scene.add(cloudGroup);
+  }
+}
+
+export function generateIsland(scene, { islandRadius = 20, outerRadius = 100 } = {}) {
+  // Sea floor
+  const seaFloor = new THREE.Mesh(
+    new THREE.PlaneGeometry(outerRadius * 2, outerRadius * 2),
+    new THREE.MeshStandardMaterial({ color: 0x8B4513 })
+  );
+  seaFloor.rotation.x = -Math.PI / 2;
+  seaFloor.position.y = -2;
+  seaFloor.receiveShadow = true;
+  scene.add(seaFloor);
+
+  // Central island
+  const hillHeight = 6;
+  const hill = new THREE.Mesh(
+    new THREE.ConeGeometry(islandRadius, hillHeight, 32),
+    new THREE.MeshStandardMaterial({ color: 0x228B22 })
+  );
+  hill.position.y = -2 + hillHeight / 2;
+  scene.add(hill);
+
+  // Sand ring
+  const sand = new THREE.Mesh(
+    new THREE.CylinderGeometry(islandRadius + 2, islandRadius + 2, 1, 32),
+    new THREE.MeshStandardMaterial({ color: 0xC2B280 })
+  );
+  sand.position.y = -1.5;
+  scene.add(sand);
+
+  // Ocean around island
+  generateOcean(scene, { x: 0, z: 0 }, islandRadius + 2, outerRadius);
+
+  // Scatter a few small islands
+  for (let i = 0; i < 5; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = islandRadius + 15 + Math.random() * (outerRadius - islandRadius - 20);
+    const x = Math.cos(angle) * dist;
+    const z = Math.sin(angle) * dist;
+    const r = 3 + Math.random() * 3;
+    const h = 2 + Math.random() * 2;
+
+    const smallSand = new THREE.Mesh(
+      new THREE.CylinderGeometry(r + 1, r + 1, 0.5, 16),
+      new THREE.MeshStandardMaterial({ color: 0xC2B280 })
+    );
+    smallSand.position.set(x, -1.75, z);
+    scene.add(smallSand);
+
+    const smallHill = new THREE.Mesh(
+      new THREE.ConeGeometry(r, h, 16),
+      new THREE.MeshStandardMaterial({ color: 0x228B22 })
+    );
+    smallHill.position.set(x, -2 + h / 2, z);
+    scene.add(smallHill);
   }
 }
 

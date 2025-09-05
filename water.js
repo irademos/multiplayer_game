@@ -26,6 +26,14 @@ export function getWaterDepth(x, z) {
       ) {
         return MAX_LAKE_DEPTH;
       }
+    } else if (body.type === 'ocean') {
+      const dx = x - body.position.x;
+      const dz = z - body.position.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > body.innerRadius && dist < body.outerRadius) {
+        const depthRatio = (body.outerRadius - dist) / (body.outerRadius - body.innerRadius);
+        return depthRatio * MAX_LAKE_DEPTH;
+      }
     }
   }
   return 0;
@@ -66,6 +74,25 @@ export function generateRiver(scene, position, size) {
   });
 
   return river;
+}
+
+export function generateOcean(scene, position, innerRadius, outerRadius) {
+  const ocean = new THREE.Mesh(
+    new THREE.RingGeometry(innerRadius, outerRadius, 64),
+    new THREE.MeshStandardMaterial({ color: 0x1E90FF, transparent: true, opacity: 0.7, side: THREE.DoubleSide })
+  );
+  ocean.rotation.x = -Math.PI / 2;
+  ocean.position.set(position.x, position.y ?? 0, position.z);
+  scene.add(ocean);
+
+  waterBodies.push({
+    type: 'ocean',
+    position: { x: position.x, z: position.z },
+    innerRadius,
+    outerRadius
+  });
+
+  return ocean;
 }
 
 export function isPointInWater(x, z) {
