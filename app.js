@@ -16,6 +16,7 @@ import { LevelBuilder } from './levelBuilderMode.js';
 import { AudioManager } from './audioManager.js';
 import { Spaceship } from './spaceship.js';
 import RAPIER from '@dimforge/rapier3d-compat';
+import { applyGlobalGravity } from "./gravity.js";
 
 const clock = new THREE.Clock();
 const mixerClock = new THREE.Clock();
@@ -568,6 +569,7 @@ async function main() {
     // Accumulate variable rAF time into fixed physics steps
     physicsAccumulator += clock.getDelta();
     while (physicsAccumulator >= FIXED_DT) {
+      applyGlobalGravity(rapierWorld, window.moon);
       rapierWorld.step();
       physicsAccumulator -= FIXED_DT;
     }
