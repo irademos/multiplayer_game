@@ -99,6 +99,14 @@ async function main() {
   dirLight.castShadow = true;
   scene.add(dirLight);
 
+  // Create a moon in the sky
+  const moonGeometry = new THREE.SphereGeometry(5, 32, 32);
+  const moonMaterial = new THREE.MeshStandardMaterial({ color: 0xdddddd });
+  const moon = new THREE.Mesh(moonGeometry, moonMaterial);
+  moon.position.set(0, 50, -30);
+  scene.add(moon);
+  window.moon = moon;
+
 
 
   // --- RAPIER INIT ---
