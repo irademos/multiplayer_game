@@ -171,7 +171,7 @@ export function updateProjectiles({
     }
   }
 
-  if (multiplayer?.isMonsterOwner && monster) {
+  if (multiplayer?.isHost && monster) {
     updateMonster(monster, clock, playerModel, otherPlayers); // pass in new args
     multiplayer.send({
       type: "monster",
