@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
 import { createOrcVoice } from "./orcVoice.js";
-import { createClouds, generateIsland, createMoon } from "./worldGeneration.js";
+import { createClouds, generateIsland, createMoon, MOON_RADIUS } from "./worldGeneration.js";
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -397,7 +397,23 @@ async function main() {
       const terrainY = 0;
       const targetY = Math.max(data.y ?? terrainY, terrainY);
       player.model.position.y = targetY;
+
       player.model.rotation.y = data.rotation;
+      const moon = window.moon;
+      if (moon) {
+        const moonPos = moon.position;
+        const playerPos = player.model.position;
+        const dist = playerPos.distanceTo(moonPos);
+        if (dist < MOON_RADIUS * 2) {
+          const up = new THREE.Vector3().subVectors(playerPos, moonPos).normalize();
+          player.model.up.copy(up);
+          const forward = new THREE.Vector3(Math.sin(data.rotation), 0, Math.cos(data.rotation))
+            .projectOnPlane(up)
+            .normalize();
+          const target = playerPos.clone().add(forward);
+          player.model.lookAt(target);
+        }
+      }
 
       // Sync animation state if provided
       const actions = player.model.userData.actions;
