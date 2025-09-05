@@ -7,6 +7,8 @@ const SPEED = 5;
 const JUMP_FORCE = 5;
 const PLAYER_RADIUS = 0.3;
 const PLAYER_HALF_HEIGHT = 0.6;
+const MOON_GRAVITY = 9.81;
+const MOON_RADIUS = 20;
 
 export class PlayerControls {
   constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager }) {
@@ -38,6 +40,7 @@ export class PlayerControls {
 
     this.isInWater = false;
     this.waterDepth = 0;
+    this.moonGravityActive = false;
 
     // Player state
     this.canJump = true;
@@ -659,6 +662,25 @@ export class PlayerControls {
       }
       if (this.grabbedTarget) {
         this.updateGrabbedTarget();
+      }
+
+      const moon = window.moon;
+      if (moon && this.body) {
+        const pos = this.body.translation();
+        const playerPos = new THREE.Vector3(pos.x, pos.y, pos.z);
+        const distance = playerPos.distanceTo(moon.position);
+        if (distance < MOON_RADIUS) {
+          if (!this.moonGravityActive) {
+            this.body.setGravityScale(0, true);
+            this.moonGravityActive = true;
+          }
+          const dir = new THREE.Vector3().subVectors(moon.position, playerPos).normalize();
+          const forceMag = this.body.mass() * MOON_GRAVITY;
+          this.body.applyForce({ x: dir.x * forceMag, y: dir.y * forceMag, z: dir.z * forceMag }, true);
+        } else if (this.moonGravityActive) {
+          this.body.setGravityScale(1, true);
+          this.moonGravityActive = false;
+        }
       }
 
     // Always update controls even when movement is disabled
