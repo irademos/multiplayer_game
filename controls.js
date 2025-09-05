@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { getWaterDepth, SWIM_DEPTH_THRESHOLD } from './water.js';
+import { MOON_RADIUS } from "./worldGeneration.js";
 
 // Movement constants
 const SPEED = 5;
@@ -8,7 +9,6 @@ const JUMP_FORCE = 5;
 const PLAYER_RADIUS = 0.3;
 const PLAYER_HALF_HEIGHT = 0.6;
 const MOON_GRAVITY = 9.81;
-const MOON_RADIUS = 20;
 
 export class PlayerControls {
   constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager }) {
@@ -669,7 +669,7 @@ export class PlayerControls {
         const pos = this.body.translation();
         const playerPos = new THREE.Vector3(pos.x, pos.y, pos.z);
         const distance = playerPos.distanceTo(moon.position);
-        if (distance < MOON_RADIUS) {
+        if (distance < MOON_RADIUS * 2) {
           if (!this.moonGravityActive) {
             this.body.setGravityScale(0, true);
             this.moonGravityActive = true;

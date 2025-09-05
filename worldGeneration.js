@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import RAPIER from "@dimforge/rapier3d-compat";
 import { generateOcean } from "./water.js";
 
 export function createClouds(scene) {
@@ -34,6 +35,34 @@ export function createClouds(scene) {
     cloudGroup.rotation.y = rng() * Math.PI * 2;
     scene.add(cloudGroup);
   }
+}
+
+export const MOON_RADIUS = 35;
+
+export function createMoon(scene, rapierWorld, rbToMesh) {
+  const moonGeometry = new THREE.SphereGeometry(MOON_RADIUS, 32, 32);
+  const moonMaterial = new THREE.MeshStandardMaterial({ color: 0xdddddd });
+  const moon = new THREE.Mesh(moonGeometry, moonMaterial);
+  moon.position.set(0, 200, -30);
+  scene.add(moon);
+  window.moon = moon;
+
+  if (rapierWorld) {
+    const rb = rapierWorld.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed().setTranslation(
+        moon.position.x,
+        moon.position.y,
+        moon.position.z
+      )
+    );
+    rapierWorld.createCollider(
+      RAPIER.ColliderDesc.ball(MOON_RADIUS),
+      rb
+    );
+    if (rbToMesh) rbToMesh.set(rb, moon);
+  }
+
+  return moon;
 }
 
 export function generateIsland(scene, { islandRadius = 20, outerRadius = 100 } = {}) {

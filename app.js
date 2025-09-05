@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
 import { createOrcVoice } from "./orcVoice.js";
-import { createClouds, generateIsland } from "./worldGeneration.js";
+import { createClouds, generateIsland, createMoon } from "./worldGeneration.js";
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -99,14 +99,6 @@ async function main() {
   dirLight.castShadow = true;
   scene.add(dirLight);
 
-  // Create a moon in the sky
-  const moonGeometry = new THREE.SphereGeometry(35, 32, 32);
-  const moonMaterial = new THREE.MeshStandardMaterial({ color: 0xdddddd });
-  const moon = new THREE.Mesh(moonGeometry, moonMaterial);
-  moon.position.set(0, 200, -30);
-  scene.add(moon);
-  window.moon = moon;
-
 
 
   // --- RAPIER INIT ---
@@ -128,6 +120,7 @@ async function main() {
   }
 
   generateIsland(scene);
+  createMoon(scene, rapierWorld, rbToMesh);
 
   spaceship = new Spaceship(scene, rapierWorld, rbToMesh);
   await spaceship.load();
