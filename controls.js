@@ -7,7 +7,6 @@ const SPEED = 5;
 const JUMP_FORCE = 5;
 const PLAYER_RADIUS = 0.3;
 const PLAYER_HALF_HEIGHT = 0.6;
-const WATER_SINK_OFFSET = 1.5;
 
 export class PlayerControls {
   constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager }) {
@@ -476,8 +475,9 @@ export class PlayerControls {
         if (hitY > groundY) groundY = hitY;
       }
     }
-    const expectedY = groundY + PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
-    const grounded = t.y <= expectedY + 0.05;
+    const surfaceY = 0;
+    const expectedY = (this.isInWater ? surfaceY : groundY) + PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
+    const grounded = !this.isInWater && t.y <= expectedY + 0.05;
     if (grounded && !this.isInWater) {
       this.canJump = true;
       this.hasDoubleJumped = false;
@@ -550,7 +550,7 @@ export class PlayerControls {
     const newX = t.x;
     const newY = t.y;
     const newZ = t.z;
-    const sink = this.isInWater ? WATER_SINK_OFFSET : this.waterDepth;
+    const sink = this.isInWater ? newY - surfaceY : this.waterDepth;
     const isMovingNow = movement.length() > 0;
     this.isMoving = isMovingNow;
     if (isMovingNow && this.canJump) {
