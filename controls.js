@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
-import { getWaterDepth, SWIM_DEPTH_THRESHOLD } from './water.js';
+import { getWaterDepth, SWIM_DEPTH_THRESHOLD, getTerrainHeight } from './water.js';
 import { MOON_RADIUS } from "./worldGeneration.js";
 
 // Movement constants
@@ -472,7 +472,7 @@ export class PlayerControls {
       return;
     }
 
-    const terrainY = 0;
+    const terrainY = getTerrainHeight(t.x, t.z);
     let groundY = terrainY;
     const world = window.rapierWorld;
     if (world) {
@@ -493,7 +493,12 @@ export class PlayerControls {
       this.canJump = false;
     }
     if (this.isInWater) {
-      if (t.y < floatTargetY) {
+      if (this.keysPressed.has(" ")) {
+        const newY = t.y - 0.2;
+        this.body.setTranslation({ x: t.x, y: newY, z: t.z }, true);
+        this.body.setLinvel({ x: vel.x, y: -1, z: vel.z }, true);
+        t.y = newY;
+      } else if (t.y < floatTargetY) {
         const newY = t.y + (floatTargetY - t.y) * 0.1;
         this.body.setTranslation({ x: t.x, y: newY, z: t.z }, true);
         if (vel.y < 0) {

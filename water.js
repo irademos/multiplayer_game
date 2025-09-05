@@ -2,11 +2,44 @@ import * as THREE from 'three';
 
 // Store all water bodies for later lookup
 const waterBodies = [];
+const islandAreas = [];
 
+export const SEA_FLOOR_Y = -2;
 const MAX_LAKE_DEPTH = 1.5;
 export const SWIM_DEPTH_THRESHOLD = 0.7;
 
+function isPointOnIsland(x, z) {
+  for (const island of islandAreas) {
+    const dx = x - island.x;
+    const dz = z - island.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < island.surfaceRadius) return true;
+  }
+  return false;
+}
+
+export function registerIsland(position, baseRadius, height) {
+  const waterLevel = 0;
+  const surfaceRadius = baseRadius * (1 - (waterLevel - SEA_FLOOR_Y) / height);
+  islandAreas.push({ x: position.x, z: position.z, baseRadius, height, surfaceRadius });
+}
+
+export function getTerrainHeight(x, z) {
+  let height = SEA_FLOOR_Y;
+  for (const island of islandAreas) {
+    const dx = x - island.x;
+    const dz = z - island.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < island.baseRadius) {
+      const h = SEA_FLOOR_Y + island.height * (1 - dist / island.baseRadius);
+      if (h > height) height = h;
+    }
+  }
+  return height;
+}
+
 export function getWaterDepth(x, z) {
+  if (isPointOnIsland(x, z)) return 0;
   for (const body of waterBodies) {
     if (body.type === 'lake') {
       const dx = x - body.position.x;
@@ -30,7 +63,7 @@ export function getWaterDepth(x, z) {
       const dx = x - body.position.x;
       const dz = z - body.position.z;
       const dist = Math.hypot(dx, dz);
-      if (dist > body.innerRadius && dist < body.outerRadius) {
+      if (dist < body.outerRadius) {
         const depthRatio = (body.outerRadius - dist) / (body.outerRadius - body.innerRadius);
         return depthRatio * MAX_LAKE_DEPTH;
       }

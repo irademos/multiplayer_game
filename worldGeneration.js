@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
-import { generateOcean } from "./water.js";
+import { generateOcean, registerIsland, SEA_FLOOR_Y } from "./water.js";
 
 export function createClouds(scene) {
   const rng = () => Math.random();
@@ -73,10 +73,10 @@ export function generateIsland(scene, { islandRadius = 20, outerRadius = 100 } =
   // Sea floor
   const seaFloor = new THREE.Mesh(
     new THREE.PlaneGeometry(outerRadius * 2, outerRadius * 2),
-    new THREE.MeshStandardMaterial({ color: 0x8B4513 })
+    new THREE.MeshStandardMaterial({ color: 0x00008B })
   );
   seaFloor.rotation.x = -Math.PI / 2;
-  seaFloor.position.y = -2;
+  seaFloor.position.y = SEA_FLOOR_Y;
   seaFloor.receiveShadow = true;
   scene.add(seaFloor);
 
@@ -86,19 +86,12 @@ export function generateIsland(scene, { islandRadius = 20, outerRadius = 100 } =
     new THREE.ConeGeometry(islandRadius, hillHeight, 32),
     new THREE.MeshStandardMaterial({ color: 0x228B22 })
   );
-  hill.position.y = -2 + hillHeight / 2;
+  hill.position.y = SEA_FLOOR_Y + hillHeight / 2;
   scene.add(hill);
-
-  // Sand ring
-  const sand = new THREE.Mesh(
-    new THREE.CylinderGeometry(islandRadius + 2, islandRadius + 2, 1, 32),
-    new THREE.MeshStandardMaterial({ color: 0xC2B280 })
-  );
-  sand.position.y = -1.5;
-  scene.add(sand);
+  registerIsland({ x: 0, z: 0 }, islandRadius, hillHeight);
 
   // Ocean around island
-  generateOcean(scene, { x: 0, z: 0 }, islandRadius + 2, outerRadius);
+  generateOcean(scene, { x: 0, z: 0 }, 0, outerRadius);
 
   // Scatter a few small islands
   for (let i = 0; i < 5; i++) {
@@ -107,21 +100,15 @@ export function generateIsland(scene, { islandRadius = 20, outerRadius = 100 } =
     const x = Math.cos(angle) * dist;
     const z = Math.sin(angle) * dist;
     const r = 3 + Math.random() * 3;
-    const h = 2 + Math.random() * 2;
-
-    const smallSand = new THREE.Mesh(
-      new THREE.CylinderGeometry(r + 1, r + 1, 0.5, 16),
-      new THREE.MeshStandardMaterial({ color: 0xC2B280 })
-    );
-    smallSand.position.set(x, -1.75, z);
-    scene.add(smallSand);
+    const h = 3 + Math.random() * 2;
 
     const smallHill = new THREE.Mesh(
       new THREE.ConeGeometry(r, h, 16),
       new THREE.MeshStandardMaterial({ color: 0x228B22 })
     );
-    smallHill.position.set(x, -2 + h / 2, z);
+    smallHill.position.set(x, SEA_FLOOR_Y + h / 2, z);
     scene.add(smallHill);
+    registerIsland({ x, z }, r, h);
   }
 }
 
