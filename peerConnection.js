@@ -13,7 +13,7 @@ export class Multiplayer {
     this.connections = {};
     this.onPeerData = onPeerData;
     this.playerName = playerName;
-    this.isMonsterOwner = false;
+    this.isHost = false;
     
     this.initPeer(); // Start async setup
   }
@@ -94,20 +94,20 @@ export class Multiplayer {
         // Filter for only currently active peer IDs
         const validPeerIds = allPeerIds.filter(pid => activePeers[pid]);
 
-        // Sort by join timestamp to find the most recent
+        // Sort by join timestamp so the earliest joined peer is first
         validPeerIds.sort((a, b) => {
-          return activePeers[b]?.timestamp - activePeers[a]?.timestamp;
+          return activePeers[a]?.timestamp - activePeers[b]?.timestamp;
         });
 
         console.log("My ID:", this.id);
-        console.log("Valid Peers (latest first):", validPeerIds);
+        console.log("Valid Peers (earliest first):", validPeerIds);
 
-        // The last joined player becomes the monster owner
-        const latestPeerId = validPeerIds[0];
-        this.isMonsterOwner = (latestPeerId === this.id);
+        // The first joined player becomes the host
+        const hostPeerId = validPeerIds[0];
+        this.isHost = (hostPeerId === this.id);
 
-        if (this.isMonsterOwner) {
-          console.log("👹 I am the monster owner");
+        if (this.isHost) {
+          console.log("👑 I am the host player");
         }
 
         // Connect to any valid peers we haven't yet connected to

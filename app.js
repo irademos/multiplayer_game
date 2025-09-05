@@ -468,6 +468,11 @@ async function main() {
       monster.userData.rb?.setTranslation(target, true);
     }
 
+    if (data.type === 'spaceship' && spaceship && !multiplayer.isHost) {
+      spaceship.body?.setTranslation({ x: data.x, y: data.y, z: data.z }, true);
+      spaceship.body?.setRotation({ x: data.rx, y: data.ry, z: data.rz, w: data.rw }, true);
+    }
+
     if (data.type === 'grab') {
       if (data.target === multiplayer.getId()) {
         playerControls.setGrabbed(data.active, data.from);
@@ -625,7 +630,23 @@ async function main() {
 
 
     playerControls.update();
-    spaceship.update();
+    if (multiplayer.isHost) {
+      spaceship.update();
+      if (spaceship.body) {
+        const t = spaceship.body.translation();
+        const r = spaceship.body.rotation();
+        multiplayer.send({
+          type: 'spaceship',
+          x: t.x,
+          y: t.y,
+          z: t.z,
+          rx: r.x,
+          ry: r.y,
+          rz: r.z,
+          rw: r.w
+        });
+      }
+    }
 
     updateHealthUI();
     if (window.localHealth <= 0 && !playerDead) {
