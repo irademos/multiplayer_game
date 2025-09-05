@@ -449,7 +449,9 @@ export class PlayerControls {
     const vel = this.body.linvel();
 
     this.waterDepth = getWaterDepth(t.x, t.z);
-    this.isInWater = this.waterDepth > SWIM_DEPTH_THRESHOLD;
+    const surfaceY = 0;
+    const floatTargetY = surfaceY + PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
+    this.isInWater = this.waterDepth > SWIM_DEPTH_THRESHOLD && t.y < floatTargetY;
 
     if (this.isGrabbed) {
       // Freeze movement and follow externally provided position
@@ -478,21 +480,29 @@ export class PlayerControls {
         if (hitY > groundY) groundY = hitY;
       }
     }
-    const surfaceY = 0;
-    const expectedY = (this.isInWater ? surfaceY : groundY) + PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
-    const grounded = !this.isInWater && t.y <= expectedY + 0.05;
+    const groundExpectedY = groundY + PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
+    const grounded = !this.isInWater && t.y <= groundExpectedY + 0.05;
     if (grounded && !this.isInWater) {
       this.canJump = true;
       this.hasDoubleJumped = false;
     } else {
       this.canJump = false;
     }
-    if (t.y < expectedY) {
-      this.body.setTranslation({ x: t.x, y: expectedY, z: t.z }, true);
+    if (this.isInWater) {
+      if (t.y < floatTargetY) {
+        const newY = t.y + (floatTargetY - t.y) * 0.1;
+        this.body.setTranslation({ x: t.x, y: newY, z: t.z }, true);
+        if (vel.y < 0) {
+          this.body.setLinvel({ x: vel.x, y: 0, z: vel.z }, true);
+        }
+        t.y = newY;
+      }
+    } else if (t.y < groundExpectedY) {
+      this.body.setTranslation({ x: t.x, y: groundExpectedY, z: t.z }, true);
       if (vel.y < 0) {
         this.body.setLinvel({ x: vel.x, y: 0, z: vel.z }, true);
       }
-      t.y = expectedY;
+      t.y = groundExpectedY;
     }
     const moveDirection = new THREE.Vector3(0, 0, 0);
     const movementLocked = ['mutantPunch', 'mmaKick', 'runningKick'].includes(this.currentSpecialAction);
@@ -553,7 +563,7 @@ export class PlayerControls {
     const newX = t.x;
     const newY = t.y;
     const newZ = t.z;
-    const sink = this.isInWater ? newY - surfaceY : this.waterDepth;
+    const sink = this.isInWater ? newY - surfaceY : 0;
     const isMovingNow = movement.length() > 0;
     this.isMoving = isMovingNow;
     if (isMovingNow && this.canJump) {
