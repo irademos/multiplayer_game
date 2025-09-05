@@ -1,6 +1,9 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import RAPIER from "@dimforge/rapier3d-compat";
+import { MOON_RADIUS } from "./worldGeneration.js";
+
+const MOON_GRAVITY = 9.81;
 
 export class Spaceship {
   constructor(scene, world, rbToMesh) {
@@ -18,6 +21,7 @@ export class Spaceship {
     this.fireSprite = null;
     this.smokeSprite = null;
     this.thrusting = false;
+    this.moonGravityActive = false;
   }
 
   async load() {
@@ -192,6 +196,30 @@ export class Spaceship {
         this.body.wakeUp();
       }
       this.autoStabilizeAndDrift();
+
+      const moon = window.moon;
+      if (moon) {
+        const bodyPos = this.body.translation();
+        const shipPos = new THREE.Vector3(bodyPos.x, bodyPos.y, bodyPos.z);
+        const distance = shipPos.distanceTo(moon.position);
+        if (distance < MOON_RADIUS * 2) {
+          if (!this.moonGravityActive) {
+            this.body.setGravityScale(0, true);
+            this.moonGravityActive = true;
+          }
+          const dir = new THREE.Vector3()
+            .subVectors(moon.position, shipPos)
+            .normalize();
+          const forceMag = this.body.mass() * MOON_GRAVITY;
+          this.body.applyForce(
+            { x: dir.x * forceMag, y: dir.y * forceMag, z: dir.z * forceMag },
+            true
+          );
+        } else if (this.moonGravityActive) {
+          this.body.setGravityScale(1, true);
+          this.moonGravityActive = false;
+        }
+      }
     }
 
     // this.applyWindForces();
@@ -375,6 +403,19 @@ export class Spaceship {
   dismount() {
     if (!this.occupant) return;
     const playerControls = this.occupant;
+    const top = this.mesh
+      ? this.mesh.position.clone().add(this.mountOffset)
+      : new THREE.Vector3();
+    if (playerControls.playerModel) {
+      playerControls.playerModel.position.copy(top);
+    }
+    if (playerControls.body) {
+      playerControls.body.setTranslation(top, true);
+      if (this.body) {
+        const vel = this.body.linvel();
+        playerControls.body.setLinvel(vel, true);
+      }
+    }
     playerControls.vehicle = null;
     this.occupant = null;
   }
