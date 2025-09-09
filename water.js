@@ -1,10 +1,17 @@
 import * as THREE from 'three';
+import { Water } from 'three/examples/jsm/objects/Water2.js';
 
 // Store all water bodies for later lookup
 const waterBodies = [];
 const islandAreas = [];
 const waterWaves = [];
 let wavesScene = null;
+
+// Simple Gerstner waves used for buoyancy calculations on the CPU.
+const GERSTNER_WAVES = [
+  { dir: new THREE.Vector2(1, 0).normalize(), amp: 0.1, length: 8, speed: 1.0 },
+  { dir: new THREE.Vector2(0, 1).normalize(), amp: 0.05, length: 5, speed: 1.3 }
+];
 
 export const SEA_FLOOR_Y = -2;
 const MAX_LAKE_DEPTH = 1.5;
@@ -74,13 +81,30 @@ export function getWaterDepth(x, z) {
   return 0;
 }
 
+export function getWaterHeight(x, z, time = performance.now() / 1000) {
+  let y = 0;
+  for (const w of GERSTNER_WAVES) {
+    const k = (2 * Math.PI) / w.length;
+    const f = k * (w.dir.x * x + w.dir.y * z) + w.speed * time;
+    y += w.amp * Math.sin(f);
+  }
+  return y;
+}
+
 export function generateLake(scene, position, radius) {
-  const lake = new THREE.Mesh(
-    new THREE.CircleGeometry(radius, 32),
-    new THREE.MeshStandardMaterial({ color: 0x1E90FF, transparent: true, opacity: 0.7 })
-  );
+  const geom = new THREE.PlaneGeometry(radius * 2, radius * 2);
+  const lake = new Water(geom, {
+    color: 0x1E90FF,
+    textureWidth: 512,
+    textureHeight: 512,
+    flowDirection: new THREE.Vector2(1, 1),
+    scale: 1,
+  });
   lake.rotation.x = -Math.PI / 2;
   lake.position.set(position.x, position.y ?? 0, position.z);
+  lake.material.transparent = true;
+  lake.material.opacity = 0.7;
+  lake.receiveShadow = true;
   scene.add(lake);
 
   waterBodies.push({
@@ -94,12 +118,19 @@ export function generateLake(scene, position, radius) {
 
 export function generateRiver(scene, position, size) {
   const { width, length } = size;
-  const river = new THREE.Mesh(
-    new THREE.PlaneGeometry(width, length),
-    new THREE.MeshStandardMaterial({ color: 0x1E90FF, transparent: true, opacity: 0.7 })
-  );
+  const geom = new THREE.PlaneGeometry(width, length);
+  const river = new Water(geom, {
+    color: 0x1E90FF,
+    textureWidth: 512,
+    textureHeight: 512,
+    flowDirection: new THREE.Vector2(1, 0),
+    scale: 1,
+  });
   river.rotation.x = -Math.PI / 2;
   river.position.set(position.x, position.y ?? 0, position.z);
+  river.material.transparent = true;
+  river.material.opacity = 0.7;
+  river.receiveShadow = true;
   scene.add(river);
 
   waterBodies.push({
@@ -112,12 +143,20 @@ export function generateRiver(scene, position, size) {
 }
 
 export function generateOcean(scene, position, innerRadius, outerRadius) {
-  const ocean = new THREE.Mesh(
-    new THREE.RingGeometry(innerRadius, outerRadius, 64),
-    new THREE.MeshStandardMaterial({ color: 0x1E90FF, transparent: true, opacity: 0.7, side: THREE.DoubleSide })
-  );
+  const geom = new THREE.RingGeometry(innerRadius, outerRadius, 64);
+  const ocean = new Water(geom, {
+    color: 0x1E90FF,
+    textureWidth: 512,
+    textureHeight: 512,
+    flowDirection: new THREE.Vector2(1, 0),
+    scale: 1,
+  });
   ocean.rotation.x = -Math.PI / 2;
   ocean.position.set(position.x, position.y ?? 0, position.z);
+  ocean.material.transparent = true;
+  ocean.material.opacity = 0.7;
+  ocean.material.side = THREE.DoubleSide;
+  ocean.receiveShadow = true;
   scene.add(ocean);
 
   waterBodies.push({
@@ -159,18 +198,19 @@ export function spawnOceanWave({
   const center = new THREE.Vector3(ocean.position.x, 0, ocean.position.z);
   const radius = ocean.outerRadius - 0.5; // Start near outer edge
 
-  const mat = new THREE.MeshStandardMaterial({
-    color,
-    transparent: true,
-    opacity,
-    emissive: color,
-    emissiveIntensity: 0.2,
-    side: THREE.DoubleSide,
-  });
   const geom = new THREE.RingGeometry(Math.max(0.01, radius - width * 0.5), radius + width * 0.5, 128);
-  const ring = new THREE.Mesh(geom, mat);
+  const ring = new Water(geom, {
+    color,
+    textureWidth: 256,
+    textureHeight: 256,
+    flowDirection: new THREE.Vector2(1, 0),
+    scale: 1,
+  });
   ring.rotation.x = -Math.PI / 2;
   ring.position.set(center.x, 0.01, center.z);
+  ring.material.transparent = true;
+  ring.material.opacity = opacity;
+  ring.material.side = THREE.DoubleSide;
   ring.renderOrder = 2;
   wavesScene.add(ring);
 
@@ -212,15 +252,15 @@ export function pushWater(
   }
   posAttr.needsUpdate = true;
 
-  const mat = new THREE.MeshStandardMaterial({
+  const mesh = new Water(geom, {
     color,
-    transparent: true,
-    opacity,
-    emissive: color,
-    emissiveIntensity: 0.1,
-    side: THREE.DoubleSide,
+    textureWidth: 256,
+    textureHeight: 256,
+    flowDirection: new THREE.Vector2(dir.x, dir.z),
+    scale: 1,
   });
-  const mesh = new THREE.Mesh(geom, mat);
+  mesh.material.transparent = true;
+  mesh.material.opacity = opacity;
   mesh.position.set(position.x, 0.02, position.z);
   mesh.rotation.y = Math.atan2(dir.x, dir.z);
   mesh.renderOrder = 2;

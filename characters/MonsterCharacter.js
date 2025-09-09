@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { getWaterDepth, SWIM_DEPTH_THRESHOLD, getWaterHeight } from "../water.js";
 
 export function switchMonsterAnimation(monster, newName) {
   const { actions, currentAction } = monster.userData;
@@ -27,6 +28,19 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
   const data = monster.userData;
   const body = data.rb;
   if (!body) return;
+
+  const t = body.translation();
+  monster.position.set(t.x, t.y, t.z);
+  const waterDepth = getWaterDepth(t.x, t.z);
+  const surfaceY = getWaterHeight(t.x, t.z);
+  const floatTargetY = surfaceY + 1;
+  const isInWater = waterDepth > SWIM_DEPTH_THRESHOLD && t.y < floatTargetY;
+  data.speedMod = isInWater ? 0.5 : 1;
+  if (isInWater && t.y < floatTargetY) {
+    const newY = t.y + (floatTargetY - t.y) * 0.1;
+    body.setTranslation({ x: t.x, y: newY, z: t.z }, true);
+    monster.position.y = newY;
+  }
 
   // 🧠 Handle monster death state
   if (window.monsterHealth <= 0) {
@@ -62,7 +76,7 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
     }
 
     const vel = body.linvel();
-    const movement = data.direction.clone().multiplyScalar(data.speed);
+    const movement = data.direction.clone().multiplyScalar(data.speed * data.speedMod);
     body.setLinvel({ x: movement.x, y: vel.y, z: movement.z }, true);
     const angle = Math.atan2(data.direction.x, data.direction.z);
     const rot = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, angle, 0));
@@ -100,7 +114,7 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
   if (!isInAttackRange && (!data.lastAttackTime || now - data.lastAttackTime > 2000)) {
     const direction = targetPos.sub(monster.position).normalize();
     data.direction.copy(direction);
-    const movement = data.direction.clone().multiplyScalar(data.speed * 3);
+    const movement = data.direction.clone().multiplyScalar(data.speed * 3 * data.speedMod);
     const vel = body.linvel();
     body.setLinvel({ x: movement.x, y: vel.y, z: movement.z }, true);
     const angle = Math.atan2(data.direction.x, data.direction.z);

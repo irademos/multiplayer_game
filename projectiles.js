@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import RAPIER from '@dimforge/rapier3d-compat';
 import { updateMonster, switchMonsterAnimation } from './characters/MonsterCharacter.js';
+import { isPointInWater, getWaterHeight, pushWater } from './water.js';
 
 export function spawnProjectile(scene, projectiles, position, direction) {
   const size = 0.5;
@@ -75,6 +76,8 @@ export function updateProjectiles({
     }
 
     const vel = new THREE.Vector3(linvel.x, linvel.y, linvel.z);
+    const pos = rb.translation();
+    proj.position.set(pos.x, pos.y, pos.z);
     proj.userData.velocity = vel.clone();
 
     proj.userData.lifetime -= 16;
@@ -168,6 +171,13 @@ export function updateProjectiles({
 
         }
       }
+    }
+
+    if (removed) continue;
+    if (isPointInWater(pos.x, pos.z) && pos.y <= getWaterHeight(pos.x, pos.z)) {
+      pushWater({ x: pos.x, z: pos.z }, vel, { length: 2, width: 1, strength: 1 });
+      removeProjectile(i);
+      continue;
     }
   }
 
