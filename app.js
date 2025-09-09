@@ -4,7 +4,7 @@ import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
 import { createOrcVoice } from "./orcVoice.js";
 import { createClouds, generateIsland, createMoon, MOON_RADIUS } from "./worldGeneration.js";
-import { isPointInWater, initWaves, spawnOceanWave, updateWaves, getWaveForceAt } from './water.js';
+import { isPointInWater, initWaves, spawnOceanWave, updateWaves, getWaveForceAt, pushWater } from './water.js';
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -200,12 +200,31 @@ async function main() {
     nextWaveIn = 10 + Math.random() * 6; // 10–16s between waves
   }
 
+  let playerSplashCooldown = 0;
+  let surfSplashCooldown = 0;
+
   function applyWaveForces() {
+    // Decrement splash cooldowns
+    playerSplashCooldown = Math.max(0, playerSplashCooldown - FIXED_DT);
+    surfSplashCooldown = Math.max(0, surfSplashCooldown - FIXED_DT);
+
     if (playerControls.body && playerControls.isInWater && (!playerControls.vehicle || playerControls.vehicle.type !== 'surfboard')) {
       const t = playerControls.body.translation();
       const f = getWaveForceAt(t.x, t.z);
       if (f.x !== 0 || f.z !== 0) {
         playerControls.body.applyImpulse({ x: f.x, y: 0, z: f.z }, true);
+      }
+
+      // Spawn a splash wave when the player moves quickly through water
+      const vel = playerControls.body.linvel();
+      const speed = Math.hypot(vel.x, vel.z);
+      if (speed > 2 && playerSplashCooldown === 0) {
+        pushWater(
+          { x: t.x, z: t.z },
+          new THREE.Vector3(vel.x, 0, vel.z),
+          { length: 3 + speed, width: 1, strength: speed * 0.5 }
+        );
+        playerSplashCooldown = 0.5; // seconds
       }
     }
 
@@ -215,6 +234,18 @@ async function main() {
         const f = getWaveForceAt(t.x, t.z);
         if (f.x !== 0 || f.z !== 0) {
           surfboard.body.applyImpulse({ x: f.x, y: 0, z: f.z }, true);
+        }
+
+        // Splash waves for surfboard movement
+        const vel = surfboard.body.linvel();
+        const speed = Math.hypot(vel.x, vel.z);
+        if (speed > 1 && surfSplashCooldown === 0) {
+          pushWater(
+            { x: t.x, z: t.z },
+            new THREE.Vector3(vel.x, 0, vel.z),
+            { length: 4 + speed, width: 1.2, strength: speed * 0.7 }
+          );
+          surfSplashCooldown = 0.3;
         }
       }
     }

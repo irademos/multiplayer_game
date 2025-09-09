@@ -179,21 +179,94 @@ export function spawnOceanWave({
   return wave;
 }
 
+// Create a directional "line" wave that travels along a vector.  The wave is a
+// narrow rectangular bump of water represented by a custom plane geometry.  It
+// pushes objects along its travel direction with a configurable strength.
+export function pushWater(
+  position,
+  direction,
+  {
+    length = 5,
+    width = 1,
+    speed = 4,
+    strength = 4,
+    amplitude = 0.3,
+    color = 0xffffff,
+    opacity = 0.6,
+  } = {}
+) {
+  if (!wavesScene) return null;
+  const dir = direction.clone().normalize();
+  const right = new THREE.Vector3(-dir.z, 0, dir.x); // perpendicular in XZ
+
+  // Plane in the XZ plane with vertices lifted to form a gaussian hill across
+  // its width.  The plane's X axis is the travel direction.
+  const geom = new THREE.PlaneGeometry(length, width, 16, 4);
+  geom.rotateX(-Math.PI / 2);
+  const posAttr = geom.attributes.position;
+  const sigma = width * 0.25;
+  for (let i = 0; i < posAttr.count; i++) {
+    const z = posAttr.getZ(i); // distance from center across the width
+    const h = amplitude * Math.exp(-(z * z) / (2 * sigma * sigma));
+    posAttr.setY(i, h);
+  }
+  posAttr.needsUpdate = true;
+
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    transparent: true,
+    opacity,
+    emissive: color,
+    emissiveIntensity: 0.1,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geom, mat);
+  mesh.position.set(position.x, 0.02, position.z);
+  mesh.rotation.y = Math.atan2(dir.x, dir.z);
+  mesh.renderOrder = 2;
+  wavesScene.add(mesh);
+
+  const wave = {
+    type: 'directional',
+    mesh,
+    direction: dir,
+    right,
+    length,
+    width,
+    speed,
+    strength,
+  };
+  waterWaves.push(wave);
+  return wave;
+}
+
 export function updateWaves(dt) {
   for (let i = waterWaves.length - 1; i >= 0; i--) {
     const w = waterWaves[i];
-    w.radius -= w.speed * dt;
-    // Update mesh geometry to reflect new radius
-    if (w.mesh) {
-      const inner = Math.max(0.01, w.radius - w.width * 0.5);
-      const outer = Math.max(inner + 0.01, w.radius + w.width * 0.5);
-      const newGeom = new THREE.RingGeometry(inner, outer, 128);
-      w.mesh.geometry.dispose();
-      w.mesh.geometry = newGeom;
-    }
-    if (w.radius <= w.innerRadius) {
-      if (w.mesh && wavesScene) wavesScene.remove(w.mesh);
-      waterWaves.splice(i, 1);
+    if (w.type === 'ocean') {
+      w.radius -= w.speed * dt;
+      if (w.mesh) {
+        const inner = Math.max(0.01, w.radius - w.width * 0.5);
+        const outer = Math.max(inner + 0.01, w.radius + w.width * 0.5);
+        const newGeom = new THREE.RingGeometry(inner, outer, 128);
+        w.mesh.geometry.dispose();
+        w.mesh.geometry = newGeom;
+      }
+      if (w.radius <= w.innerRadius) {
+        if (w.mesh && wavesScene) wavesScene.remove(w.mesh);
+        waterWaves.splice(i, 1);
+      }
+    } else if (w.type === 'directional') {
+      w.mesh.position.x += w.direction.x * w.speed * dt;
+      w.mesh.position.z += w.direction.z * w.speed * dt;
+      w.strength *= 0.98;
+      if (w.mesh) {
+        w.mesh.material.opacity *= 0.98;
+      }
+      if (w.strength < 0.1) {
+        if (w.mesh && wavesScene) wavesScene.remove(w.mesh);
+        waterWaves.splice(i, 1);
+      }
     }
   }
 }
@@ -201,16 +274,31 @@ export function updateWaves(dt) {
 export function getWaveForceAt(x, z) {
   const force = new THREE.Vector3(0, 0, 0);
   for (const w of waterWaves) {
-    const dx = x - w.center.x;
-    const dz = z - w.center.z;
-    const dist = Math.hypot(dx, dz);
-    const half = w.width * 0.5;
-    if (dist >= w.radius - half && dist <= w.radius + half) {
-      // Direction toward center (wave travels inward)
-      const dirX = -dx / (dist || 1);
-      const dirZ = -dz / (dist || 1);
-      force.x += dirX * w.strength;
-      force.z += dirZ * w.strength;
+    if (w.type === 'ocean') {
+      const dx = x - w.center.x;
+      const dz = z - w.center.z;
+      const dist = Math.hypot(dx, dz);
+      const half = w.width * 0.5;
+      if (dist >= w.radius - half && dist <= w.radius + half) {
+        const dirX = -dx / (dist || 1);
+        const dirZ = -dz / (dist || 1);
+        force.x += dirX * w.strength;
+        force.z += dirZ * w.strength;
+      }
+    } else if (w.type === 'directional') {
+      const dx = x - w.mesh.position.x;
+      const dz = z - w.mesh.position.z;
+      const forwardDist = dx * w.direction.x + dz * w.direction.z;
+      const sideDist = dx * w.right.x + dz * w.right.z;
+      if (
+        forwardDist > -w.length * 0.5 &&
+        forwardDist < w.length * 0.5 &&
+        Math.abs(sideDist) < w.width * 0.5
+      ) {
+        const falloff = 1 - Math.abs(sideDist) / (w.width * 0.5);
+        force.x += w.direction.x * w.strength * falloff;
+        force.z += w.direction.z * w.strength * falloff;
+      }
     }
   }
   return force;
