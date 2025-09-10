@@ -134,7 +134,7 @@ async function main() {
   window.spaceship = spaceship;
 
   surfboard = new Surfboard(scene, rapierWorld, rbToMesh);
-  surfboard.load();
+  await surfboard.load();
   window.surfboard = surfboard;
 
   function attachMonsterPhysics(mon) {

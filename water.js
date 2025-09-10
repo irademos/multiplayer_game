@@ -177,24 +177,9 @@ export function spawnOceanWave({
   const hill = new THREE.Mesh(hillGeom, hillMat);
   hill.renderOrder = 2;
 
-  // Foam at the crest
-  const foamGeom = new THREE.CircleGeometry(1, 32);
-  foamGeom.rotateX(-Math.PI / 2);
-  const foamMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: Math.min(1, opacity + 0.2),
-    side: THREE.DoubleSide,
-  });
-  const foam = new THREE.Mesh(foamGeom, foamMat);
-  foam.scale.set((arcLength / 2) * 0.3, (thickness / 2) * 0.3, 1);
-  foam.position.y = height * 0.95;
-  foam.renderOrder = 3;
-
-  // Group the hill and foam together
+  // Group the hill
   const segment = new THREE.Group();
   segment.add(hill);
-  segment.add(foam);
   segment.position.set(
     center.x + Math.cos(angle) * radius,
     0,

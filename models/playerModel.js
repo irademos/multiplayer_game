@@ -120,6 +120,7 @@ export function createPlayerModel(
             die: 'Dying.fbx',
             float: 'Floating.fbx',
             swim: 'Swimming.fbx',
+            sit: 'Sitting Rubbing Arm.fbx'
           };
 
           const promises = Object.entries(animationFiles).map(([name, file]) => {

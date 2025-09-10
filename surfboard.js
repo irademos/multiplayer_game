@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { getWaterDepth, getTerrainHeight } from './water.js';
 
 export class Surfboard {
@@ -10,7 +11,7 @@ export class Surfboard {
     this.mesh = null;
     this.body = null;
     this.occupant = null;
-    this.mountOffset = new THREE.Vector3(0, 0.1, 0);
+    this.mountOffset = new THREE.Vector3(-0.7, 0.3, -1.2);
     this.type = 'surfboard';
     this.standing = false;
     this.prevKeys = new Set();
@@ -20,14 +21,28 @@ export class Surfboard {
     this.lastUpdateTs = performance.now();
   }
 
-  load(position = { x: 25, y: 5, z: 5 }) {
-    const geometry = new THREE.BoxGeometry(2, 0.1, 0.5);
-    const material = new THREE.MeshStandardMaterial({ color: 0xffe0bd });
-    this.mesh = new THREE.Mesh(geometry, material);
-    this.mesh.position.set(position.x, position.y, position.z);
-    this.mesh.castShadow = true;
-    this.scene.add(this.mesh);
+  async load(position = { x: 0, y: 0, z: 0 }) {
+    try {
+      const loader = new GLTFLoader();
+      const gltf = await loader.loadAsync('/assets/props/surfboard__tabla_de_surf.glb');
+      
+      this.mesh = gltf.scene;
+      this.scene.add(this.mesh);
+      this.mesh.position.set(0, 0, 0);
+      this.mesh.scale.set(1, 1, 1);
+      this.mesh.updateMatrixWorld(true);
+      this.mesh.scale.setScalar(0.008);     
 
+    } catch (e) {
+      // Fallback to simple box if the GLB is missing or fails to load
+      const geometry = new THREE.BoxGeometry(2, 0.1, 0.5);
+      const material = new THREE.MeshStandardMaterial({ color: 0xffe0bd });
+      this.mesh = new THREE.Mesh(geometry, material);
+    }
+    this.mesh.castShadow = true;
+    
+    // Compute bounding box for camera and collider setup
+    this.mesh.updateMatrixWorld(true);
     const bbox = new THREE.Box3().setFromObject(this.mesh);
     const size = new THREE.Vector3();
     const center = new THREE.Vector3();
@@ -43,7 +58,26 @@ export class Surfboard {
       .setGravityScale(0);
     this.body = this.world.createRigidBody(rbDesc);
 
-    const colDesc = RAPIER.ColliderDesc.cuboid(1, 0.05, 0.25)
+    const tilt = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(1, 0, 0),
+      -Math.PI / 2
+    );
+    this.body.setRotation({ x: tilt.x, y: tilt.y, z: tilt.z, w: tilt.w }, false);
+
+    // Only allow yaw
+    this.body.setEnabledRotations(false, true, false, true);
+
+    // Use a cuboid collider approximating the model's bounding box
+    const colDesc = RAPIER.ColliderDesc.cuboid(
+      size.x / 2,
+      size.y / 2,
+      size.z / 2
+    )
+      .setTranslation(
+        this.boundingCenterOffset.x,
+        this.boundingCenterOffset.y,
+        this.boundingCenterOffset.z
+      )
       .setRestitution(0)
       .setFriction(1);
     this.world.createCollider(colDesc, this.body);
@@ -57,15 +91,26 @@ export class Surfboard {
     if (dist < 3) {
       this.occupant = playerControls;
       playerControls.vehicle = this;
+
+      if (this.occupant.body) {
+        this._savedBodyType = this.occupant.body.bodyType();
+        this.occupant.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+      }
     }
   }
 
+
   dismount() {
     if (!this.occupant) return;
+    if (this.occupant.body && this._savedBodyType !== undefined) {
+      this.occupant.body.setBodyType(this._savedBodyType, true);
+      this._savedBodyType = undefined;
+    }
     this.occupant.vehicle = null;
     this.occupant = null;
     this.standing = false;
   }
+
 
   toggleStand() {
     if (!this.occupant) return;
@@ -172,13 +217,6 @@ export class Surfboard {
     const lv = this.body.linvel();
     const rv = this.body.angvel ? this.body.angvel() : { x: 0, y: 0, z: 0 };
 
-    // Keep board flat: zero roll/pitch, preserve yaw only
-    const rot = this.body.rotation();
-    const q = new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w);
-    const e = new THREE.Euler().setFromQuaternion(q, 'YXZ');
-    const yawOnly = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, e.y, 0, 'YXZ'));
-    this.body.setRotation({ x: yawOnly.x, y: yawOnly.y, z: yawOnly.z, w: yawOnly.w }, true);
-
     // Determine environment
     const waterDepth = getWaterDepth(t.x, t.z);
     const onWater = waterDepth > 0;
@@ -209,15 +247,31 @@ export class Surfboard {
       }
     }
 
-    // Keep mounted player on top; choose animation based on standing state
     if (this.occupant) {
       const t2 = this.body.translation();
-      const top = { x: t2.x, y: t2.y + 0.1, z: t2.z };
-      this.occupant.playerModel.position.set(top.x, top.y, top.z);
+
+      // yaw-only rotation
+      const rot = this.body.rotation();
+      const q = new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w);
+      const e = new THREE.Euler().setFromQuaternion(q, 'YXZ');
+      const yawQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, e.y, 0, 'YXZ'));
+
+      const offset = this.mountOffset.clone().applyQuaternion(yawQ);
+      const top = { x: t2.x + offset.x, y: t2.y + offset.y, z: t2.z + offset.z };
+
       if (this.occupant.body) {
-        this.occupant.body.setTranslation(top, true);
-        this.occupant.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        // kinematic drive — single source of truth
+        this.occupant.body.setNextKinematicTranslation(top);
+        // DO NOT also set playerModel.position here
+      } else {
+        // no physics body; drive the model directly
+        this.occupant.playerModel.position.set(top.x, top.y, top.z);
       }
+
+      // Keep rider facing board yaw (avoid velocity-based flip-flop)
+      this.occupant.playerModel.rotation.set(0, e.y + Math.PI, 0);
+
+
       const actions = this.occupant.playerModel.userData.actions;
       const current = this.occupant.playerModel.userData.currentAction;
       const desired = this.standing ? 'idle' : 'swim';
