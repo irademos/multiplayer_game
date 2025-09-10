@@ -10,6 +10,7 @@ export class Surfboard {
     this.rbToMesh = rbToMesh;
     this.mesh = null;
     this.body = null;
+    this.collider = null;
     this.occupant = null;
     this.mountOffset = new THREE.Vector3(-0.7, 0.3, -1.2);
     this.type = 'surfboard';
@@ -80,7 +81,7 @@ export class Surfboard {
       )
       .setRestitution(0)
       .setFriction(1);
-    this.world.createCollider(colDesc, this.body);
+    this.collider = this.world.createCollider(colDesc, this.body);
 
     this.rbToMesh?.set(this.body, this.mesh);
   }
@@ -92,9 +93,13 @@ export class Surfboard {
       this.occupant = playerControls;
       playerControls.vehicle = this;
 
-      if (this.occupant.body) {
-        this._savedBodyType = this.occupant.body.bodyType();
-        this.occupant.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+      // Make the surfboard follow the player kinematically and avoid
+      // colliding with them. The player keeps their own physics body.
+      this._savedBoardType = this.body.bodyType();
+      this.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+      if (this.collider) {
+        this._savedSensor = this.collider.isSensor();
+        this.collider.setSensor(true);
       }
     }
   }
@@ -102,13 +107,19 @@ export class Surfboard {
 
   dismount() {
     if (!this.occupant) return;
-    if (this.occupant.body && this._savedBodyType !== undefined) {
-      this.occupant.body.setBodyType(this._savedBodyType, true);
-      this._savedBodyType = undefined;
-    }
     this.occupant.vehicle = null;
     this.occupant = null;
     this.standing = false;
+
+    // Restore surfboard physics settings
+    if (this._savedBoardType !== undefined) {
+      this.body.setBodyType(this._savedBoardType, true);
+      this._savedBoardType = undefined;
+    }
+    if (this.collider && this._savedSensor !== undefined) {
+      this.collider.setSensor(this._savedSensor);
+      this._savedSensor = undefined;
+    }
   }
 
 
@@ -248,37 +259,37 @@ export class Surfboard {
     }
 
     if (this.occupant) {
-      const t2 = this.body.translation();
-
-      // yaw-only rotation
-      const rot = this.body.rotation();
-      const q = new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w);
-      const e = new THREE.Euler().setFromQuaternion(q, 'YXZ');
-      const yawQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, e.y, 0, 'YXZ'));
+      // Drive the board to match the player's position and yaw.
+      const riderT = this.occupant.body
+        ? this.occupant.body.translation()
+        : this.occupant.playerModel.position;
+      const yaw = this.occupant.playerModel.rotation.y;
+      const yawQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0, 'YXZ'));
 
       const offset = this.mountOffset.clone().applyQuaternion(yawQ);
-      const top = { x: t2.x + offset.x, y: t2.y + offset.y, z: t2.z + offset.z };
+      const boardPos = {
+        x: riderT.x - offset.x,
+        y: riderT.y - offset.y,
+        z: riderT.z - offset.z,
+      };
 
-      if (this.occupant.body) {
-        // kinematic drive — single source of truth
-        this.occupant.body.setNextKinematicTranslation(top);
-        // DO NOT also set playerModel.position here
-      } else {
-        // no physics body; drive the model directly
-        this.occupant.playerModel.position.set(top.x, top.y, top.z);
-      }
+      this.body.setNextKinematicTranslation(boardPos);
+      this.body.setNextKinematicRotation({
+        x: yawQ.x,
+        y: yawQ.y,
+        z: yawQ.z,
+        w: yawQ.w,
+      });
 
-      // Keep rider facing board yaw (avoid velocity-based flip-flop)
-      this.occupant.playerModel.rotation.set(0, e.y + Math.PI, 0);
-
-
-      const actions = this.occupant.playerModel.userData.actions;
-      const current = this.occupant.playerModel.userData.currentAction;
-      const desired = this.standing ? 'idle' : 'swim';
-      if (actions && current !== desired) {
-        actions[current]?.fadeOut(0.2);
-        actions[desired]?.reset().fadeIn(0.2).play();
-        this.occupant.playerModel.userData.currentAction = desired;
+      // When standing, ensure the rider's animation stays idle
+      if (this.standing && this.occupant.playerModel) {
+        const actions = this.occupant.playerModel.userData.actions;
+        const current = this.occupant.playerModel.userData.currentAction;
+        if (actions && current !== 'idle') {
+          actions[current]?.fadeOut(0.2);
+          actions.idle?.reset().fadeIn(0.2).play();
+          this.occupant.playerModel.userData.currentAction = 'idle';
+        }
       }
     }
 

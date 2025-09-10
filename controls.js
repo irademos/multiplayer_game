@@ -579,13 +579,9 @@ export class PlayerControls {
         // Delegate surfboard standing controls (handles keys internally)
         this.vehicle.handleControls(this);
         return;
-      } else if (this.vehicle && this.vehicle.type === 'surfboard') {
-        // Legacy surf movement when not standing
-        this.vehicle.applyInput(movement);
-      } else {
-        this.body.setLinvel({ x: movement.x * speed, y: vel.y, z: movement.z * speed }, true);
       }
-    }
+      this.body.setLinvel({ x: movement.x * speed, y: vel.y, z: movement.z * speed }, true);
+      }
     const newX = t.x;
     const newY = t.y;
     const newZ = t.z;
@@ -636,7 +632,7 @@ export class PlayerControls {
       if (actions && !this.isKnocked && !this.currentSpecialAction) {
         let actionName;
         if (this.isInWater) {
-          actionName = isMovingNow ? 'swim' : 'float';
+          actionName = isMovingNow ? 'swim' : 'sit';
         } else {
           actionName = 'idle';
           if (!this.canJump) actionName = 'jump';
