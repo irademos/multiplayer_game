@@ -462,7 +462,12 @@ export class PlayerControls {
     this.waterDepth = getWaterDepth(t.x, t.z);
     const surfaceY = 0;
     const floatTargetY = surfaceY + PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
-    this.isInWater = this.waterDepth > SWIM_DEPTH_THRESHOLD && t.y < floatTargetY;
+    // Treat the player as out of water when riding the surfboard so we don't
+    // fight the board's vertical positioning logic.
+    this.isInWater =
+      (!this.vehicle || this.vehicle.type !== 'surfboard') &&
+      this.waterDepth > SWIM_DEPTH_THRESHOLD &&
+      t.y < floatTargetY;
 
     if (this.isGrabbed) {
       // Freeze movement and follow externally provided position
@@ -499,7 +504,9 @@ export class PlayerControls {
     } else {
       this.canJump = false;
     }
-    if (this.isInWater && (!this.vehicle || this.vehicle.type !== 'surfboard')) {
+    if (this.vehicle && this.vehicle.type === 'surfboard') {
+      // Vertical position is managed by the surfboard update.
+    } else if (this.isInWater) {
       if (this.keysPressed.has(" ")) {
         const newY = t.y - 0.2;
         this.body.setTranslation({ x: t.x, y: newY, z: t.z }, true);
@@ -636,7 +643,8 @@ export class PlayerControls {
       if (actions && !this.isKnocked && !this.currentSpecialAction) {
         let actionName;
         if (this.isInWater) {
-          actionName = isMovingNow ? 'swim' : 'float';
+          // When idle in the water, use the seated animation instead of floating.
+          actionName = isMovingNow ? 'swim' : 'sit';
         } else {
           actionName = 'idle';
           if (!this.canJump) actionName = 'jump';
