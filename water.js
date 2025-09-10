@@ -146,7 +146,9 @@ export function initWaves(scene) {
 }
 
 export function spawnOceanWave({
-  width = 3,
+  length, // tangential length of the wave segment
+  thickness = 3, // radial thickness
+  height = 1.5, // vertical height of the wave
   speed = 6,
   strength = 3,
   color = 0xffffff,
@@ -159,22 +161,41 @@ export function spawnOceanWave({
   const center = new THREE.Vector3(ocean.position.x, 0, ocean.position.z);
   const radius = ocean.outerRadius - 0.5; // Start near outer edge
 
+  // Randomize arc length and location if not specified
+  const arcLength = length ?? THREE.MathUtils.randFloat(6, 20);
+  const angle = Math.random() * Math.PI * 2;
+
   const mat = new THREE.MeshStandardMaterial({
     color,
     transparent: true,
     opacity,
     emissive: color,
     emissiveIntensity: 0.2,
-    side: THREE.DoubleSide,
   });
-  const geom = new THREE.RingGeometry(Math.max(0.01, radius - width * 0.5), radius + width * 0.5, 128);
-  const ring = new THREE.Mesh(geom, mat);
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.set(center.x, 0.01, center.z);
-  ring.renderOrder = 2;
-  wavesScene.add(ring);
+  const geom = new THREE.BoxGeometry(arcLength, height, thickness);
+  const segment = new THREE.Mesh(geom, mat);
+  segment.position.set(
+    center.x + Math.cos(angle) * radius,
+    height / 2,
+    center.z + Math.sin(angle) * radius
+  );
+  segment.rotation.y = angle + Math.PI / 2;
+  segment.renderOrder = 2;
+  wavesScene.add(segment);
 
-  const wave = { type: 'ocean', center, radius, width, speed, strength, mesh: ring, innerRadius: ocean.innerRadius };
+  const wave = {
+    type: 'ocean',
+    center,
+    radius,
+    speed,
+    strength,
+    mesh: segment,
+    angle,
+    thickness,
+    length: arcLength,
+    height,
+    innerRadius: ocean.innerRadius,
+  };
   waterWaves.push(wave);
   return wave;
 }
@@ -183,13 +204,10 @@ export function updateWaves(dt) {
   for (let i = waterWaves.length - 1; i >= 0; i--) {
     const w = waterWaves[i];
     w.radius -= w.speed * dt;
-    // Update mesh geometry to reflect new radius
+    // Update mesh position to reflect new radius
     if (w.mesh) {
-      const inner = Math.max(0.01, w.radius - w.width * 0.5);
-      const outer = Math.max(inner + 0.01, w.radius + w.width * 0.5);
-      const newGeom = new THREE.RingGeometry(inner, outer, 128);
-      w.mesh.geometry.dispose();
-      w.mesh.geometry = newGeom;
+      w.mesh.position.x = w.center.x + Math.cos(w.angle) * w.radius;
+      w.mesh.position.z = w.center.z + Math.sin(w.angle) * w.radius;
     }
     if (w.radius <= w.innerRadius) {
       if (w.mesh && wavesScene) wavesScene.remove(w.mesh);
@@ -201,14 +219,20 @@ export function updateWaves(dt) {
 export function getWaveForceAt(x, z) {
   const force = new THREE.Vector3(0, 0, 0);
   for (const w of waterWaves) {
-    const dx = x - w.center.x;
-    const dz = z - w.center.z;
-    const dist = Math.hypot(dx, dz);
-    const half = w.width * 0.5;
-    if (dist >= w.radius - half && dist <= w.radius + half) {
-      // Direction toward center (wave travels inward)
-      const dirX = -dx / (dist || 1);
-      const dirZ = -dz / (dist || 1);
+    if (!w.mesh) continue;
+    const dx = x - w.mesh.position.x;
+    const dz = z - w.mesh.position.z;
+    const orient = w.angle + Math.PI / 2;
+    const cos = Math.cos(orient);
+    const sin = Math.sin(orient);
+    const localX = cos * dx + sin * dz; // along tangential direction
+    const localZ = -sin * dx + cos * dz; // radial direction (outward)
+    if (
+      Math.abs(localX) <= w.length * 0.5 &&
+      Math.abs(localZ) <= w.thickness * 0.5
+    ) {
+      const dirX = -Math.cos(w.angle);
+      const dirZ = -Math.sin(w.angle);
       force.x += dirX * w.strength;
       force.z += dirZ * w.strength;
     }
