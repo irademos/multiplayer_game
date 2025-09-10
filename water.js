@@ -151,8 +151,8 @@ export function spawnOceanWave({
   height = 1.5, // vertical height of the wave
   speed = 6,
   strength = 3,
-  color = 0xffffff,
-  opacity = 0.5,
+  color = 0x1E90FF,
+  opacity = 0.6,
 } = {}) {
   // Use the first ocean body (or all, but we’ll start with one)
   const ocean = waterBodies.find(b => b.type === 'ocean');
@@ -165,22 +165,42 @@ export function spawnOceanWave({
   const arcLength = length ?? THREE.MathUtils.randFloat(6, 20);
   const angle = Math.random() * Math.PI * 2;
 
-  const mat = new THREE.MeshStandardMaterial({
+  // Base wave – a smooth blue hill
+  const hillGeom = new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+  hillGeom.scale(arcLength / 2, height, thickness / 2);
+  const hillMat = new THREE.MeshStandardMaterial({
     color,
     transparent: true,
     opacity,
-    emissive: color,
-    emissiveIntensity: 0.2,
+    roughness: 0.8,
   });
-  const geom = new THREE.BoxGeometry(arcLength, height, thickness);
-  const segment = new THREE.Mesh(geom, mat);
+  const hill = new THREE.Mesh(hillGeom, hillMat);
+  hill.renderOrder = 2;
+
+  // Foam at the crest
+  const foamGeom = new THREE.CircleGeometry(1, 32);
+  foamGeom.rotateX(-Math.PI / 2);
+  const foamMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: Math.min(1, opacity + 0.2),
+    side: THREE.DoubleSide,
+  });
+  const foam = new THREE.Mesh(foamGeom, foamMat);
+  foam.scale.set((arcLength / 2) * 0.3, (thickness / 2) * 0.3, 1);
+  foam.position.y = height * 0.95;
+  foam.renderOrder = 3;
+
+  // Group the hill and foam together
+  const segment = new THREE.Group();
+  segment.add(hill);
+  segment.add(foam);
   segment.position.set(
     center.x + Math.cos(angle) * radius,
-    height / 2,
+    0,
     center.z + Math.sin(angle) * radius
   );
   segment.rotation.y = angle + Math.PI / 2;
-  segment.renderOrder = 2;
   wavesScene.add(segment);
 
   const wave = {
