@@ -289,6 +289,7 @@ export class PlayerControls {
         if (this.vehicle.type !== 'surfboard') {
           return;
         }
+
       }
 
       if (key === 'x') {
