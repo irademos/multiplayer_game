@@ -286,7 +286,10 @@ export class PlayerControls {
           this.vehicle.dismount();
           return;
         }
-        return;
+        if (this.vehicle.type !== 'surfboard') {
+          return;
+        }
+
       }
 
       if (key === 'x') {
@@ -622,12 +625,22 @@ export class PlayerControls {
       const actions = this.playerModel.userData.actions;
       if (actions && !this.isKnocked && !this.currentSpecialAction) {
         let actionName;
-        if (this.isInWater) {
-          actionName = isMovingNow ? 'swim' : 'sit';
+        if (this.vehicle && this.vehicle.type === 'surfboard') {
+          if (this.isInWater) {
+            actionName = isMovingNow ? 'swim' : 'sit';
+          } else {
+            actionName = 'idle';
+            if (!this.canJump) actionName = 'jump';
+            else if (isMovingNow) actionName = 'run';
+          }
         } else {
-          actionName = 'idle';
-          if (!this.canJump) actionName = 'jump';
-          else if (isMovingNow) actionName = 'run';
+          if (this.isInWater) {
+            actionName = isMovingNow ? 'swim' : 'float';
+          } else {
+            actionName = 'idle';
+            if (!this.canJump) actionName = 'jump';
+            else if (isMovingNow) actionName = 'run';
+          }
         }
         const current = this.playerModel.userData.currentAction;
         if (actionName && current !== actionName) {
@@ -679,7 +692,7 @@ export class PlayerControls {
 
     let orbitCenter;
     let offset;
-    if (this.vehicle && this.vehicle.mesh) {
+    if (this.vehicle && this.vehicle.mesh && this.vehicle.type !== 'surfboard') {
       const size = this.vehicle.boundingSize;
       const centerOffset = this.vehicle.boundingCenterOffset || new THREE.Vector3();
       orbitCenter = this.vehicle.mesh.position.clone().add(centerOffset);
