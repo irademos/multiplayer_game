@@ -591,7 +591,7 @@ export class PlayerControls {
       let yawAngle = this.playerModel.rotation.y;
       if (movement.length() > 0) {
         yawAngle = Math.atan2(movement.x, movement.z);
-        this.playerModel.rotation.y = yawAngle;
+        // this.playerModel.rotation.y = yawAngle;
       }
 
       const moon = window.moon;
@@ -613,13 +613,15 @@ export class PlayerControls {
           this.playerModel.lookAt(target);
           this.camera.up.copy(up);
         } else {
+          this.playerModel.rotation.set(0, yawAngle, 0);
           this.playerModel.up.set(0, 1, 0);
-          this.playerModel.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawAngle);
+          // this.playerModel.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawAngle);
           this.camera.up.set(0, 1, 0);
         }
       } else {
+        this.playerModel.rotation.set(0, yawAngle, 0);
         this.playerModel.up.set(0, 1, 0);
-        this.playerModel.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawAngle);
+        // this.playerModel.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawAngle);
         this.camera.up.set(0, 1, 0);
       }
       const actions = this.playerModel.userData.actions;

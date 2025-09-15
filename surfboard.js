@@ -48,15 +48,49 @@ export class Surfboard {
     if (!this.mesh) return;
 
     if (this.occupant) {
+      // ---------- Tweakable constants ----------
+      const HOLDING_OFFSET = new THREE.Vector3(0.1, -0.5, -1.2); // right/forward/up relative to player
+      const SWIM_OFFSET    = new THREE.Vector3(-0.55, -0.1, -1.1); // under/forward while swimming
+
+      // Extra rotation you want the mesh to have relative to the player (in radians)
+      const HOLDING_ROT_OFFSET_EULER = new THREE.Euler(Math.PI, Math.PI/2, Math.PI/2, 'YXZ');         // adjust if you need a tilt when holding
+      const SWIM_ROT_OFFSET_EULER    = new THREE.Euler(-Math.PI / 2, Math.PI, 0, 'YXZ'); // e.g., lay flat when swimming
+
+      // Optional smoothing (0 = snap, 1 = frozen). 0.2–0.4 feels good.
+      const POS_LERP = 0.0;
+      const ROT_SLERP = 0.0;
+      // ----------------------------------------
+
+      // Update attachment transform
       const player = this.occupant;
-      const basePos = player.playerModel.position;
-      const yaw = player.playerModel.rotation.y;
-      const yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-      const offset = (player.isInWater ? this.swimOffset : this.holdingOffset)
-        .clone()
-        .applyQuaternion(yawQ);
-      this.mesh.position.copy(basePos).add(offset);
-      this.mesh.rotation.set(-Math.PI / 2, yaw, 0);
+      const playerWorldPos = player.playerModel.getWorldPosition(new THREE.Vector3());
+      const playerWorldQ   = player.playerModel.getWorldQuaternion(new THREE.Quaternion());
+
+      // Select offsets based on state
+      const localPosOffset = (player.isInWater ? SWIM_OFFSET : HOLDING_OFFSET);
+      const rotOffsetEuler = (player.isInWater ? SWIM_ROT_OFFSET_EULER : HOLDING_ROT_OFFSET_EULER);
+
+      // Compute target world position
+      const worldOffset = localPosOffset.clone().applyQuaternion(playerWorldQ);
+      const targetPos = playerWorldPos.clone().add(worldOffset);
+
+      // Compute target world rotation
+      const rotOffsetQ = new THREE.Quaternion().setFromEuler(rotOffsetEuler);
+      const targetQ = playerWorldQ.clone().multiply(rotOffsetQ);
+
+      // Apply (with optional smoothing)
+      if (POS_LERP > 0) {
+        this.mesh.position.lerp(targetPos, POS_LERP);
+      } else {
+        this.mesh.position.copy(targetPos);
+      }
+
+      if (ROT_SLERP > 0) {
+        this.mesh.quaternion.slerp(targetQ, ROT_SLERP);
+      } else {
+        this.mesh.quaternion.copy(targetQ);
+      }
+
     } else {
       const t = this.mesh.position;
       const waterDepth = getWaterDepth(t.x, t.z);
