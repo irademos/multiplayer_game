@@ -286,11 +286,9 @@ export class PlayerControls {
           this.vehicle.dismount();
           return;
         }
-        if (this.vehicle.type === 'surfboard' && key === 'e') {
-          this.vehicle.toggleStand();
+        if (this.vehicle.type !== 'surfboard') {
           return;
         }
-        return;
       }
 
       if (key === 'x') {
@@ -499,7 +497,7 @@ export class PlayerControls {
     } else {
       this.canJump = false;
     }
-    if (this.isInWater && (!this.vehicle || this.vehicle.type !== 'surfboard')) {
+    if (this.isInWater) {
       if (this.keysPressed.has(" ")) {
         const newY = t.y - 0.2;
         this.body.setTranslation({ x: t.x, y: newY, z: t.z }, true);
@@ -575,11 +573,6 @@ export class PlayerControls {
       }
     } else {
       const speed = this.isInWater ? SWIM_SPEED : SPEED;
-      if (this.vehicle && this.vehicle.type === 'surfboard' && this.vehicle.standing) {
-        // Delegate surfboard standing controls (handles keys internally)
-        this.vehicle.handleControls(this);
-        return;
-      }
       this.body.setLinvel({ x: movement.x * speed, y: vel.y, z: movement.z * speed }, true);
       }
     const newX = t.x;
@@ -631,12 +624,22 @@ export class PlayerControls {
       const actions = this.playerModel.userData.actions;
       if (actions && !this.isKnocked && !this.currentSpecialAction) {
         let actionName;
-        if (this.isInWater) {
-          actionName = isMovingNow ? 'swim' : 'sit';
+        if (this.vehicle && this.vehicle.type === 'surfboard') {
+          if (this.isInWater) {
+            actionName = isMovingNow ? 'swim' : 'sit';
+          } else {
+            actionName = 'idle';
+            if (!this.canJump) actionName = 'jump';
+            else if (isMovingNow) actionName = 'run';
+          }
         } else {
-          actionName = 'idle';
-          if (!this.canJump) actionName = 'jump';
-          else if (isMovingNow) actionName = 'run';
+          if (this.isInWater) {
+            actionName = isMovingNow ? 'swim' : 'float';
+          } else {
+            actionName = 'idle';
+            if (!this.canJump) actionName = 'jump';
+            else if (isMovingNow) actionName = 'run';
+          }
         }
         const current = this.playerModel.userData.currentAction;
         if (actionName && current !== actionName) {
@@ -688,7 +691,7 @@ export class PlayerControls {
 
     let orbitCenter;
     let offset;
-    if (this.vehicle && this.vehicle.mesh) {
+    if (this.vehicle && this.vehicle.mesh && this.vehicle.type !== 'surfboard') {
       const size = this.vehicle.boundingSize;
       const centerOffset = this.vehicle.boundingCenterOffset || new THREE.Vector3();
       orbitCenter = this.vehicle.mesh.position.clone().add(centerOffset);
