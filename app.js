@@ -4,7 +4,7 @@ import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
 import { createOrcVoice } from "./orcVoice.js";
 import { createClouds, generateIsland, createMoon, MOON_RADIUS } from "./worldGeneration.js";
-import { isPointInWater, initWaves, spawnOceanWave, updateWaves, getWaveForceAt } from './water.js';
+import { initWaves, spawnOceanWave, updateWaves, getWaveForceAt } from './water.js';
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -133,7 +133,7 @@ async function main() {
   await spaceship.load();
   window.spaceship = spaceship;
 
-  surfboard = new Surfboard(scene, rapierWorld, rbToMesh);
+  surfboard = new Surfboard(scene);
   await surfboard.load();
   window.surfboard = surfboard;
 
@@ -201,7 +201,7 @@ async function main() {
   }
 
   function applyWaveForces() {
-    if (playerControls.body && playerControls.isInWater && (!playerControls.vehicle || playerControls.vehicle.type !== 'surfboard')) {
+    if (playerControls.body && playerControls.isInWater) {
       const t = playerControls.body.translation();
       const f = getWaveForceAt(t.x, t.z);
       if (f.x !== 0 || f.z !== 0) {
@@ -209,15 +209,6 @@ async function main() {
       }
     }
 
-    if (surfboard?.body) {
-      const t = surfboard.body.translation();
-      if (isPointInWater(t.x, t.z)) {
-        const f = getWaveForceAt(t.x, t.z);
-        if (f.x !== 0 || f.z !== 0) {
-          surfboard.body.applyImpulse({ x: f.x, y: 0, z: f.z }, true);
-        }
-      }
-    }
   }
 
 
