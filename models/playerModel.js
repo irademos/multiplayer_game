@@ -1,6 +1,106 @@
 // /models/playerModel.js
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 
+const EPSILON = 1e-4;
+
+function clampIndexRange(times, startTime, endTime) {
+  let startIndex = 0;
+  while (startIndex < times.length && times[startIndex] < startTime - EPSILON) {
+    startIndex++;
+  }
+  if (startIndex > 0) startIndex -= 1;
+
+  let endIndex = times.length - 1;
+  while (endIndex >= 0 && times[endIndex] > endTime + EPSILON) {
+    endIndex--;
+  }
+  if (endIndex < times.length - 1) endIndex += 1;
+  if (endIndex < startIndex) endIndex = startIndex;
+  return { startIndex, endIndex };
+}
+
+function sliceTrackByTime(track, startTime, endTime) {
+  const { startIndex, endIndex } = clampIndexRange(track.times, startTime, endTime);
+  const TrackClass = track.constructor;
+  const valueSize = track.getValueSize();
+
+  const timesSlice = track.times.slice(startIndex, endIndex + 1);
+  if (timesSlice.length === 0) {
+    const fallbackValues = track.values.slice(0, valueSize);
+    const TimesCtor = track.times.constructor;
+    const fallbackTimes = new TimesCtor(1);
+    fallbackTimes[0] = 0;
+    return new TrackClass(track.name, fallbackTimes, fallbackValues);
+  }
+
+  const baseTime = timesSlice[0];
+  const TimesCtor = track.times.constructor;
+  const adjustedTimes = new TimesCtor(timesSlice.length);
+  for (let i = 0; i < timesSlice.length; i++) {
+    adjustedTimes[i] = timesSlice[i] - baseTime;
+  }
+
+  const valuesSlice = track.values.slice(startIndex * valueSize, (endIndex + 1) * valueSize);
+  const ValuesCtor = track.values.constructor;
+  const adjustedValues = new ValuesCtor(valuesSlice.length);
+  adjustedValues.set(valuesSlice);
+
+  return new TrackClass(track.name, adjustedTimes, adjustedValues);
+}
+
+function combineTrackSegments(firstTrack, secondTrack) {
+  if (!secondTrack) return firstTrack;
+
+  const TrackClass = firstTrack.constructor;
+  const valueSize = firstTrack.getValueSize();
+
+  const secondTimesCtor = secondTrack.times.constructor;
+  const secondValuesCtor = secondTrack.values.constructor;
+
+  let trimmedSecondTimes = secondTrack.times;
+  let trimmedSecondValues = secondTrack.values;
+  if (trimmedSecondTimes.length > 1) {
+    trimmedSecondTimes = trimmedSecondTimes.slice(1);
+    trimmedSecondValues = trimmedSecondValues.slice(valueSize);
+  } else {
+    trimmedSecondTimes = new secondTimesCtor(0);
+    trimmedSecondValues = new secondValuesCtor(0);
+  }
+
+  const TimesCtor = firstTrack.times.constructor;
+  const ValuesCtor = firstTrack.values.constructor;
+  const combinedTimes = new TimesCtor(firstTrack.times.length + trimmedSecondTimes.length);
+  combinedTimes.set(firstTrack.times, 0);
+  const offset = firstTrack.times.length > 0 ? firstTrack.times[firstTrack.times.length - 1] : 0;
+  for (let i = 0; i < trimmedSecondTimes.length; i++) {
+    combinedTimes[firstTrack.times.length + i] = trimmedSecondTimes[i] + offset;
+  }
+
+  const combinedValues = new ValuesCtor(firstTrack.values.length + trimmedSecondValues.length);
+  combinedValues.set(firstTrack.values, 0);
+  combinedValues.set(trimmedSecondValues, firstTrack.values.length);
+
+  return new TrackClass(firstTrack.name, combinedTimes, combinedValues);
+}
+
+function splitPaddlingClip(THREE, clip) {
+  const duration = clip.duration;
+  const leftStart = duration * 0.25;
+  const leftEnd = duration * 0.75;
+
+  const leftTracks = clip.tracks.map((track) => sliceTrackByTime(track, leftStart, leftEnd));
+  const leftClip = new THREE.AnimationClip('paddleLeft', -1, leftTracks);
+  leftClip.resetDuration();
+
+  const firstHalfTracks = clip.tracks.map((track) => sliceTrackByTime(track, leftEnd, duration + EPSILON));
+  const secondHalfTracks = clip.tracks.map((track) => sliceTrackByTime(track, 0, leftStart));
+  const rightTracks = firstHalfTracks.map((track, index) => combineTrackSegments(track, secondHalfTracks[index]));
+  const rightClip = new THREE.AnimationClip('paddleRight', -1, rightTracks);
+  rightClip.resetDuration();
+
+  return { leftClip, rightClip };
+}
+
 export function createPlayerModel(
   THREE,
   username,
@@ -144,6 +244,33 @@ export function createPlayerModel(
               );
             });
           });
+
+          promises.push(new Promise((resolve, reject) => {
+            fbxLoader.load(
+              '/models/animations/Paddling.fbx',
+              (anim) => {
+                const baseClip = anim?.animations?.[0];
+                if (!baseClip) {
+                  resolve();
+                  return;
+                }
+                const { leftClip, rightClip } = splitPaddlingClip(THREE, baseClip);
+                const leftAction = mixer.clipAction(leftClip);
+                leftAction.loop = THREE.LoopOnce;
+                leftAction.clampWhenFinished = true;
+                actions.paddleLeft = leftAction;
+
+                const rightAction = mixer.clipAction(rightClip);
+                rightAction.loop = THREE.LoopOnce;
+                rightAction.clampWhenFinished = true;
+                actions.paddleRight = rightAction;
+
+                resolve();
+              },
+              undefined,
+              reject
+            );
+          }));
 
           Promise.all(promises).then(() => {
             actions.idle.play();

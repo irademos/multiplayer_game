@@ -286,6 +286,15 @@ export class PlayerControls {
           this.vehicle.dismount();
           return;
         }
+        if (this.vehicle.type === 'rowboat') {
+          if (e.repeat) return;
+          if (key === 'z') {
+            this.vehicle.paddleLeft();
+          } else if (key === 'c') {
+            this.vehicle.paddleRight();
+          }
+          return;
+        }
         if (this.vehicle.type !== 'surfboard') {
           return;
         }
@@ -295,6 +304,7 @@ export class PlayerControls {
       if (key === 'x') {
         window.spaceship?.tryMount(this);
         window.surfboard?.tryMount(this);
+        window.rowBoat?.tryMount(this);
         return;
       }
 
@@ -452,6 +462,12 @@ export class PlayerControls {
       const pitch = thrust ? (this.keysPressed.has("w") ? 1 : 0) + (this.keysPressed.has("s") ? -1 : 0) : 0;
       this.vehicle.applyInput({ thrust, yaw, pitch });
       this.isMoving = thrust;
+      return;
+    }
+
+    if (this.vehicle && this.vehicle.type === 'rowboat') {
+      this.isMoving = false;
+      this.vehicle.alignOccupant?.();
       return;
     }
 
