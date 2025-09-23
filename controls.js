@@ -314,6 +314,7 @@ export class PlayerControls {
           this.playAction('hurricaneKick');
         }
       } else if (key === 'e') {
+        if (this.vehicle.type === 'surfboard') this.vehicle.toggleStand();
         if (this.isInWater) return;
         if (this.isMoving) {
           this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
@@ -615,13 +616,11 @@ export class PlayerControls {
         } else {
           this.playerModel.rotation.set(0, yawAngle, 0);
           this.playerModel.up.set(0, 1, 0);
-          // this.playerModel.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawAngle);
           this.camera.up.set(0, 1, 0);
         }
       } else {
         this.playerModel.rotation.set(0, yawAngle, 0);
         this.playerModel.up.set(0, 1, 0);
-        // this.playerModel.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawAngle);
         this.camera.up.set(0, 1, 0);
       }
       const actions = this.playerModel.userData.actions;
@@ -630,6 +629,9 @@ export class PlayerControls {
         if (this.vehicle && this.vehicle.type === 'surfboard') {
           if (this.isInWater) {
             actionName = isMovingNow ? 'swim' : 'sit';
+            if (this.vehicle.standing) {
+              actionName = 'idle';
+            }
           } else {
             actionName = 'idle';
             if (!this.canJump) actionName = 'jump';

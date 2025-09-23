@@ -8,6 +8,7 @@ export class Surfboard {
     this.mesh = null;
     this.occupant = null;
     this.type = 'surfboard';
+    this.standing = false;
     this.holdingOffset = new THREE.Vector3(0.5, 0.1, -0.5);
     this.swimOffset = new THREE.Vector3(0, -0.4, 0.8);
   }
@@ -42,6 +43,22 @@ export class Surfboard {
     if (!this.occupant) return;
     this.occupant.vehicle = null;
     this.occupant = null;
+    this.standing = false;
+  }
+
+  toggleStand() {
+    if (!this.occupant) return;
+    this.standing = !this.standing;
+    const actions = this.occupant.playerModel?.userData?.actions;
+    const current = this.occupant.playerModel?.userData?.currentAction;
+    if (actions) {
+      const target = this.standing ? 'idle' : 'swim';
+      if (current !== target) {
+        actions[current]?.fadeOut(0.2);
+        actions[target]?.reset().fadeIn(0.2).play();
+        this.occupant.playerModel.userData.currentAction = target;
+      }
+    }
   }
 
   update() {
