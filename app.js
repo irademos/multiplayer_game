@@ -670,7 +670,7 @@ async function main() {
 
 
     playerControls.update();
-    rowBoat.update();
+    
     surfboard.update();
     if (multiplayer.isHost) {
       spaceship.update();
@@ -717,6 +717,8 @@ async function main() {
     Object.values(otherPlayers).forEach(p => {
       p.model.userData.mixer?.update(delta);
     });
+
+    rowBoat.update();
 
     multiplayer.send({
       type: "presence",

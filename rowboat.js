@@ -7,8 +7,8 @@ const DEFAULT_BOAT_POSITION = new THREE.Vector3(8, 0, 14);
 const BOAT_SCALE = 0.01;
 const OAR_LOCAL_POSITION = new THREE.Vector3(0, 0.55, -0.2);
 const OAR_LOCAL_ROTATION = new THREE.Euler(-Math.PI / 2, 0, 0, 'XYZ');
-const MOUNT_LOCAL_POSITION = new THREE.Vector3(0, 0.35, -0.15);
-const MOUNT_LOCAL_ROTATION = new THREE.Euler(0, Math.PI, 0, 'YXZ');
+const MOUNT_LOCAL_POSITION = new THREE.Vector3(15.0, 85.0, 75.0);
+const MOUNT_LOCAL_ROTATION = new THREE.Euler(0, Math.PI/2, 0, 'YXZ');
 const FLOAT_HEIGHT = 0.25;
 const LINEAR_DAMPING = 1.8;
 const ANGULAR_DAMPING = 3.2;
@@ -25,6 +25,10 @@ const TEMP_OFFSET = new THREE.Vector3();
 const TEMP_FORWARD = new THREE.Vector3();
 const TEMP_RIGHT = new THREE.Vector3();
 const UNIT_SCALE = new THREE.Vector3(1, 1, 1);
+
+const TEMP_SCALE = new THREE.Vector3();
+
+
 
 export class RowBoat {
   constructor(scene) {
@@ -45,6 +49,8 @@ export class RowBoat {
     this.boundingCenterOffset = new THREE.Vector3();
   }
 
+  
+
   async load(position = DEFAULT_BOAT_POSITION) {
     const loader = new GLTFLoader();
 
@@ -61,6 +67,7 @@ export class RowBoat {
     this.mesh.name = 'RowBoat';
     this.mesh.scale.setScalar(BOAT_SCALE);
     this.mesh.position.copy(position);
+    // this.mesh.rotation.set(0, -Math.PI / 2, 0);
     this.scene.add(this.mesh);
     this.mesh.updateMatrixWorld(true);
 
@@ -107,8 +114,11 @@ export class RowBoat {
     TEMP_LOCAL_MATRIX.compose(TEMP_OFFSET, TEMP_QUATERNION, UNIT_SCALE);
 
     TEMP_WORLD_MATRIX.multiplyMatrices(this.mesh.matrixWorld, TEMP_LOCAL_MATRIX);
-    outPosition.setFromMatrixPosition(TEMP_WORLD_MATRIX);
-    outQuaternion.setFromRotationMatrix(TEMP_WORLD_MATRIX);
+    // outPosition.setFromMatrixPosition(TEMP_WORLD_MATRIX);
+    // outQuaternion.setFromRotationMatrix(TEMP_WORLD_MATRIX);
+    
+    TEMP_WORLD_MATRIX.decompose(outPosition, outQuaternion, TEMP_SCALE);
+
     return { position: outPosition, quaternion: outQuaternion };
   }
 

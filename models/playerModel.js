@@ -1,5 +1,6 @@
 // /models/playerModel.js
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import * as THREE from 'three';
 
 const EPSILON = 1e-4;
 
@@ -101,6 +102,25 @@ function splitPaddlingClip(THREE, clip) {
   return { leftClip, rightClip };
 }
 
+function clipWithExistingTargetsOnly(clip, root) {
+  const names = new Set();
+  root.traverse(o => names.add(o.name));
+  const tracks = clip.tracks.filter(t => names.has(t.name.split('.')[0]));
+  return new THREE.AnimationClip(clip.name, clip.duration, tracks);
+}
+
+function stripRootTracks(clip, rootName) {
+  const blocked = new Set([
+    `${rootName}.position`,
+    `${rootName}.quaternion`,
+    `${rootName}.scale`,
+    `${rootName}.matrix`,
+    `${rootName}.visible`,
+  ]);
+  const tracks = clip.tracks.filter(t => !blocked.has(t.name));
+  return new THREE.AnimationClip(clip.name, clip.duration, tracks);
+}
+
 export function createPlayerModel(
   THREE,
   username,
@@ -183,6 +203,11 @@ export function createPlayerModel(
             console.error('While making FBX unlit:', err);
           }
 
+          model.traverse(o => {
+            if (o.isSkinnedMesh || o.isMesh) o.frustumCulled = false;
+            if (o.material?.skinning === true) o.material.skinning = true;
+          });
+
 
           // Scale and center the model so it rotates around its midpoint
           const scale = config.scale ?? 1;
@@ -229,6 +254,10 @@ export function createPlayerModel(
                 `/models/animations/${encodeURIComponent(file)}`,
                 (anim) => {
                   const clip = anim.animations[0];
+                  // const rootName = model.name || 'Root';
+                  // const src = anim.animations[0];
+                  // const clean = stripRootTracks(src, rootName);
+                  // const action = mixer.clipAction(clean);
                   const action = mixer.clipAction(clip);
                   if (
                     ['jump', 'hit', 'mutantPunch', 'mmaKick', 'runningKick', 'hurricaneKick', 'projectile', 'die'].includes(name)
@@ -249,12 +278,15 @@ export function createPlayerModel(
             fbxLoader.load(
               '/models/animations/Paddling.fbx',
               (anim) => {
+
                 const baseClip = anim?.animations?.[0];
                 if (!baseClip) {
                   resolve();
                   return;
                 }
+
                 const { leftClip, rightClip } = splitPaddlingClip(THREE, baseClip);
+
                 const leftAction = mixer.clipAction(leftClip);
                 leftAction.loop = THREE.LoopOnce;
                 leftAction.clampWhenFinished = true;
@@ -264,7 +296,6 @@ export function createPlayerModel(
                 rightAction.loop = THREE.LoopOnce;
                 rightAction.clampWhenFinished = true;
                 actions.paddleRight = rightAction;
-
                 resolve();
               },
               undefined,
