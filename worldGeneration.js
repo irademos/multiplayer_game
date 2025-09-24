@@ -69,46 +69,198 @@ export function createMoon(scene, rapierWorld, rbToMesh) {
   return moon;
 }
 
+function distortCylinderGeometry(geometry, { radialNoise = 0, heightNoise = 0.2, keepBottomFlat = true } = {}) {
+  const { height = 1 } = geometry.parameters ?? {};
+  const position = geometry.attributes.position;
+  const randomPhaseA = Math.random() * Math.PI * 2;
+  const randomPhaseB = Math.random() * Math.PI * 2;
+  const radialScale = radialNoise !== 0 ? 1 : 0;
+  const tmp = new THREE.Vector3();
+
+  for (let i = 0; i < position.count; i++) {
+    tmp.fromBufferAttribute(position, i);
+
+    const originalY = tmp.y;
+    const normalizedHeight = (originalY + height / 2) / height;
+    const angle = Math.atan2(tmp.z, tmp.x);
+    const radius = Math.sqrt(tmp.x * tmp.x + tmp.z * tmp.z);
+
+    if (radius > 0 && radialScale) {
+      const undulation =
+        Math.sin(angle * 2 + randomPhaseA) * 0.5 +
+        Math.cos(angle * 3 + randomPhaseB) * 0.5;
+      const jitter = (Math.random() - 0.5) * 0.6;
+      const totalOffset = (undulation + jitter) * radialNoise * (0.4 + normalizedHeight * 0.6);
+      const newRadius = Math.max(0.001, radius + totalOffset);
+      tmp.x = Math.cos(angle) * newRadius;
+      tmp.z = Math.sin(angle) * newRadius;
+    }
+
+    if (!(keepBottomFlat && normalizedHeight < 0.1)) {
+      const verticalOffset = (Math.random() - 0.5) * heightNoise * (0.3 + normalizedHeight * 0.7);
+      tmp.y = originalY + verticalOffset;
+    } else {
+      tmp.y = -height / 2;
+    }
+
+    position.setXYZ(i, tmp.x, tmp.y, tmp.z);
+  }
+
+  position.needsUpdate = true;
+  geometry.computeVertexNormals();
+}
+
+function createChunkyIsland({
+  baseRadius,
+  height,
+  sandWidth = 4,
+  center,
+}) {
+  const islandGroup = new THREE.Group();
+  islandGroup.position.set(center.x, SEA_FLOOR_Y, center.z);
+
+  const segments = 6 + Math.floor(Math.random() * 6);
+
+  const rockGeometry = new THREE.CylinderGeometry(
+    baseRadius * 1.15,
+    baseRadius * 0.85,
+    height,
+    segments,
+    1,
+    false
+  );
+  distortCylinderGeometry(rockGeometry, {
+    radialNoise: baseRadius * 0.25,
+    heightNoise: height * 0.3,
+  });
+  const rockMaterial = new THREE.MeshStandardMaterial({
+    color: 0x6b4f3f,
+    flatShading: true,
+    roughness: 0.95,
+    metalness: 0.05,
+  });
+  const rockMesh = new THREE.Mesh(rockGeometry, rockMaterial);
+  rockMesh.position.y = height / 2;
+  rockMesh.castShadow = true;
+  rockMesh.receiveShadow = true;
+  islandGroup.add(rockMesh);
+
+  const sandHeight = Math.max(0.6, height * 0.25);
+  const sandGeometry = new THREE.CylinderGeometry(
+    baseRadius + sandWidth,
+    baseRadius + sandWidth * 0.5,
+    sandHeight,
+    segments,
+    1,
+    false
+  );
+  distortCylinderGeometry(sandGeometry, {
+    radialNoise: sandWidth * 0.6,
+    heightNoise: sandHeight * 0.2,
+  });
+  const sandMaterial = new THREE.MeshStandardMaterial({
+    color: 0xdbc174,
+    flatShading: true,
+    roughness: 0.85,
+  });
+  const sandMesh = new THREE.Mesh(sandGeometry, sandMaterial);
+  sandMesh.position.y = sandHeight / 2;
+  sandMesh.receiveShadow = true;
+  islandGroup.add(sandMesh);
+
+  const grassHeight = Math.max(1.4, height * 0.35);
+  const grassGeometry = new THREE.CylinderGeometry(
+    baseRadius * 0.75,
+    baseRadius,
+    grassHeight,
+    segments,
+    1,
+    false
+  );
+  distortCylinderGeometry(grassGeometry, {
+    radialNoise: baseRadius * 0.2,
+    heightNoise: grassHeight * 0.25,
+  });
+  const grassMaterial = new THREE.MeshStandardMaterial({
+    color: 0x2d8a34,
+    flatShading: true,
+    roughness: 0.9,
+  });
+  const grassMesh = new THREE.Mesh(grassGeometry, grassMaterial);
+  grassMesh.position.y = height - grassHeight / 2;
+  grassMesh.castShadow = true;
+  grassMesh.receiveShadow = true;
+  islandGroup.add(grassMesh);
+
+  const hillCount = 2 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < hillCount; i++) {
+    const hillRadius = baseRadius * (0.15 + Math.random() * 0.15);
+    const hillHeight = grassHeight * (0.5 + Math.random() * 0.6);
+    const hillGeometry = new THREE.ConeGeometry(hillRadius, hillHeight, 6 + Math.floor(Math.random() * 4));
+    const hillMaterial = new THREE.MeshStandardMaterial({
+      color: 0x3a9b3c,
+      flatShading: true,
+      roughness: 0.85,
+    });
+    const hillMesh = new THREE.Mesh(hillGeometry, hillMaterial);
+    const angle = Math.random() * Math.PI * 2;
+    const radialOffset = baseRadius * 0.35 * Math.random();
+    hillMesh.position.set(
+      Math.cos(angle) * radialOffset,
+      height + hillHeight / 2,
+      Math.sin(angle) * radialOffset
+    );
+    hillMesh.castShadow = true;
+    hillMesh.receiveShadow = true;
+    islandGroup.add(hillMesh);
+  }
+
+  return islandGroup;
+}
+
 export function generateIsland(scene, { islandRadius = 20, outerRadius = 100 } = {}) {
-  // Sea floor
   const seaFloor = new THREE.Mesh(
     new THREE.PlaneGeometry(outerRadius * 2, outerRadius * 2),
-    new THREE.MeshStandardMaterial({ color: 0x00008B })
+    new THREE.MeshStandardMaterial({ color: 0x00008b })
   );
   seaFloor.rotation.x = -Math.PI / 2;
   seaFloor.position.y = SEA_FLOOR_Y;
   seaFloor.receiveShadow = true;
   scene.add(seaFloor);
 
-  // Central island
-  const hillHeight = 6;
-  const hill = new THREE.Mesh(
-    new THREE.ConeGeometry(islandRadius, hillHeight, 32),
-    new THREE.MeshStandardMaterial({ color: 0x228B22 })
-  );
-  hill.position.y = SEA_FLOOR_Y + hillHeight / 2;
-  scene.add(hill);
-  registerIsland({ x: 0, z: 0 }, islandRadius, hillHeight);
+  const mainRadius = islandRadius * (0.9 + Math.random() * 0.4);
+  const mainHeight = 8 + Math.random() * 4;
+  const mainSandWidth = 4 + Math.random() * 3;
 
-  // Ocean around island
+  const mainIsland = createChunkyIsland({
+    baseRadius: mainRadius,
+    height: mainHeight,
+    sandWidth: mainSandWidth,
+    center: { x: 0, z: 0 },
+  });
+  scene.add(mainIsland);
+  registerIsland({ x: 0, z: 0 }, mainRadius + mainSandWidth, mainHeight);
+
   generateOcean(scene, { x: 0, z: 0 }, 0, outerRadius);
 
-  // Scatter a few small islands
-  for (let i = 0; i < 5; i++) {
+  const smallIslandCount = 4 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < smallIslandCount; i++) {
     const angle = Math.random() * Math.PI * 2;
-    const dist = islandRadius + 15 + Math.random() * (outerRadius - islandRadius - 20);
+    const dist = islandRadius + 18 + Math.random() * (outerRadius - islandRadius - 26);
     const x = Math.cos(angle) * dist;
     const z = Math.sin(angle) * dist;
-    const r = 3 + Math.random() * 3;
-    const h = 3 + Math.random() * 2;
+    const baseRadius = 4 + Math.random() * 4;
+    const height = 3.5 + Math.random() * 2.5;
+    const sandWidth = 1 + Math.random() * 1.5;
 
-    const smallHill = new THREE.Mesh(
-      new THREE.ConeGeometry(r, h, 16),
-      new THREE.MeshStandardMaterial({ color: 0x228B22 })
-    );
-    smallHill.position.set(x, SEA_FLOOR_Y + h / 2, z);
-    scene.add(smallHill);
-    registerIsland({ x, z }, r, h);
+    const island = createChunkyIsland({
+      baseRadius,
+      height,
+      sandWidth,
+      center: { x, z },
+    });
+    scene.add(island);
+    registerIsland({ x, z }, baseRadius + sandWidth, height);
   }
 }
 
