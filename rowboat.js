@@ -10,12 +10,12 @@ const OAR_LOCAL_ROTATION = new THREE.Euler(-Math.PI / 2, 0, 0, 'XYZ');
 const MOUNT_LOCAL_POSITION = new THREE.Vector3(15.0, 85.0, 75.0);
 const MOUNT_LOCAL_ROTATION = new THREE.Euler(0, Math.PI/2, 0, 'YXZ');
 const FLOAT_HEIGHT = 0.25;
-const LINEAR_DAMPING = 1.8;
+const LINEAR_DAMPING = 0.9;
 const ANGULAR_DAMPING = 3.2;
 const PADDLE_FORWARD_IMPULSE = 2.2;
 const PADDLE_SIDE_IMPULSE = 0.7;
 const PADDLE_TURN_RATE = 1.5;
-const PADDLE_COOLDOWN = 0.4; // seconds
+const PADDLE_COOLDOWN = 0.25; // seconds
 
 const TEMP_POSITION = new THREE.Vector3();
 const TEMP_QUATERNION = new THREE.Quaternion();
@@ -139,6 +139,7 @@ export class RowBoat {
     this.paddleCooldown = 0;
     this.paddleActionName = null;
     this.paddleResetTime = 0;
+    playerControls.yaw = -this.mesh.rotation.y;
   }
 
   dismount() {
@@ -233,7 +234,6 @@ export class RowBoat {
       body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     }
 
-    this.occupant.yaw = -this.mesh.rotation.y;
   }
 
   update(deltaOverride) {
