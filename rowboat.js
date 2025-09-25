@@ -15,7 +15,7 @@ const ANGULAR_DAMPING = 3.2;
 const PADDLE_FORWARD_IMPULSE = 2.2;
 const PADDLE_SIDE_IMPULSE = 0.7;
 const PADDLE_TURN_RATE = 1.5;
-const PADDLE_COOLDOWN = 0.65; // seconds
+const PADDLE_COOLDOWN = 0.4; // seconds
 
 const TEMP_POSITION = new THREE.Vector3();
 const TEMP_QUATERNION = new THREE.Quaternion();
@@ -24,6 +24,7 @@ const TEMP_WORLD_MATRIX = new THREE.Matrix4();
 const TEMP_OFFSET = new THREE.Vector3();
 const TEMP_FORWARD = new THREE.Vector3();
 const TEMP_RIGHT = new THREE.Vector3();
+const TEMP_UP = new THREE.Vector3();
 const UNIT_SCALE = new THREE.Vector3(1, 1, 1);
 
 const TEMP_SCALE = new THREE.Vector3();
@@ -175,6 +176,7 @@ export class RowBoat {
   }
 
   triggerPaddle(actionName, lateralSign) {
+    lateralSign *= -1;
     if (!this.occupant || !this.mesh) return;
     if (this.paddleCooldown > 0) return;
 
@@ -189,8 +191,14 @@ export class RowBoat {
     this.paddleResetTime = performance.now() + duration * 1000 * 0.9;
     this.paddleCooldown = PADDLE_COOLDOWN;
 
-    const forward = TEMP_FORWARD.set(0, 0, 1).applyQuaternion(this.mesh.quaternion);
-    const right = TEMP_RIGHT.set(1, 0, 0).applyQuaternion(this.mesh.quaternion);
+    const forward = TEMP_FORWARD;//.set(0, 0, 1).applyQuaternion(this.mesh.quaternion);
+    this.mesh.getWorldDirection(forward);
+    forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+
+    const right = TEMP_RIGHT;//.copy(forward).cross(TEMP_UP.set(0, 1, 0)).normalize();
+    right.copy(new THREE.Vector3(0, 1, 0)).cross(forward).normalize();
+    // const right = TEMP_RIGHT.copy(forward).cross(new THREE.Vector3(0, 1, 0)).normalize();
+    // const right = TEMP_RIGHT.set(1, 0, 0).applyQuaternion(this.mesh.quaternion);
 
     this.velocity.addScaledVector(forward, PADDLE_FORWARD_IMPULSE);
     this.velocity.addScaledVector(right, PADDLE_SIDE_IMPULSE * lateralSign);
