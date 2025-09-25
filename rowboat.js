@@ -5,11 +5,11 @@ import { getWaterDepth, getTerrainHeight } from './water.js';
 // Easily tweakable placement and gameplay constants
 const DEFAULT_BOAT_POSITION = new THREE.Vector3(8, 0, 14);
 const BOAT_SCALE = 0.01;
-const OAR_LOCAL_POSITION = new THREE.Vector3(0, 0.55, -0.2);
+const OAR_LOCAL_POSITION = new THREE.Vector3(0, 85.0, -0.2);
 const OAR_LOCAL_ROTATION = new THREE.Euler(-Math.PI / 2, 0, 0, 'XYZ');
-const MOUNT_LOCAL_POSITION = new THREE.Vector3(15.0, 85.0, 75.0);
+const MOUNT_LOCAL_POSITION = new THREE.Vector3(-20.0, 95.0, 0.0);
 const MOUNT_LOCAL_ROTATION = new THREE.Euler(0, Math.PI/2, 0, 'YXZ');
-const FLOAT_HEIGHT = 0.25;
+const FLOAT_HEIGHT = -0.15;
 const LINEAR_DAMPING = 0.9;
 const ANGULAR_DAMPING = 3.2;
 const PADDLE_FORWARD_IMPULSE = 2.2;
@@ -26,7 +26,6 @@ const TEMP_FORWARD = new THREE.Vector3();
 const TEMP_RIGHT = new THREE.Vector3();
 const TEMP_UP = new THREE.Vector3();
 const UNIT_SCALE = new THREE.Vector3(1, 1, 1);
-
 const TEMP_SCALE = new THREE.Vector3();
 
 
@@ -84,6 +83,7 @@ export class RowBoat {
 
     if (this.oar) {
       this.oar.name = 'RowBoatOar';
+      this.oar.scale.setScalar(5.0);
       this.mesh.add(this.oar);
       this.setOarTransform();
     }

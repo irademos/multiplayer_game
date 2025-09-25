@@ -41,7 +41,7 @@ export class IceGun {
     });
 
     this.mesh.position.copy(targetPos);
-    this.mesh.scale.setScalar(0.8);
+    this.mesh.scale.setScalar(0.001);
     this.scene.add(this.mesh);
   }
 

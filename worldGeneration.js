@@ -72,7 +72,7 @@ export function createMoon(scene, rapierWorld, rbToMesh) {
 const textureLoader = new THREE.TextureLoader();
 const textureCache = new Map();
 
-const TEXTURE_DOWNSCALE_POWER = 2; // Reduce to 1 / 2^power resolution (quarter size).
+const TEXTURE_DOWNSCALE_POWER = 1; // Reduce to 1 / 2^power resolution (quarter size).
 const USE_SEAFLOOR_TEXTURE = false;
 
 const isPowerOfTwo = (value) => value && (value & (value - 1)) === 0;
@@ -151,23 +151,15 @@ const rockMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.1,
 });
 
-const seaFloorMaterial = new THREE.MeshStandardMaterial(
-  USE_SEAFLOOR_TEXTURE
-    ? {
-        map: loadIslandTexture(
-          "seafloor",
-          "/assets/textures/sandy_gravel_02_4k.blend/textures/sandy_gravel_02_diff_4k.jpg",
-          12
-        ),
-        roughness: 0.95,
-        metalness: 0.02,
-      }
-    : {
-        color: new THREE.Color(0xbba37a),
-        roughness: 0.95,
-        metalness: 0.02,
-      }
-);
+const seaFloorMaterial = new THREE.MeshStandardMaterial({
+  map: loadIslandTexture(
+    "seafloor",
+    "/assets/textures/sandy_gravel_02_4k.blend/textures/sandy_gravel_02_diff_4k.jpg",
+    12
+  ),
+  roughness: 0.95,
+  metalness: 0.02,
+});
 
 function pseudoRandom2D(x, z) {
   const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453123;
@@ -279,7 +271,9 @@ function estimateSurfaceRadius({ center, radius, sampleHeight, segments, cellSiz
   return Math.min(radius, maxSurface + margin);
 }
 
-function createHillyIsland({ radius, maxHeight, center, segments = 128 }) {
+const island_segments = 10;
+
+function createHillyIsland({ radius, maxHeight, center, segments = island_segments }) {
   const size = radius * 2;
   const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
   geometry.rotateX(-Math.PI / 2);
@@ -353,7 +347,7 @@ function createHillyIsland({ radius, maxHeight, center, segments = 128 }) {
     geometry.addGroup(0, 0, 2);
   }
 
-  const mesh = new THREE.Mesh(geometry, [sandMaterial, groundMaterial, rockMaterial]);
+  const mesh = new THREE.Mesh(geometry, [sandMaterial, groundMaterial, groundMaterial]);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   mesh.position.set(center.x, 0, center.z);
@@ -420,7 +414,7 @@ export function generateIsland(scene, { islandRadius = 20, outerRadius = 100 } =
       radius,
       maxHeight: height,
       center,
-      segments: 72,
+      segments: island_segments / 2,
     });
     scene.add(island.mesh);
     registerIsland({
