@@ -12,29 +12,34 @@ export const SWIM_DEPTH_THRESHOLD = 0.7;
 
 function isPointOnIsland(x, z) {
   for (const island of islandAreas) {
-    const dx = x - island.x;
-    const dz = z - island.z;
+    const dx = x - island.center.x;
+    const dz = z - island.center.z;
     const dist = Math.hypot(dx, dz);
     if (dist < island.surfaceRadius) return true;
   }
   return false;
 }
 
-export function registerIsland(position, baseRadius, height) {
-  const waterLevel = 0;
-  const surfaceRadius = baseRadius * (1 - (waterLevel - SEA_FLOOR_Y) / height);
-  islandAreas.push({ x: position.x, z: position.z, baseRadius, height, surfaceRadius });
+export function registerIsland({ center, radius, surfaceRadius = radius, getHeight }) {
+  islandAreas.push({
+    center: { x: center.x, z: center.z },
+    radius,
+    surfaceRadius,
+    getHeight,
+  });
 }
 
 export function getTerrainHeight(x, z) {
   let height = SEA_FLOOR_Y;
   for (const island of islandAreas) {
-    const dx = x - island.x;
-    const dz = z - island.z;
+    const dx = x - island.center.x;
+    const dz = z - island.center.z;
     const dist = Math.hypot(dx, dz);
-    if (dist < island.baseRadius) {
-      const h = SEA_FLOOR_Y + island.height * (1 - dist / island.baseRadius);
-      if (h > height) height = h;
+    if (dist <= island.radius) {
+      if (typeof island.getHeight === 'function') {
+        const h = island.getHeight(x, z);
+        if (h > height) height = h;
+      }
     }
   }
   return height;
