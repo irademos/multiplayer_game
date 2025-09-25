@@ -101,8 +101,10 @@ export class PlayerControls {
 
     // Setup event listeners
     this.setupEventListeners();
-    
+
     this.enabled = true; // Add enabled flag for chat input
+
+    this.interactionPromptEl = document.getElementById('interaction-tooltip');
   }
   
   initializeControls() {
@@ -305,6 +307,7 @@ export class PlayerControls {
         window.spaceship?.tryMount(this);
         window.surfboard?.tryMount(this);
         window.rowBoat?.tryMount(this);
+        window.iceGun?.tryPickup(this);
         return;
       }
 
@@ -754,6 +757,63 @@ export class PlayerControls {
       if (this.controls) {
         this.controls.update();
       }
+
+      this.updateInteractionPrompt();
+  }
+
+  updateInteractionPrompt() {
+    if (!this.interactionPromptEl || !this.playerModel) return;
+
+    let promptText = '';
+    let visible = false;
+
+    if (this.vehicle) {
+      const type = this.vehicle.type;
+      if (type === 'spaceship') {
+        promptText = "'x' exit spaceship";
+      } else if (type === 'rowboat') {
+        promptText = "'x' exit rowboat";
+      } else if (type === 'surfboard') {
+        promptText = "'x' exit surfboard";
+      }
+      visible = !!promptText;
+    } else {
+      const iceGun = window.iceGun;
+      if (iceGun?.holder === this) {
+        promptText = "'x' drop gun";
+        visible = true;
+      } else {
+        const playerPos = this.playerModel.position;
+        let closestDist = Infinity;
+
+        const consider = (object, maxDistance, message) => {
+          if (!object) return;
+          const target = object.mesh || object;
+          if (!target || !target.position) return;
+          if (object.occupant) return;
+          if (object.holder) return;
+          const dist = playerPos.distanceTo(target.position);
+          if (dist <= maxDistance && dist < closestDist) {
+            closestDist = dist;
+            promptText = message;
+            visible = true;
+          }
+        };
+
+        consider(window.spaceship, 10, "'x' enter spaceship");
+        consider(window.rowBoat, 4, "'x' enter rowboat");
+        consider(window.surfboard, 3, "'x' enter surfboard");
+        consider(window.iceGun, 3, "'x' pick up gun");
+      }
+    }
+
+    if (visible) {
+      this.interactionPromptEl.textContent = promptText;
+      this.interactionPromptEl.classList.add('visible');
+    } else {
+      this.interactionPromptEl.classList.remove('visible');
+      this.interactionPromptEl.textContent = '';
+    }
   }
   
   getCamera() {
