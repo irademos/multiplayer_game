@@ -5,8 +5,31 @@ import { getWaterDepth, getTerrainHeight } from './water.js';
 // Easily tweakable placement and gameplay constants
 const DEFAULT_BOAT_POSITION = new THREE.Vector3(8, 0, 14);
 const BOAT_SCALE = 0.01;
-const OAR_LOCAL_POSITION = new THREE.Vector3(0, 85.0, -0.2);
-const OAR_LOCAL_ROTATION = new THREE.Euler(-Math.PI / 2, 0, 0, 'XYZ');
+const createOarTransform = (position, rotation) => {
+  const quaternion = new THREE.Quaternion().setFromEuler(rotation);
+  return { position, quaternion };
+};
+
+const OAR_STATE_TRANSFORMS = {
+  stowed: createOarTransform(
+    new THREE.Vector3(0, 82.0, -0.2),
+    new THREE.Euler(-Math.PI / 2, 0, 0, 'XYZ')
+  ),
+  idle: createOarTransform(
+    new THREE.Vector3(0, 90.0, -0.2),
+    new THREE.Euler(-Math.PI / 2 + 0.2, 0, 0, 'XYZ')
+  ),
+  paddleLeft: createOarTransform(
+    new THREE.Vector3(-12.0, 86.0, -18.0),
+    new THREE.Euler(-Math.PI / 2 + 0.1, Math.PI / 3.2, -Math.PI / 12, 'XYZ')
+  ),
+  paddleRight: createOarTransform(
+    new THREE.Vector3(12.0, 86.0, -18.0),
+    new THREE.Euler(-Math.PI / 2 + 0.1, -Math.PI / 3.2, Math.PI / 12, 'XYZ')
+  ),
+};
+
+const OAR_INTERPOLATION_SPEED = 7.5;
 const MOUNT_LOCAL_POSITION = new THREE.Vector3(-20.0, 95.0, 0.0);
 const MOUNT_LOCAL_ROTATION = new THREE.Euler(0, Math.PI/2, 0, 'YXZ');
 const FLOAT_HEIGHT = -0.15;
@@ -43,7 +66,11 @@ export class RowBoat {
     this.paddleCooldown = 0;
     this.paddleResetTime = 0;
     this.paddleActionName = null;
+    this.oarResetTime = 0;
     this.lastUpdateTime = null;
+    this.oarState = 'stowed';
+    this.oarTargetPosition = new THREE.Vector3();
+    this.oarTargetQuaternion = new THREE.Quaternion();
 
     this.boundingSize = new THREE.Vector3(4, 1.5, 1.5);
     this.boundingCenterOffset = new THREE.Vector3();
@@ -85,7 +112,7 @@ export class RowBoat {
       this.oar.name = 'RowBoatOar';
       this.oar.scale.setScalar(5.0);
       this.mesh.add(this.oar);
-      this.setOarTransform();
+      this.setOarState('stowed', { immediate: true });
     }
 
     const bbox = new THREE.Box3().setFromObject(this.mesh);
@@ -97,10 +124,29 @@ export class RowBoat {
     return this.mesh;
   }
 
-  setOarTransform() {
+  setOarState(stateName, { immediate = false } = {}) {
     if (!this.oar) return;
-    this.oar.position.copy(OAR_LOCAL_POSITION);
-    this.oar.rotation.copy(OAR_LOCAL_ROTATION);
+
+    const state = OAR_STATE_TRANSFORMS[stateName] || OAR_STATE_TRANSFORMS.idle;
+    const resolvedStateName = OAR_STATE_TRANSFORMS[stateName] ? stateName : 'idle';
+    this.oarTargetPosition.copy(state.position);
+    this.oarTargetQuaternion.copy(state.quaternion);
+    this.oarState = resolvedStateName;
+
+    if (immediate) {
+      this.oar.position.copy(this.oarTargetPosition);
+      this.oar.quaternion.copy(this.oarTargetQuaternion);
+    }
+  }
+
+  updateOar(delta) {
+    if (!this.oar) return;
+
+    const lerpFactor = 1 - Math.exp(-OAR_INTERPOLATION_SPEED * delta);
+    if (Number.isNaN(lerpFactor)) return;
+
+    this.oar.position.lerp(this.oarTargetPosition, lerpFactor);
+    this.oar.quaternion.slerp(this.oarTargetQuaternion, lerpFactor);
   }
 
   getMountWorldTransform(outPosition = TEMP_POSITION, outQuaternion = TEMP_QUATERNION) {
@@ -136,9 +182,11 @@ export class RowBoat {
     playerControls.isMoving = false;
     this.alignOccupant();
     this.playOccupantAction('sit');
+    this.setOarState('idle');
     this.paddleCooldown = 0;
     this.paddleActionName = null;
     this.paddleResetTime = 0;
+    this.oarResetTime = 0;
     playerControls.yaw = -this.mesh.rotation.y;
   }
 
@@ -166,6 +214,8 @@ export class RowBoat {
     playerControls.vehicle = null;
     this.occupant = null;
     this.paddleActionName = null;
+    this.setOarState('stowed');
+    this.oarResetTime = 0;
   }
 
   paddleLeft() {
@@ -191,6 +241,8 @@ export class RowBoat {
     this.paddleActionName = actionName;
     this.paddleResetTime = performance.now() + duration * 1000 * 0.9;
     this.paddleCooldown = PADDLE_COOLDOWN;
+    this.setOarState(actionName === 'paddleLeft' ? 'paddleLeft' : 'paddleRight');
+    this.oarResetTime = this.paddleResetTime;
 
     const forward = TEMP_FORWARD;//.set(0, 0, 1).applyQuaternion(this.mesh.quaternion);
     this.mesh.getWorldDirection(forward);
@@ -267,13 +319,22 @@ export class RowBoat {
     }
 
     this.mesh.updateMatrixWorld(true);
+    this.updateOar(delta);
 
     if (this.occupant) {
       this.alignOccupant();
-      if (this.paddleActionName && performance.now() >= this.paddleResetTime) {
+      if (this.paddleActionName && now >= this.paddleResetTime) {
         this.playOccupantAction('sit');
         this.paddleActionName = null;
+        this.setOarState('idle');
       }
+      if (this.oarResetTime && now >= this.oarResetTime) {
+        this.setOarState('idle');
+        this.oarResetTime = 0;
+      }
+    } else if (this.oarState !== 'stowed') {
+      this.setOarState('stowed');
+      this.oarResetTime = 0;
     }
   }
 }
