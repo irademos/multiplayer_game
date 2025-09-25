@@ -18,6 +18,7 @@ import { AudioManager } from './audioManager.js';
 import { Spaceship } from './spaceship.js';
 import { Surfboard } from './surfboard.js';
 import { RowBoat } from './rowboat.js';
+import { IceGun } from './iceGun.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { applyGlobalGravity } from "./gravity.js";
 
@@ -53,6 +54,7 @@ async function main() {
   let spaceship;
   let surfboard;
   let rowBoat;
+  let iceGun;
 
   // Load additional level data (destructible props, etc.)
   const breakManager = new BreakManager(scene);
@@ -142,6 +144,10 @@ async function main() {
   rowBoat = new RowBoat(scene);
   await rowBoat.load();
   window.rowBoat = rowBoat;
+
+  iceGun = new IceGun(scene);
+  await iceGun.load();
+  window.iceGun = iceGun;
 
   function attachMonsterPhysics(mon) {
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
@@ -672,6 +678,7 @@ async function main() {
     playerControls.update();
     
     surfboard.update();
+    iceGun?.update();
     if (multiplayer.isHost) {
       spaceship.update();
       if (spaceship.body) {
