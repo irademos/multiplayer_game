@@ -72,16 +72,52 @@ export function createMoon(scene, rapierWorld, rbToMesh) {
 const textureLoader = new THREE.TextureLoader();
 const textureCache = new Map();
 
+const TEXTURE_DOWNSCALE_POWER = 2; // Reduce to 1 / 2^power resolution (quarter size).
+const USE_SEAFLOOR_TEXTURE = false;
+
+const isPowerOfTwo = (value) => value && (value & (value - 1)) === 0;
+
 function loadIslandTexture(key, url, repeat = 4) {
-  if (textureCache.has(key)) return textureCache.get(key);
-  const texture = textureLoader.load(url);
+  const cacheKey = TEXTURE_DOWNSCALE_POWER
+    ? `${key}-down-${TEXTURE_DOWNSCALE_POWER}`
+    : key;
+  if (textureCache.has(cacheKey)) return textureCache.get(cacheKey);
+  const texture = textureLoader.load(url, (loadedTexture) => {
+    if (
+      TEXTURE_DOWNSCALE_POWER > 0 &&
+      loadedTexture.image &&
+      typeof document !== "undefined"
+    ) {
+      const { width, height } = loadedTexture.image;
+      if (isPowerOfTwo(width) && isPowerOfTwo(height)) {
+        const downscaleFactor = 1 << TEXTURE_DOWNSCALE_POWER;
+        const targetWidth = Math.max(1, Math.floor(width / downscaleFactor));
+        const targetHeight = Math.max(1, Math.floor(height / downscaleFactor));
+        if (targetWidth > 0 && targetHeight > 0) {
+          const canvas = document.createElement("canvas");
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const context = canvas.getContext("2d");
+          context.drawImage(
+            loadedTexture.image,
+            0,
+            0,
+            targetWidth,
+            targetHeight
+          );
+          loadedTexture.image = canvas;
+          loadedTexture.needsUpdate = true;
+        }
+      }
+    }
+  });
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
   texture.repeat.set(repeat, repeat);
   if (texture.colorSpace !== undefined) {
     texture.colorSpace = THREE.SRGBColorSpace;
   }
-  textureCache.set(key, texture);
+  textureCache.set(cacheKey, texture);
   return texture;
 }
 
@@ -115,15 +151,23 @@ const rockMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.1,
 });
 
-const seaFloorMaterial = new THREE.MeshStandardMaterial({
-  map: loadIslandTexture(
-    "seafloor",
-    "/assets/textures/sandy_gravel_02_4k.blend/textures/sandy_gravel_02_diff_4k.jpg",
-    12
-  ),
-  roughness: 0.95,
-  metalness: 0.02,
-});
+const seaFloorMaterial = new THREE.MeshStandardMaterial(
+  USE_SEAFLOOR_TEXTURE
+    ? {
+        map: loadIslandTexture(
+          "seafloor",
+          "/assets/textures/sandy_gravel_02_4k.blend/textures/sandy_gravel_02_diff_4k.jpg",
+          12
+        ),
+        roughness: 0.95,
+        metalness: 0.02,
+      }
+    : {
+        color: new THREE.Color(0xbba37a),
+        roughness: 0.95,
+        metalness: 0.02,
+      }
+);
 
 function pseudoRandom2D(x, z) {
   const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453123;
