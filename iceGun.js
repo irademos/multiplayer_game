@@ -37,6 +37,14 @@ export class IceGun {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        const materials = Array.isArray(child.material)
+          ? child.material
+          : [child.material];
+        materials.forEach(material => {
+          if (!material) return;
+          material.depthWrite = true;
+          material.depthTest = true;
+        });
       }
     });
 
