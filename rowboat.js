@@ -10,23 +10,13 @@ const createOarTransform = (position, rotation) => {
   return { position, quaternion };
 };
 
-const OAR_STATE_TRANSFORMS = {
-  stowed: createOarTransform(
-    new THREE.Vector3(0, 82.0, -0.2),
-    new THREE.Euler(-Math.PI / 2, 0, 0, 'XYZ')
-  ),
-  idle: createOarTransform(
-    new THREE.Vector3(0, 90.0, -0.2),
-    new THREE.Euler(-Math.PI / 2 + 0.2, 0, 0, 'XYZ')
-  ),
-  paddleLeft: createOarTransform(
-    new THREE.Vector3(-12.0, 86.0, -18.0),
-    new THREE.Euler(-Math.PI / 2 + 0.1, Math.PI / 3.2, -Math.PI / 12, 'XYZ')
-  ),
-  paddleRight: createOarTransform(
-    new THREE.Vector3(12.0, 86.0, -18.0),
-    new THREE.Euler(-Math.PI / 2 + 0.1, -Math.PI / 3.2, Math.PI / 12, 'XYZ')
-  ),
+// Sweep angles for the PIVOT (yaw-like stroke). Tune +/- degrees.
+const deg = THREE.MathUtils.degToRad;
+const OAR_PIVOT_TARGETS = {
+  stowed: new THREE.Quaternion().setFromEuler(new THREE.Euler(0,  deg(-60), 0, 'YXZ')),
+  idle:   new THREE.Quaternion().setFromEuler(new THREE.Euler(0,  deg(  0), 0, 'YXZ')),
+  paddleLeft:  new THREE.Quaternion().setFromEuler(new THREE.Euler(0, deg(+35), 0, 'YXZ')),
+  paddleRight: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, deg(-35), 0, 'YXZ')),
 };
 
 const OAR_INTERPOLATION_SPEED = 7.5;
@@ -50,7 +40,8 @@ const TEMP_RIGHT = new THREE.Vector3();
 const TEMP_UP = new THREE.Vector3();
 const UNIT_SCALE = new THREE.Vector3(1, 1, 1);
 const TEMP_SCALE = new THREE.Vector3();
-
+const STROKE_DURATION = 0.6;   // seconds, full out-and-back
+const CATCH_FRACTION  = 0.4;   // when the blade "bites" (0..1)
 
 
 export class RowBoat {
@@ -74,6 +65,8 @@ export class RowBoat {
 
     this.boundingSize = new THREE.Vector3(4, 1.5, 1.5);
     this.boundingCenterOffset = new THREE.Vector3();
+    this.oarPivot = null;
+    this.oarStroke = null; // { side:'left'|'right', start:number(ms), dur:number(ms), returning:boolean }
   }
 
   
@@ -111,8 +104,15 @@ export class RowBoat {
     if (this.oar) {
       this.oar.name = 'RowBoatOar';
       this.oar.scale.setScalar(5.0);
-      this.mesh.add(this.oar);
-      this.setOarState('stowed', { immediate: true });
+      // Hinge/pivot placed at the oarlock (use your idle state position)
+      this.oarPivot = new THREE.Object3D();
+      this.oarPivot.position.set(0, 90.0, -0.2); // was idle.position
+      this.mesh.add(this.oarPivot);
+      // Fix the oar under the pivot; orient once
+      this.oarPivot.add(this.oar);
+      this.oar.position.set(0, 0, 0);
+      this.oar.rotation.set(-Math.PI/2 + 0.1, 0, 0);
+      this.setOarState('idle', { immediate: true });
     }
 
     const bbox = new THREE.Box3().setFromObject(this.mesh);
@@ -125,28 +125,18 @@ export class RowBoat {
   }
 
   setOarState(stateName, { immediate = false } = {}) {
-    if (!this.oar) return;
-
-    const state = OAR_STATE_TRANSFORMS[stateName] || OAR_STATE_TRANSFORMS.idle;
-    const resolvedStateName = OAR_STATE_TRANSFORMS[stateName] ? stateName : 'idle';
-    this.oarTargetPosition.copy(state.position);
-    this.oarTargetQuaternion.copy(state.quaternion);
-    this.oarState = resolvedStateName;
-
-    if (immediate) {
-      this.oar.position.copy(this.oarTargetPosition);
-      this.oar.quaternion.copy(this.oarTargetQuaternion);
-    }
+    if (!this.oarPivot) return;
+    const qTarget = OAR_PIVOT_TARGETS[stateName] || OAR_PIVOT_TARGETS.idle;
+    this.oarTargetQuaternion.copy(qTarget);
+    this.oarState = stateName in OAR_PIVOT_TARGETS ? stateName : 'idle';
+    if (immediate) this.oarPivot.quaternion.copy(this.oarTargetQuaternion);
   }
 
   updateOar(delta) {
-    if (!this.oar) return;
-
-    const lerpFactor = 1 - Math.exp(-OAR_INTERPOLATION_SPEED * delta);
-    if (Number.isNaN(lerpFactor)) return;
-
-    this.oar.position.lerp(this.oarTargetPosition, lerpFactor);
-    this.oar.quaternion.slerp(this.oarTargetQuaternion, lerpFactor);
+    if (!this.oarPivot) return;
+    const f = 1 - Math.exp(-OAR_INTERPOLATION_SPEED * delta);
+    if (!Number.isFinite(f)) return;
+    this.oarPivot.quaternion.slerp(this.oarTargetQuaternion, f);
   }
 
   getMountWorldTransform(outPosition = TEMP_POSITION, outQuaternion = TEMP_QUATERNION) {
@@ -253,9 +243,11 @@ export class RowBoat {
     // const right = TEMP_RIGHT.copy(forward).cross(new THREE.Vector3(0, 1, 0)).normalize();
     // const right = TEMP_RIGHT.set(1, 0, 0).applyQuaternion(this.mesh.quaternion);
 
-    this.velocity.addScaledVector(forward, PADDLE_FORWARD_IMPULSE);
-    this.velocity.addScaledVector(right, PADDLE_SIDE_IMPULSE * lateralSign);
-    this.angularVelocity += lateralSign * PADDLE_TURN_RATE;
+    // Defer forces to mid-stroke for better feel
+    this._pendingImpulse = {
+      at: performance.now() + 240, // ~0.24s into the stroke; tune
+      lateralSign
+    };
   }
 
   playOccupantAction(name, { immediate = false } = {}) {
@@ -335,6 +327,18 @@ export class RowBoat {
     } else if (this.oarState !== 'stowed') {
       this.setOarState('stowed');
       this.oarResetTime = 0;
+    }
+    // apply deferred stroke forces at the catch
+    if (this._pendingImpulse && performance.now() >= this._pendingImpulse.at) {
+      const { lateralSign } = this._pendingImpulse;
+      const forward = TEMP_FORWARD;
+      this.mesh.getWorldDirection(forward);
+      forward.applyAxisAngle(TEMP_UP.set(0,1,0), Math.PI / 2);
+      const right = TEMP_RIGHT.copy(TEMP_UP).cross(forward).normalize();
+      this.velocity.addScaledVector(forward, PADDLE_FORWARD_IMPULSE);
+      this.velocity.addScaledVector(right, PADDLE_SIDE_IMPULSE * lateralSign);
+      this.angularVelocity += lateralSign * PADDLE_TURN_RATE;
+      this._pendingImpulse = null;
     }
   }
 }

@@ -11,7 +11,7 @@ export class IceGun {
     this.mesh = null;
     this.holder = null;
     this.type = 'iceGun';
-    this._holdOffset = new THREE.Vector3(0.4, 1, -0.3);
+    this._holdOffset = new THREE.Vector3(-0.05, 0.15, 0.08);
     this._holdRotation = new THREE.Euler(-Math.PI / 2, Math.PI, 0, 'YXZ');
     this._holdQuaternion = new THREE.Quaternion().setFromEuler(this._holdRotation);
     this._handBones = new WeakMap();
