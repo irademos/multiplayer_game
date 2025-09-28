@@ -5,6 +5,10 @@ export function switchMonsterAnimation(monster, newName) {
   if (newName === currentAction || !actions[newName]) return;
 
   const nextAction = actions[newName];
+  const animationSpeeds = monster.userData.animationSpeeds || {};
+  const defaultAnimationSpeed = monster.userData.defaultAnimationSpeed ?? 1;
+  const nextTimeScale = animationSpeeds[newName] ?? defaultAnimationSpeed;
+  nextAction.setEffectiveTimeScale(nextTimeScale);
   nextAction.reset();
 
   // Stop looping for death animation
