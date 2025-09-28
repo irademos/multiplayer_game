@@ -326,7 +326,7 @@ export class PlayerControls {
           this.playAction('hurricaneKick');
         }
       } else if (key === 'e') {
-        if (this.vehicle.type === 'surfboard') this.vehicle.toggleStand();
+        if (this.vehicle) if (this.vehicle.type === 'surfboard') this.vehicle.toggleStand();
         if (this.isInWater) return;
         if (this.isMoving) {
           this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
@@ -336,7 +336,7 @@ export class PlayerControls {
       } else if (key === 'r') {
         if (this.isInWater) return;
         if (this.isMoving) {
-          this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
+          this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(1.4);
           this.playAction('runningKick');
           this.audioManager?.playAttack();
         } else {
@@ -399,23 +399,6 @@ export class PlayerControls {
         start: Date.now(),
         hasHit: false,
       };
-    }
-
-    if (actionName === "runningKick") {
-      action.paused = true;
-      const pivot = this.playerModel.userData.pivot;
-      if (pivot) {
-        this.runningKickOriginalY = pivot.rotation.y;
-        pivot.rotation.y -= Math.PI / 2;
-      }
-      this.runningKickTimer = setTimeout(() => {
-        action.stop();
-        if (pivot) {
-          pivot.rotation.y = this.runningKickOriginalY;
-        }
-        this.currentSpecialAction = null;
-      }, 1000);
-      return;
     }
 
     const mixer = this.playerModel.userData.mixer;
