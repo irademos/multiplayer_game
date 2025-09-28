@@ -26,11 +26,13 @@ export function switchMonsterAnimation(monster, newName) {
 }
 
 
-export function updateMonster(monster, clock, playerModel, otherPlayers) {
+export function updateMonster(monster, deltaTime, playerModel, otherPlayers) {
   const now = Date.now();
   const data = monster.userData;
   const body = data.rb;
   if (!body) return;
+
+  const delta = Number.isFinite(deltaTime) ? deltaTime : 0;
 
   // 🧠 Handle monster death state
   if (window.monsterHealth <= 0) {
@@ -40,7 +42,6 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
     }
 
     // Continue updating the mixer so animation plays
-    const delta = clock.getDelta();
     if (data.mixer) data.mixer.update(delta);
 
     return; // ⛔ Stop further behavior logic (walking, attacking, etc.)
@@ -48,7 +49,6 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
 
   // Early return if reacting to a hit
   if (monster.userData.hitReacting) {
-    const delta = clock.getDelta();
     if (monster.userData.mixer) {
       monster.userData.mixer.update(delta);
     }
@@ -57,8 +57,6 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
 
   // 🕊️ Friendly mode: wander around without attacking players
   if (data.mode === "friendly") {
-    const delta = clock.getDelta();
-
     // Change direction every few seconds to simulate wandering
     if (now - data.lastDirectionChange > 2000) {
       data.direction = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
@@ -132,7 +130,6 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
     }
   }
 
-  const delta = clock.getDelta();
   if (data.mixer) {
     data.mixer.update(delta);
   }

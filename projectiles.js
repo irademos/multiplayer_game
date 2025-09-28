@@ -42,7 +42,7 @@ export function updateProjectiles({
   playerModel,
   multiplayer,
   monster,
-  clock
+  delta
 }) {
   const removeProjectile = (index) => {
     const p = projectiles[index];
@@ -172,7 +172,7 @@ export function updateProjectiles({
   }
 
   if (multiplayer?.isHost && monster) {
-    updateMonster(monster, clock, playerModel, otherPlayers); // pass in new args
+    updateMonster(monster, delta, playerModel, otherPlayers);
     multiplayer.send({
       type: "monster",
       x: monster.position.x,
