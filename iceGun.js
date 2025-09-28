@@ -13,6 +13,11 @@ export class IceGun {
     this.type = 'iceGun';
     this._holdOffset = new THREE.Vector3(0.4, 1, -0.3);
     this._holdRotation = new THREE.Euler(-Math.PI / 2, Math.PI, 0, 'YXZ');
+    this._holdQuaternion = new THREE.Quaternion().setFromEuler(this._holdRotation);
+    this._handBones = new WeakMap();
+    this._tempPosition = new THREE.Vector3();
+    this._tempQuaternion = new THREE.Quaternion();
+    this._tempOffset = new THREE.Vector3();
   }
 
   async load(position = DEFAULT_POSITION) {
@@ -85,12 +90,55 @@ export class IceGun {
     if (!this.holder || !this.holder.playerModel) return;
 
     const player = this.holder.playerModel;
+    const handBone = this._getHandBone(player);
+
+    if (handBone) {
+      handBone.updateWorldMatrix(true, false);
+      handBone.getWorldPosition(this._tempPosition);
+      handBone.getWorldQuaternion(this._tempQuaternion);
+
+      this.mesh.position.copy(this._tempPosition);
+      this._tempOffset.copy(this._holdOffset).applyQuaternion(this._tempQuaternion);
+      this.mesh.position.add(this._tempOffset);
+
+      this.mesh.quaternion.copy(this._tempQuaternion).multiply(this._holdQuaternion);
+      return;
+    }
+
     const quaternion = player.quaternion;
+    this._tempOffset.copy(this._holdOffset).applyQuaternion(quaternion);
+    this.mesh.position.copy(player.position).add(this._tempOffset);
+    this.mesh.quaternion.copy(quaternion).multiply(this._holdQuaternion);
+  }
 
-    const offset = this._holdOffset.clone().applyQuaternion(quaternion);
-    this.mesh.position.copy(player.position).add(offset);
+  _getHandBone(playerModel) {
+    if (!playerModel) return null;
 
-    const holdQuaternion = new THREE.Quaternion().setFromEuler(this._holdRotation);
-    this.mesh.quaternion.copy(quaternion).multiply(holdQuaternion);
+    if (this._handBones.has(playerModel)) {
+      return this._handBones.get(playerModel);
+    }
+
+    const root = playerModel.userData?.pivot ?? playerModel;
+    let handBone = null;
+
+    root.traverse(child => {
+      if (handBone || !child.isBone || !child.name) return;
+      const name = child.name.toLowerCase();
+      if (name.includes('righthand')) {
+        handBone = child;
+      }
+    });
+
+    if (!handBone) {
+      root.traverse(child => {
+        if (handBone || !child.isBone || !child.name) return;
+        if (child.name.toLowerCase().includes('hand')) {
+          handBone = child;
+        }
+      });
+    }
+
+    this._handBones.set(playerModel, handBone || null);
+    return handBone || null;
   }
 }
