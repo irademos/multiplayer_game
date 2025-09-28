@@ -677,7 +677,8 @@ async function main() {
 
     // --- RAPIER FIXED-STEP & SYNC ---
     // Accumulate variable rAF time into fixed physics steps
-    physicsAccumulator += clock.getDelta();
+    const frameDelta = clock.getDelta();
+    physicsAccumulator += frameDelta;
     while (physicsAccumulator >= FIXED_DT) {
       applyGlobalGravity(rapierWorld, window.moon);
       applyWaveForces();
@@ -778,17 +779,17 @@ async function main() {
       showGameOver();
     }
 
-    const delta = mixerClock.getDelta();
+    const mixerDelta = mixerClock.getDelta();
     // Update visible waves and spawn new ones less frequently
-    updateWaves(delta);
-    nextWaveIn -= delta;
+    updateWaves(mixerDelta);
+    nextWaveIn -= mixerDelta;
     if (nextWaveIn <= 0) {
       spawnOceanWave();
       scheduleNextWave();
     }
 
     Object.values(otherPlayers).forEach(p => {
-      p.model.userData.mixer?.update(delta);
+      p.model.userData.mixer?.update(mixerDelta);
     });
 
     rowBoat.update();
@@ -840,7 +841,7 @@ async function main() {
       otherPlayers,
       multiplayer,
       monster,
-      clock
+      delta: frameDelta
     });
 
     updateMeleeAttacks({ playerModel, otherPlayers, monster, audioManager });
