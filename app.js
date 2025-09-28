@@ -691,7 +691,7 @@ async function main() {
       if (!mesh.userData?.isTerrain) {
         mesh.updateMatrixWorld();
         const bbox = new THREE.Box3().setFromObject(mesh);
-        const terrainY = 0;
+        const terrainY = getTerrainHeight(mesh.position.x, mesh.position.z);
         if (bbox.min.y < terrainY) {
           const correction = terrainY - bbox.min.y;
           mesh.position.y += correction;
