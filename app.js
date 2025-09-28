@@ -4,7 +4,7 @@ import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
 import { createOrcVoice } from "./orcVoice.js";
 import { createClouds, generateIsland, createMoon, MOON_RADIUS } from "./worldGeneration.js";
-import { initWaves, spawnOceanWave, updateWaves, getWaveForceAt } from './water.js';
+import { initWaves, spawnOceanWave, updateWaves, getWaveForceAt, getTerrainHeight } from './water.js';
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -186,6 +186,32 @@ async function main() {
   let playerDead = false;
 
   const projectiles = [];
+  const ammoPickups = [];
+  const AMMO_PICKUP_AMOUNT = 5;
+
+  function spawnAmmoPickup(position) {
+    const spawnPos = position.clone();
+    const terrainHeight = getTerrainHeight(spawnPos.x, spawnPos.z);
+    spawnPos.y = terrainHeight + 0.6;
+
+    const geometry = new THREE.IcosahedronGeometry(0.25, 0);
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x7fd0ff,
+      emissive: 0x225577,
+      emissiveIntensity: 0.4,
+      metalness: 0.1,
+      roughness: 0.4,
+    });
+
+    const pickup = new THREE.Mesh(geometry, material);
+    pickup.position.copy(spawnPos);
+    pickup.castShadow = true;
+    pickup.userData.baseY = spawnPos.y;
+    pickup.userData.phase = Math.random() * Math.PI * 2;
+    scene.add(pickup);
+    ammoPickups.push(pickup);
+    return pickup;
+  }
 
   const playerControls = new PlayerControls({
     scene,
@@ -198,6 +224,9 @@ async function main() {
     audioManager
   });
   window.playerControls = playerControls;
+
+  spawnAmmoPickup(new THREE.Vector3(-4, 0, 4));
+  spawnAmmoPickup(new THREE.Vector3(2, 0, -3));
 
   const levelBuilder = new LevelBuilder({ scene, camera, renderer });
   const builderBtn = document.getElementById('level-builder-button');
@@ -676,7 +705,29 @@ async function main() {
 
 
     playerControls.update();
-    
+
+    const pickupTime = performance.now() * 0.002;
+    for (let i = ammoPickups.length - 1; i >= 0; i--) {
+      const pickup = ammoPickups[i];
+      if (!pickup) continue;
+
+      if (pickup.userData.baseY === undefined) {
+        pickup.userData.baseY = pickup.position.y;
+      }
+
+      pickup.rotation.y += 0.03;
+      const phase = pickup.userData.phase ?? 0;
+      pickup.position.y = pickup.userData.baseY + Math.sin(pickupTime + phase) * 0.1;
+
+      if (playerModel.position.distanceTo(pickup.position) < 1.2) {
+        playerControls.addAmmo(AMMO_PICKUP_AMOUNT);
+        scene.remove(pickup);
+        pickup.geometry?.dispose();
+        pickup.material?.dispose();
+        ammoPickups.splice(i, 1);
+      }
+    }
+
     surfboard.update();
     iceGun?.update();
     if (multiplayer.isHost) {
