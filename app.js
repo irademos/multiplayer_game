@@ -21,6 +21,7 @@ import { RowBoat } from './rowboat.js';
 import { IceGun } from './iceGun.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { applyGlobalGravity } from "./gravity.js";
+import { getSpawnPosition } from './spawnUtils.js';
 
 const clock = new THREE.Clock();
 const mixerClock = new THREE.Clock();
@@ -75,6 +76,13 @@ async function main() {
     monster.userData.speed = 0.025;
     monster.userData.lastDirectionChange = Date.now();
     monster.userData.mode = "friendly"; // default behavior
+
+    const monsterSpawn = getSpawnPosition({ heightOffset: 0.5 });
+    monster.position.set(monsterSpawn.x, monsterSpawn.y, monsterSpawn.z);
+    monster.userData.spawnPoint = monsterSpawn;
+    if (monster.userData.rb) {
+      monster.userData.rb.setTranslation({ x: monsterSpawn.x, y: monsterSpawn.y, z: monsterSpawn.z }, true);
+    }
 
     const orcPhrases = [
       "Uggghh",
@@ -393,14 +401,17 @@ async function main() {
   function respawnPlayer() {
     window.localHealth = 100;
     updateHealthUI();
-    const newX = (Math.random() * 10) - 5;
-    const newZ = (Math.random() * 10) - 5;
-    const newY = 0.5;
-    playerModel.position.set(newX, newY, newZ);
-    playerControls.playerX = newX;
-    playerControls.playerY = newY;
-    playerControls.playerZ = newZ;
-    playerControls.lastPosition.set(newX, newY, newZ);
+    const spawn = getSpawnPosition();
+    playerModel.position.set(spawn.x, spawn.y, spawn.z);
+    playerControls.playerX = spawn.x;
+    playerControls.playerY = spawn.y;
+    playerControls.playerZ = spawn.z;
+    playerControls.lastPosition.set(spawn.x, spawn.y, spawn.z);
+    if (playerControls.body) {
+      playerControls.body.setTranslation({ x: spawn.x, y: spawn.y, z: spawn.z }, true);
+      playerControls.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      playerControls.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    }
     playerControls.velocity.set(0, 0, 0);
     playerControls.enabled = true;
     playerDead = false;

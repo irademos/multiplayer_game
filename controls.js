@@ -2,6 +2,7 @@ import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { getWaterDepth, SWIM_DEPTH_THRESHOLD, getTerrainHeight } from './water.js';
 import { MOON_RADIUS } from "./worldGeneration.js";
+import { getSpawnPosition } from './spawnUtils.js';
 
 // Movement constants
 const SPEED = 5;
@@ -63,10 +64,10 @@ export class PlayerControls {
     this.moveRight = 0;
     
     // Initial player position
-    // const initialPos = { x: 0, y: 0.5, z: 0 };
-    this.playerX = (Math.random() * 10) - 5;
-    this.playerZ = (Math.random() * 10) - 5;
-    this.playerY = 0.5;
+    const spawn = getSpawnPosition();
+    this.playerX = spawn.x;
+    this.playerY = spawn.y;
+    this.playerZ = spawn.z;
 
     
     // Set initial player model position if it exists
