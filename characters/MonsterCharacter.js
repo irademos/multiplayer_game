@@ -62,7 +62,8 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
     }
 
     const vel = body.linvel();
-    const movement = data.direction.clone().multiplyScalar(data.speed);
+    const wanderSpeed = data.wanderSpeed ?? data.speed ?? 0.025;
+    const movement = data.direction.clone().multiplyScalar(wanderSpeed);
     body.setLinvel({ x: movement.x, y: vel.y, z: movement.z }, true);
     const angle = Math.atan2(data.direction.x, data.direction.z);
     const rot = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, angle, 0));
@@ -100,7 +101,8 @@ export function updateMonster(monster, clock, playerModel, otherPlayers) {
   if (!isInAttackRange && (!data.lastAttackTime || now - data.lastAttackTime > 2000)) {
     const direction = targetPos.sub(monster.position).normalize();
     data.direction.copy(direction);
-    const movement = data.direction.clone().multiplyScalar(data.speed * 3);
+    const chaseSpeed = data.chaseSpeed ?? (data.speed ?? 0.025) * 3;
+    const movement = data.direction.clone().multiplyScalar(chaseSpeed);
     const vel = body.linvel();
     body.setLinvel({ x: movement.x, y: vel.y, z: movement.z }, true);
     const angle = Math.atan2(data.direction.x, data.direction.z);

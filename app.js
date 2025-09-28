@@ -73,7 +73,11 @@ async function main() {
     monster.userData.actions = data.actions;
     monster.userData.currentAction = "Idle";
     monster.userData.direction = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
-    monster.userData.speed = 0.025;
+    // Tune monster movement speeds so it doesn't feel stuck in slow motion.
+    // "wanderSpeed" is used while the monster roams around in friendly mode,
+    // while "chaseSpeed" is used when it targets players in enemy mode.
+    monster.userData.wanderSpeed = 0.04;
+    monster.userData.chaseSpeed = 0.14;
     monster.userData.lastDirectionChange = Date.now();
     monster.userData.mode = "friendly"; // default behavior
 
