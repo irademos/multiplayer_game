@@ -105,6 +105,15 @@ export class PlayerControls {
     this.enabled = true; // Add enabled flag for chat input
 
     this.interactionPromptEl = document.getElementById('interaction-tooltip');
+
+    this.ammo = 10;
+    this.maxAmmo = 30;
+    this.ammoContainerEl = document.getElementById('ammo-display');
+    this.ammoCountEl = document.getElementById('ammo-count');
+    this.lastAmmoValue = null;
+    this.lastAmmoEmpty = null;
+    this.lastHasGun = null;
+    this.updateAmmoUI(window.iceGun?.holder === this);
   }
   
   initializeControls() {
@@ -231,20 +240,9 @@ export class PlayerControls {
 
     document.getElementById('fire-button').addEventListener('touchstart', (event) => {
       if (!this.enabled) return;
-      const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
-      const direction = new THREE.Vector3(0, 0, 1).applyQuaternion(this.playerModel.quaternion);
-
-      this.multiplayer.send({
-        type: 'projectile',
-        id: this.multiplayer.getId(),
-        position: position.toArray(),
-        direction: direction.toArray()
-      });
-
-      this.playAction('projectile');
-      this.spawnProjectile(this.scene, this.projectiles, position, direction);
-
-      event.preventDefault();
+      if (this.attemptFireProjectile()) {
+        event.preventDefault();
+      }
     });
 
     // Kick button
@@ -369,18 +367,7 @@ export class PlayerControls {
     this.domElement.addEventListener("click", (event) => {
       // Don't fire if chat or settings are open
       if (!this.enabled || this.isMobile) return;
-
-        const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
-        const direction = new THREE.Vector3(0, 0, 1).applyQuaternion(this.playerModel.quaternion);
-
-        this.multiplayer.send({
-          type: 'projectile',
-          id: this.multiplayer.getId(),
-          position: position.toArray(),
-          direction: direction.toArray()
-        });
-        this.playAction('projectile');
-        this.spawnProjectile(this.scene, this.projectiles, position, direction);
+      this.attemptFireProjectile();
     });
   }
 
@@ -759,6 +746,11 @@ export class PlayerControls {
       }
 
       this.updateInteractionPrompt();
+
+      const hasGun = window.iceGun?.holder === this;
+      if (hasGun !== this.lastHasGun) {
+        this.updateAmmoUI(hasGun);
+      }
   }
 
   updateInteractionPrompt() {
@@ -842,8 +834,28 @@ export class PlayerControls {
    */
   triggerFire() {
     if (!this.enabled) return;
+    this.attemptFireProjectile();
+  }
+
+  canFireProjectile() {
+    const iceGun = window.iceGun;
+    return !!iceGun && iceGun.holder === this && this.ammo > 0 && this.playerModel;
+  }
+
+  consumeAmmo() {
+    if (this.ammo <= 0) return false;
+    this.ammo -= 1;
+    this.updateAmmoUI(window.iceGun?.holder === this);
+    return true;
+  }
+
+  attemptFireProjectile() {
+    if (!this.canFireProjectile()) return false;
+
     const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
     const direction = new THREE.Vector3(0, 0, 1).applyQuaternion(this.playerModel.quaternion);
+
+    this.consumeAmmo();
 
     this.multiplayer.send({
       type: 'projectile',
@@ -854,6 +866,39 @@ export class PlayerControls {
 
     this.playAction('projectile');
     this.spawnProjectile(this.scene, this.projectiles, position, direction);
+    return true;
+  }
+
+  addAmmo(amount) {
+    if (typeof amount !== 'number' || amount <= 0) return;
+    const normalized = Math.floor(amount);
+    if (normalized <= 0) return;
+    const nextAmmo = Math.min(this.maxAmmo, this.ammo + normalized);
+    if (nextAmmo !== this.ammo) {
+      this.ammo = nextAmmo;
+      this.updateAmmoUI(window.iceGun?.holder === this);
+    }
+  }
+
+  updateAmmoUI(hasGun = window.iceGun?.holder === this) {
+    if (this.ammoCountEl && this.lastAmmoValue !== this.ammo) {
+      this.ammoCountEl.textContent = `${this.ammo}`;
+      this.lastAmmoValue = this.ammo;
+    }
+
+    if (this.ammoContainerEl) {
+      if (this.lastHasGun !== hasGun) {
+        this.ammoContainerEl.classList.toggle('inactive', !hasGun);
+      }
+
+      const isEmpty = this.ammo === 0;
+      if (this.lastAmmoEmpty !== isEmpty) {
+        this.ammoContainerEl.classList.toggle('empty', isEmpty);
+        this.lastAmmoEmpty = isEmpty;
+      }
+    }
+
+    this.lastHasGun = hasGun;
   }
 
   updateGrabbedTarget() {
