@@ -23,6 +23,8 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { applyGlobalGravity } from "./gravity.js";
 import { getSpawnPosition } from './spawnUtils.js';
 
+const DEFAULT_CHARACTER_MODEL = "/models/old_man.fbx";
+
 const clock = new THREE.Clock();
 const mixerClock = new THREE.Clock();
 
@@ -42,7 +44,7 @@ async function main() {
     setCookie("playerName", playerName);
   }
 
-  let characterModel = getCookie("characterModel") || "/models/old_man.fbx";
+  let characterModel = getCookie("characterModel") || DEFAULT_CHARACTER_MODEL;
 
   const multiplayer = new Multiplayer(playerName, handleIncomingData);
   const audioManager = new AudioManager();
@@ -463,15 +465,38 @@ async function main() {
   function handleIncomingData(peerId, data) {
     console.log('📡 Incoming data:', data);
     if (data.type === "presence") {
-      if (!otherPlayers[data.id]) {
-        const other = new PlayerCharacter(data.name);
+      const remoteId = data.id || peerId;
+      const desiredModel = data.model || DEFAULT_CHARACTER_MODEL;
+
+      const existing = otherPlayers[remoteId];
+      if (!existing || existing.modelPath !== desiredModel) {
+        if (existing) {
+          if (existing.model && existing.model.parent) {
+            existing.model.parent.remove(existing.model);
+          }
+          if (existing.nameLabel && existing.nameLabel.parentNode) {
+            existing.nameLabel.parentNode.removeChild(existing.nameLabel);
+          }
+        }
+
+        const other = new PlayerCharacter(data.name, desiredModel);
         scene.add(other.model);
         document.body.appendChild(other.nameLabel);
-        otherPlayers[data.id] = { model: other.model, nameLabel: other.nameLabel, name: data.name, health: 100 };
+        otherPlayers[remoteId] = {
+          model: other.model,
+          nameLabel: other.nameLabel,
+          name: data.name,
+          health: existing?.health ?? 100,
+          modelPath: desiredModel
+        };
       }
 
-      const player = otherPlayers[data.id];
+      const player = otherPlayers[remoteId];
       player.name = data.name;
+      player.modelPath = desiredModel;
+      if (player.nameLabel) {
+        player.nameLabel.innerText = data.name;
+      }
       // Update remote player position and rotation
       player.model.position.x = data.x;
       player.model.position.z = data.z;
@@ -520,14 +545,14 @@ async function main() {
         }
       }
 
-      if (!multiplayer.connections[peerId]) {
-        multiplayer.connections[peerId] = {};
+      if (!multiplayer.connections[remoteId]) {
+        multiplayer.connections[remoteId] = {};
       }
-      const conn = multiplayer.connections[peerId];
+      const conn = multiplayer.connections[remoteId];
       if (!conn.listItem) {
         const list = document.getElementById('connected-players-list');
         const item = document.createElement('li');
-        item.id = `peer-${peerId}`;
+        item.id = `peer-${remoteId}`;
         conn.listItem = item;
         list.appendChild(item);
       }
@@ -798,6 +823,7 @@ async function main() {
       type: "presence",
       id: multiplayer.getId(),
       name: playerName,
+      model: characterModel,
       x: playerModel.position.x,
       y: playerModel.position.y,
       z: playerModel.position.z,
