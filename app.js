@@ -564,7 +564,7 @@ async function main() {
     if (data.type === 'projectile') {
       const position = new THREE.Vector3(...data.position);
       const direction = new THREE.Vector3(...data.direction);
-      spawnProjectile(scene, projectiles, position, direction);
+      spawnProjectile(scene, projectiles, position, direction, data.id);
 
       const shooter = otherPlayers[data.id];
       if (shooter) {

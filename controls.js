@@ -836,8 +836,8 @@ export class PlayerControls {
   attemptFireProjectile() {
     if (!this.canFireProjectile()) return false;
 
-    const position = this.playerModel.position.clone().add(new THREE.Vector3(0, 0.7, 0));
-    const direction = new THREE.Vector3(0, 0, 1).applyQuaternion(this.playerModel.quaternion);
+    const direction = new THREE.Vector3(0, 0, 1).applyQuaternion(this.playerModel.quaternion).normalize();
+    const position = this.getProjectileSpawnPosition(direction);
 
     this.consumeAmmo();
 
@@ -849,8 +849,31 @@ export class PlayerControls {
     });
 
     this.playAction('projectile');
-    this.spawnProjectile(this.scene, this.projectiles, position, direction);
+    this.spawnProjectile(
+      this.scene,
+      this.projectiles,
+      position,
+      direction,
+      this.multiplayer.getId()
+    );
     return true;
+  }
+
+  getProjectileSpawnPosition(direction) {
+    const offsetDistance = 0.6;
+    const normalizedDirection = direction.clone().normalize();
+    const iceGun = window.iceGun;
+
+    if (iceGun?.mesh) {
+      const gunPosition = new THREE.Vector3();
+      iceGun.mesh.getWorldPosition(gunPosition);
+      return gunPosition.add(normalizedDirection.clone().multiplyScalar(offsetDistance));
+    }
+
+    return this.playerModel.position
+      .clone()
+      .add(new THREE.Vector3(0, 0.7, 0))
+      .add(normalizedDirection.clone().multiplyScalar(offsetDistance));
   }
 
   addAmmo(amount) {
