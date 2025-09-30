@@ -109,6 +109,10 @@ export class Surfboard {
       }
 
     } else {
+      const lastNetwork = this.mesh?.userData?.lastNetworkUpdate || 0;
+      if (performance.now() - lastNetwork < 200) {
+        return;
+      }
       const t = this.mesh.position;
       const waterDepth = getWaterDepth(t.x, t.z);
       const onWater = waterDepth > 0;
