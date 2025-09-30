@@ -179,11 +179,12 @@ async function main() {
 
 
 
-  const player = new PlayerCharacter(playerName, characterModel);
-  const playerModel = player.model;
+  let player = new PlayerCharacter(playerName, characterModel);
+  let playerModel = player.model;
   scene.add(playerModel);
   document.body.appendChild(player.nameLabel);
   window.playerModel = playerModel;
+  let playerControls;
   audioManager.playBGS('Forest Day/Forest Day.ogg');
 
   window.localHealth = 100;
@@ -227,7 +228,7 @@ async function main() {
     return pickup;
   }
 
-  const playerControls = new PlayerControls({
+  playerControls = new PlayerControls({
     scene,
     camera,
     playerModel,
@@ -646,6 +647,47 @@ async function main() {
   const toggleBtn = document.getElementById("toggle-console");
   const consoleDiv = document.getElementById("console-log");
 
+  function swapPlayerCharacter(newModelPath) {
+    if (!newModelPath || newModelPath === characterModel) {
+      return;
+    }
+
+    const previousModel = playerModel;
+    const previousLabel = player?.nameLabel;
+    const currentPosition = previousModel ? previousModel.position.clone() : new THREE.Vector3();
+    const currentRotation = previousModel ? previousModel.rotation.clone() : new THREE.Euler();
+    const currentUp = previousModel ? previousModel.up.clone() : new THREE.Vector3(0, 1, 0);
+
+    if (playerControls?.parachute && previousModel && playerControls.parachute.parent === previousModel) {
+      previousModel.remove(playerControls.parachute);
+    }
+
+    const newPlayer = new PlayerCharacter(playerName, newModelPath);
+    const newModel = newPlayer.model;
+    newModel.position.copy(currentPosition);
+    newModel.rotation.copy(currentRotation);
+    newModel.up.copy(currentUp);
+
+    scene.add(newModel);
+    document.body.appendChild(newPlayer.nameLabel);
+
+    if (playerControls?.parachute) {
+      newModel.add(playerControls.parachute);
+    }
+
+    if (previousModel?.parent) {
+      previousModel.parent.remove(previousModel);
+    }
+    if (previousLabel?.parentNode) {
+      previousLabel.parentNode.removeChild(previousLabel);
+    }
+
+    player = newPlayer;
+    playerModel = newModel;
+    window.playerModel = playerModel;
+    playerControls?.setPlayerModel(playerModel);
+  }
+
   async function populateCharacterSelect() {
     try {
       const characters = ['andy', 'chris', 'gemhorn_monster', 'old_man'];
@@ -670,12 +712,23 @@ async function main() {
   });
 
   saveBtn.addEventListener('click', () => {
-    playerName = nameInput.value.trim() || playerName;
+    const trimmedName = nameInput.value.trim();
+    if (trimmedName) {
+      playerName = trimmedName;
+      if (player?.nameLabel) {
+        player.nameLabel.innerText = playerName;
+      }
+    }
     setCookie("playerName", playerName);
-    characterModel = characterSelect.value;
+
+    const selectedModel = characterSelect.value;
+    if (selectedModel && selectedModel !== characterModel) {
+      characterModel = selectedModel;
+      swapPlayerCharacter(characterModel);
+    }
     setCookie("characterModel", characterModel);
+
     overlay.style.display = 'none';
-    window.location.reload();
   });
 
   overlay.addEventListener('click', (e) => {

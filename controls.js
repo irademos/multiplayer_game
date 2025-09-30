@@ -116,7 +116,27 @@ export class PlayerControls {
     this.lastHasGun = null;
     this.updateAmmoUI(window.iceGun?.holder === this);
   }
-  
+
+  setPlayerModel(newModel) {
+    if (this.parachute && this.playerModel && this.parachute.parent === this.playerModel) {
+      this.playerModel.remove(this.parachute);
+    }
+
+    this.playerModel = newModel;
+
+    if (this.parachute && this.playerModel) {
+      this.playerModel.add(this.parachute);
+    }
+
+    if (this.playerModel) {
+      if (this.body && typeof this.body.translation === 'function') {
+        const t = this.body.translation();
+        this.playerModel.position.set(t.x, t.y, t.z);
+      }
+      this.lastPosition.copy(this.playerModel.position);
+    }
+  }
+
   initializeControls() {
     if (this.isMobile) {
       this.initializeMobileControls();
