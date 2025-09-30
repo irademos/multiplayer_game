@@ -502,7 +502,9 @@ async function main() {
       player.model.position.z = data.z;
 
       // Adjust vertical placement against local terrain height
-      const terrainY = 0;
+      const terrainY = (Number.isFinite(data.x) && Number.isFinite(data.z))
+        ? getTerrainHeight(data.x, data.z)
+        : 0;
       const targetY = Math.max(data.y ?? terrainY, terrainY);
       player.model.position.y = targetY;
 
