@@ -505,8 +505,8 @@ async function main() {
       const terrainY = (Number.isFinite(data.x) && Number.isFinite(data.z))
         ? getTerrainHeight(data.x, data.z)
         : 0;
-      const targetY = Math.max(data.y ?? terrainY, terrainY);
-      player.model.position.y = targetY;
+      const hasAuthoritativeY = Number.isFinite(data.y);
+      player.model.position.y = hasAuthoritativeY ? data.y : terrainY;
 
       player.model.rotation.y = data.rotation;
       const moon = window.moon;
