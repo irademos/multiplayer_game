@@ -287,15 +287,24 @@ export class PlayerControls {
           this.vehicle.dismount();
           return;
         }
-        if (this.vehicle.type === 'rowboat') {
+
+        const boatControls = this.vehicle.type === 'rowboat' ||
+          (this.vehicle.type === 'surfboard' && this.vehicle.usesBoatControls?.());
+
+        if (boatControls) {
           if (e.repeat) return;
           if (key === 'z') {
-            this.vehicle.paddleLeft();
+            this.vehicle.paddleLeft?.();
+            return;
           } else if (key === 'c') {
-            this.vehicle.paddleRight();
+            this.vehicle.paddleRight?.();
+            return;
           }
-          return;
+          if (this.vehicle.type === 'rowboat') {
+            return;
+          }
         }
+
         if (this.vehicle.type !== 'surfboard') {
           return;
         }
@@ -439,10 +448,14 @@ export class PlayerControls {
       return;
     }
 
-    if (this.vehicle && this.vehicle.type === 'rowboat') {
-      this.isMoving = false;
-      this.vehicle.alignOccupant?.();
-      return;
+    if (this.vehicle) {
+      const boatControls = this.vehicle.type === 'rowboat' ||
+        (this.vehicle.type === 'surfboard' && this.vehicle.usesBoatControls?.());
+      if (boatControls) {
+        this.isMoving = false;
+        this.vehicle.alignOccupant?.();
+        return;
+      }
     }
 
     if (!this.body) return;
