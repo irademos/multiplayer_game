@@ -2,8 +2,53 @@ import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { generateOcean, registerIsland, SEA_FLOOR_Y } from "./water.js";
 
+const DEFAULT_WORLD_SEED = 0x5f3759df;
+let currentWorldSeed = DEFAULT_WORLD_SEED;
+
+function createSeededRandom(seed) {
+  let state = (seed >>> 0) || 0x1a2b3c4d;
+  return () => {
+    state = (state + 0x6D2B79F5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function hashSeedValue(seed, label) {
+  let hash = seed >>> 0;
+  const text = String(label ?? "");
+  for (let i = 0; i < text.length; i += 1) {
+    hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
+  }
+  return hash >>> 0;
+}
+
+function normalizeSeed(seed) {
+  if (typeof seed === "number" && Number.isFinite(seed)) {
+    return seed >>> 0;
+  }
+  if (typeof seed === "string") {
+    let hash = 2166136261 >>> 0;
+    for (let i = 0; i < seed.length; i += 1) {
+      hash = Math.imul(hash ^ seed.charCodeAt(i), 16777619);
+    }
+    return hash >>> 0;
+  }
+  return DEFAULT_WORLD_SEED;
+}
+
+function getSeededRandom(label) {
+  return createSeededRandom(hashSeedValue(currentWorldSeed, label));
+}
+
+export function setWorldSeed(seed) {
+  currentWorldSeed = normalizeSeed(seed);
+}
+
 export function createClouds(scene) {
-  const rng = () => Math.random();
+  const rng = getSeededRandom("clouds");
 
   const cloudMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -372,6 +417,7 @@ function createHillyIsland({ radius, maxHeight, center, segments = island_segmen
 }
 
 export function generateIsland(scene, { islandRadius = 20, outerRadius = 100 } = {}) {
+  const rng = getSeededRandom("islands");
   const seaFloor = new THREE.Mesh(
     new THREE.PlaneGeometry(outerRadius * 2, outerRadius * 2, 1, 1),
     seaFloorMaterial
@@ -381,8 +427,8 @@ export function generateIsland(scene, { islandRadius = 20, outerRadius = 100 } =
   seaFloor.receiveShadow = true;
   scene.add(seaFloor);
 
-  const mainRadius = islandRadius * (0.95 + Math.random() * 0.3);
-  const mainHeight = 8 + Math.random() * 5;
+  const mainRadius = islandRadius * (0.95 + rng() * 0.3);
+  const mainHeight = 8 + rng() * 5;
 
   const mainIsland = createHillyIsland({
     radius: mainRadius,
@@ -399,16 +445,16 @@ export function generateIsland(scene, { islandRadius = 20, outerRadius = 100 } =
 
   generateOcean(scene, { x: 0, z: 0 }, 0, outerRadius);
 
-  const smallIslandCount = 4 + Math.floor(Math.random() * 3);
+  const smallIslandCount = 4 + Math.floor(rng() * 3);
   for (let i = 0; i < smallIslandCount; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const dist = islandRadius + 18 + Math.random() * Math.max(10, outerRadius - islandRadius - 26);
+    const angle = rng() * Math.PI * 2;
+    const dist = islandRadius + 18 + rng() * Math.max(10, outerRadius - islandRadius - 26);
     const center = {
       x: Math.cos(angle) * dist,
       z: Math.sin(angle) * dist,
     };
-    const radius = 4.5 + Math.random() * 3.5;
-    const height = 3.5 + Math.random() * 2.5;
+    const radius = 4.5 + rng() * 3.5;
+    const height = 3.5 + rng() * 2.5;
 
     const island = createHillyIsland({
       radius,
