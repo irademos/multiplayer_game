@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
+import { switchMonsterAnimation } from "./characters/MonsterCharacter.js";
 import { createOrcVoice } from "./orcVoice.js";
 import { createClouds, generateIsland, createMoon, MOON_RADIUS } from "./worldGeneration.js";
 import { initWaves, spawnOceanWave, updateWaves, getWaveForceAt, getTerrainHeight } from './water.js';
@@ -46,7 +47,288 @@ async function main() {
 
   let characterModel = getCookie("characterModel") || DEFAULT_CHARACTER_MODEL;
 
-  const multiplayer = new Multiplayer(playerName, handleIncomingData);
+  let multiplayer = null;
+  let playerControls = null;
+  const networkedEntities = new Map();
+  const pendingEntityStates = new Map();
+  const authoritativeEntityStates = new Map();
+  let lastEntityBroadcast = 0;
+  let lastControlSend = 0;
+  const ENTITY_BROADCAST_INTERVAL = 120;
+  const CONTROL_SEND_INTERVAL = 80;
+
+  const otherPlayers = {};
+  window.otherPlayers = otherPlayers;
+
+  function cloneState(state) {
+    return state ? JSON.parse(JSON.stringify(state)) : state;
+  }
+
+  function applyNetworkedState(id, state) {
+    if (!state) return;
+    const entry = networkedEntities.get(id);
+    if (entry && typeof entry.applyState === 'function') {
+      entry.applyState(state);
+    } else {
+      pendingEntityStates.set(id, cloneState(state));
+    }
+  }
+
+  function registerNetworkedEntity(id, entry) {
+    networkedEntities.set(id, entry);
+    if (pendingEntityStates.has(id)) {
+      const pending = pendingEntityStates.get(id);
+      pendingEntityStates.delete(id);
+      entry.applyState?.(pending);
+    }
+  }
+
+  function updateAuthoritativeState(id, state, sourceId) {
+    const copy = cloneState(state);
+    authoritativeEntityStates.set(id, {
+      state: copy,
+      sourceId,
+      timestamp: performance.now()
+    });
+    applyNetworkedState(id, copy);
+  }
+
+  function serializeAuthoritativeStates() {
+    const payload = {};
+    authoritativeEntityStates.forEach((entry, id) => {
+      payload[id] = { ...cloneState(entry.state), sourceId: entry.sourceId };
+    });
+    return payload;
+  }
+
+  function collectLocalControlStates() {
+    const result = new Map();
+    const myId = multiplayer?.getId?.();
+    if (!myId) return result;
+    networkedEntities.forEach((entry, id) => {
+      if (typeof entry.isLocallyControlled === 'function' && entry.isLocallyControlled()) {
+        const state = entry.getState?.();
+        if (state) {
+          result.set(id, { state, sourceId: myId });
+        }
+      }
+    });
+    return result;
+  }
+
+  function handleIncomingData(peerId, data) {
+    console.log('📡 Incoming data:', data);
+
+    if (data.type === 'entityControl') {
+      if (multiplayer?.isHost && data.id && data.state && data.sourceId) {
+        updateAuthoritativeState(data.id, data.state, data.sourceId);
+      }
+      return;
+    }
+
+    if (data.type === 'entityStates' && data.states) {
+      Object.entries(data.states).forEach(([id, entry]) => {
+        if (!entry) return;
+        const { sourceId, ...state } = entry;
+        if (sourceId && sourceId === multiplayer?.getId?.()) {
+          const localEntry = networkedEntities.get(id);
+          if (localEntry?.isLocallyControlled?.()) {
+            updateAuthoritativeState(id, state, sourceId);
+            return;
+          }
+        }
+        updateAuthoritativeState(id, state, sourceId ?? null);
+      });
+      return;
+    }
+
+    if (data.type === 'entitySnapshot' && data.states && multiplayer?.isHost) {
+      authoritativeEntityStates.clear();
+      Object.entries(data.states).forEach(([id, entry]) => {
+        if (!entry) return;
+        const { sourceId, ...state } = entry;
+        updateAuthoritativeState(id, state, sourceId ?? null);
+      });
+      lastEntityBroadcast = 0;
+      return;
+    }
+
+    if (data.type === 'entityStateRequest' && data.requesterId && data.previousHostId === multiplayer?.getId?.()) {
+      const snapshot = serializeAuthoritativeStates();
+      if (Object.keys(snapshot).length > 0) {
+        multiplayer.sendTo(data.requesterId, { type: 'entitySnapshot', states: snapshot });
+      }
+      return;
+    }
+
+    if (data.type === 'presence') {
+      const remoteId = data.id || peerId;
+      const desiredModel = data.model || DEFAULT_CHARACTER_MODEL;
+
+      const existing = otherPlayers[remoteId];
+      if (!existing || existing.modelPath !== desiredModel) {
+        if (existing) {
+          if (existing.model && existing.model.parent) {
+            existing.model.parent.remove(existing.model);
+          }
+          if (existing.nameLabel && existing.nameLabel.parentNode) {
+            existing.nameLabel.parentNode.removeChild(existing.nameLabel);
+          }
+        }
+
+        const other = new PlayerCharacter(data.name, desiredModel);
+        scene.add(other.model);
+        document.body.appendChild(other.nameLabel);
+        otherPlayers[remoteId] = {
+          model: other.model,
+          nameLabel: other.nameLabel,
+          name: data.name,
+          health: existing?.health ?? 100,
+          modelPath: desiredModel
+        };
+      }
+
+      const player = otherPlayers[remoteId];
+      player.name = data.name;
+      player.modelPath = desiredModel;
+      if (player.nameLabel) {
+        player.nameLabel.innerText = data.name;
+      }
+      // Update remote player position and rotation
+      player.model.position.x = data.x;
+      player.model.position.z = data.z;
+
+      // Adjust vertical placement against local terrain height
+      const terrainY = (Number.isFinite(data.x) && Number.isFinite(data.z))
+        ? getTerrainHeight(data.x, data.z)
+        : 0;
+      const hasAuthoritativeY = Number.isFinite(data.y);
+      player.model.position.y = hasAuthoritativeY ? data.y : terrainY;
+
+      player.model.rotation.y = data.rotation;
+      const moon = window.moon;
+      if (moon) {
+        const moonPos = moon.position;
+        const playerPos = player.model.position;
+        const dist = playerPos.distanceTo(moonPos);
+        if (dist < MOON_RADIUS * 2) {
+          const up = new THREE.Vector3().subVectors(playerPos, moonPos).normalize();
+          player.model.up.copy(up);
+          const forward = new THREE.Vector3(Math.sin(data.rotation), 0, Math.cos(data.rotation))
+            .projectOnPlane(up)
+            .normalize();
+          const target = playerPos.clone().add(forward);
+          player.model.lookAt(target);
+        } else {
+          player.model.up.set(0, 1, 0);
+          player.model.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), data.rotation);
+        }
+      } else {
+        player.model.up.set(0, 1, 0);
+        player.model.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), data.rotation);
+      }
+
+      // Sync animation state if provided
+      const actions = player.model.userData.actions;
+      const current = player.model.userData.currentAction;
+      if (actions && data.action && current !== data.action) {
+        actions[current]?.fadeOut(0.2);
+        actions[data.action]?.reset().fadeIn(0.2).play();
+        player.model.userData.currentAction = data.action;
+        if (['mutantPunch','hurricaneKick','mmaKick'].includes(data.action)) {
+          player.model.userData.attack = {
+            name: data.action,
+            start: Date.now(),
+            hasHit: false
+          };
+        }
+      }
+
+      if (!multiplayer.connections[remoteId]) {
+        multiplayer.connections[remoteId] = {};
+      }
+      const conn = multiplayer.connections[remoteId];
+      if (!conn.listItem) {
+        const list = document.getElementById('connected-players-list');
+        const item = document.createElement('li');
+        item.id = `peer-${remoteId}`;
+        conn.listItem = item;
+        list.appendChild(item);
+      }
+      conn.listItem.textContent = `Connected to ${data.name}`;
+      return;
+    }
+
+    if (data.type === 'projectile') {
+      const position = new THREE.Vector3(...data.position);
+      const direction = new THREE.Vector3(...data.direction);
+      spawnProjectile(scene, projectiles, position, direction, data.id);
+
+      const shooter = otherPlayers[data.id];
+      if (shooter) {
+        const actions = shooter.model.userData.actions;
+        const current = shooter.model.userData.currentAction;
+        const projAction = actions?.projectile;
+        if (projAction) {
+          actions[current]?.fadeOut(0.1);
+          projAction.reset().fadeIn(0.1).play();
+          shooter.model.userData.currentAction = 'projectile';
+        }
+      }
+      return;
+    }
+
+    if (data.type === 'spaceship' || data.type === 'monster') {
+      // Legacy messages handled by networked system; ignore to avoid conflicts.
+      return;
+    }
+
+    if (data.type === 'grab') {
+      if (data.target === multiplayer.getId()) {
+        playerControls?.setGrabbed(data.active, data.from);
+      } else {
+        const targetPlayer = otherPlayers[data.target];
+        if (targetPlayer) {
+          targetPlayer.grabbed = data.active;
+        }
+      }
+      return;
+    }
+
+    if (data.type === 'grabMove') {
+      const pos = new THREE.Vector3(...data.position);
+      if (data.target === multiplayer.getId()) {
+        playerControls?.updateGrabbedPosition(data.position);
+      } else {
+        const targetPlayer = otherPlayers[data.target];
+        if (targetPlayer) {
+          targetPlayer.model.position.copy(pos);
+        }
+      }
+      return;
+    }
+  }
+
+  multiplayer = new Multiplayer(playerName, handleIncomingData);
+  multiplayer.onHostChange = ({ previousHostId, newHostId, isCurrentHost }) => {
+    if (previousHostId && previousHostId === multiplayer.getId() && previousHostId !== newHostId) {
+      const snapshot = serializeAuthoritativeStates();
+      if (newHostId) {
+        multiplayer.sendTo(newHostId, { type: 'entitySnapshot', states: snapshot });
+      }
+    }
+
+    if (isCurrentHost) {
+      lastEntityBroadcast = 0;
+      if (previousHostId && previousHostId !== multiplayer.getId()) {
+        multiplayer.sendTo(previousHostId, {
+          type: 'entityStateRequest',
+          requesterId: multiplayer.getId(),
+          previousHostId
+        });
+      }
+    }
+  };
   const audioManager = new AudioManager();
 
   const scene = new THREE.Scene();
@@ -98,6 +380,43 @@ async function main() {
     ];
     monster.userData.voice = createOrcVoice(orcPhrases);
     if (rapierWorld) attachMonsterPhysics(monster);
+    registerNetworkedEntity('monster', {
+      getState: () => {
+        if (!monster) return null;
+        const pos = monster.position;
+        const q = monster.quaternion;
+        return {
+          position: [pos.x, pos.y, pos.z],
+          rotation: [q.x, q.y, q.z, q.w],
+          mode: monster.userData.mode,
+          action: monster.userData.currentAction,
+          health: typeof window.monsterHealth === 'number' ? window.monsterHealth : undefined
+        };
+      },
+      applyState: state => {
+        if (!monster || !state) return;
+        const [px, py, pz] = state.position || [];
+        const [rx, ry, rz, rw] = state.rotation || [];
+        if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pz)) {
+          monster.position.set(px, py, pz);
+          monster.userData.rb?.setTranslation({ x: px, y: py, z: pz }, true);
+        }
+        if (Number.isFinite(rx) && Number.isFinite(ry) && Number.isFinite(rz) && Number.isFinite(rw)) {
+          monster.quaternion.set(rx, ry, rz, rw);
+          monster.userData.rb?.setRotation({ x: rx, y: ry, z: rz, w: rw }, true);
+        }
+        if (typeof state.mode === 'string') {
+          monster.userData.mode = state.mode;
+        }
+        if (typeof state.health === 'number') {
+          window.monsterHealth = state.health;
+        }
+        if (state.action && monster.userData.currentAction !== state.action && monster.userData.actions) {
+          switchMonsterAnimation(monster, state.action);
+        }
+      },
+      isLocallyControlled: () => multiplayer?.isHost && !!monster
+    });
   });
 
   // Allow mode switching from console or other scripts
@@ -150,18 +469,143 @@ async function main() {
   spaceship = new Spaceship(scene, rapierWorld, rbToMesh);
   await spaceship.load();
   window.spaceship = spaceship;
+  registerNetworkedEntity('spaceship', {
+    getState: () => {
+      if (!spaceship?.body) return null;
+      const t = spaceship.body.translation();
+      const r = spaceship.body.rotation();
+      if (!t || !r) return null;
+      return {
+        position: [t.x, t.y, t.z],
+        rotation: [r.x, r.y, r.z, r.w],
+        thrusting: !!spaceship.thrusting
+      };
+    },
+    applyState: state => {
+      if (!state || !spaceship) return;
+      const [px, py, pz] = state.position || [];
+      const [rx, ry, rz, rw] = state.rotation || [];
+      if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pz)) {
+        spaceship.mesh?.position.set(px, py, pz);
+        spaceship.body?.setTranslation({ x: px, y: py, z: pz }, true);
+      }
+      if (Number.isFinite(rx) && Number.isFinite(ry) && Number.isFinite(rz) && Number.isFinite(rw)) {
+        spaceship.mesh?.quaternion.set(rx, ry, rz, rw);
+        spaceship.body?.setRotation({ x: rx, y: ry, z: rz, w: rw }, true);
+      }
+      if (typeof state.thrusting === 'boolean') {
+        spaceship.thrusting = state.thrusting;
+        if (spaceship.thrusterGroup) {
+          spaceship.thrusterGroup.visible = state.thrusting;
+        }
+      }
+    },
+    isLocallyControlled: () => spaceship?.occupant === playerControls
+  });
 
   surfboard = new Surfboard(scene);
   await surfboard.load();
   window.surfboard = surfboard;
+  registerNetworkedEntity('surfboard', {
+    getState: () => {
+      if (!surfboard?.mesh) return null;
+      const pos = surfboard.mesh.position;
+      const q = surfboard.mesh.quaternion;
+      return {
+        position: [pos.x, pos.y, pos.z],
+        rotation: [q.x, q.y, q.z, q.w],
+        standing: !!surfboard.standing
+      };
+    },
+    applyState: state => {
+      if (!surfboard?.mesh || !state) return;
+      const [px, py, pz] = state.position || [];
+      const [rx, ry, rz, rw] = state.rotation || [];
+      if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pz)) {
+        surfboard.mesh.position.set(px, py, pz);
+      }
+      if (Number.isFinite(rx) && Number.isFinite(ry) && Number.isFinite(rz) && Number.isFinite(rw)) {
+        surfboard.mesh.quaternion.set(rx, ry, rz, rw);
+      }
+      if (typeof state.standing === 'boolean') {
+        surfboard.standing = state.standing;
+      }
+      if (surfboard.mesh) {
+        surfboard.mesh.userData.lastNetworkUpdate = performance.now();
+      }
+    },
+    isLocallyControlled: () => surfboard?.occupant === playerControls
+  });
 
   rowBoat = new RowBoat(scene);
   await rowBoat.load();
   window.rowBoat = rowBoat;
+  registerNetworkedEntity('rowboat', {
+    getState: () => {
+      if (!rowBoat?.mesh) return null;
+      const pos = rowBoat.mesh.position;
+      return {
+        position: [pos.x, pos.y, pos.z],
+        rotationY: rowBoat.mesh.rotation.y,
+        velocity: [rowBoat.velocity.x, rowBoat.velocity.y, rowBoat.velocity.z],
+        angularVelocity: rowBoat.angularVelocity,
+        oarState: rowBoat.oarState
+      };
+    },
+    applyState: state => {
+      if (!rowBoat?.mesh || !state) return;
+      const [px, py, pz] = state.position || [];
+      if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pz)) {
+        rowBoat.mesh.position.set(px, py, pz);
+      }
+      if (Number.isFinite(state.rotationY)) {
+        rowBoat.mesh.rotation.y = state.rotationY;
+      }
+      const [vx, vy, vz] = state.velocity || [];
+      if (Number.isFinite(vx) && Number.isFinite(vy) && Number.isFinite(vz)) {
+        rowBoat.velocity.set(vx, vy, vz);
+      }
+      if (Number.isFinite(state.angularVelocity)) {
+        rowBoat.angularVelocity = state.angularVelocity;
+      }
+      if (state.oarState && rowBoat.oarState !== state.oarState) {
+        rowBoat.setOarState(state.oarState, { immediate: true });
+      }
+    },
+    isLocallyControlled: () => rowBoat?.occupant === playerControls
+  });
 
   iceGun = new IceGun(scene);
   await iceGun.load();
   window.iceGun = iceGun;
+  registerNetworkedEntity('icegun', {
+    getState: () => {
+      if (!iceGun?.mesh) return null;
+      const pos = iceGun.mesh.position;
+      const q = iceGun.mesh.quaternion;
+      return {
+        position: [pos.x, pos.y, pos.z],
+        rotation: [q.x, q.y, q.z, q.w],
+        holderId: iceGun.holder === playerControls ? multiplayer?.getId?.() : null
+      };
+    },
+    applyState: state => {
+      if (!iceGun?.mesh || !state) return;
+      const [px, py, pz] = state.position || [];
+      const [rx, ry, rz, rw] = state.rotation || [];
+      if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pz)) {
+        iceGun.mesh.position.set(px, py, pz);
+      }
+      if (Number.isFinite(rx) && Number.isFinite(ry) && Number.isFinite(rz) && Number.isFinite(rw)) {
+        iceGun.mesh.quaternion.set(rx, ry, rz, rw);
+      }
+      iceGun.remoteHolderId = state.holderId ?? null;
+      if (state.holderId !== multiplayer?.getId?.() && iceGun.holder === playerControls) {
+        iceGun.holder = null;
+      }
+    },
+    isLocallyControlled: () => iceGun?.holder === playerControls
+  });
 
   function attachMonsterPhysics(mon) {
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
@@ -227,7 +671,7 @@ async function main() {
     return pickup;
   }
 
-  const playerControls = new PlayerControls({
+  playerControls = new PlayerControls({
     scene,
     camera,
     playerModel,
@@ -458,161 +902,6 @@ async function main() {
     window.addEventListener('touchcancel', stopTalking);
   }
 
-  const otherPlayers = {};
-  // Expose remote players map for global access (e.g., controls)
-  window.otherPlayers = otherPlayers;
-
-  function handleIncomingData(peerId, data) {
-    console.log('📡 Incoming data:', data);
-    if (data.type === "presence") {
-      const remoteId = data.id || peerId;
-      const desiredModel = data.model || DEFAULT_CHARACTER_MODEL;
-
-      const existing = otherPlayers[remoteId];
-      if (!existing || existing.modelPath !== desiredModel) {
-        if (existing) {
-          if (existing.model && existing.model.parent) {
-            existing.model.parent.remove(existing.model);
-          }
-          if (existing.nameLabel && existing.nameLabel.parentNode) {
-            existing.nameLabel.parentNode.removeChild(existing.nameLabel);
-          }
-        }
-
-        const other = new PlayerCharacter(data.name, desiredModel);
-        scene.add(other.model);
-        document.body.appendChild(other.nameLabel);
-        otherPlayers[remoteId] = {
-          model: other.model,
-          nameLabel: other.nameLabel,
-          name: data.name,
-          health: existing?.health ?? 100,
-          modelPath: desiredModel
-        };
-      }
-
-      const player = otherPlayers[remoteId];
-      player.name = data.name;
-      player.modelPath = desiredModel;
-      if (player.nameLabel) {
-        player.nameLabel.innerText = data.name;
-      }
-      // Update remote player position and rotation
-      player.model.position.x = data.x;
-      player.model.position.z = data.z;
-
-      // Adjust vertical placement against local terrain height
-      const terrainY = (Number.isFinite(data.x) && Number.isFinite(data.z))
-        ? getTerrainHeight(data.x, data.z)
-        : 0;
-      const hasAuthoritativeY = Number.isFinite(data.y);
-      player.model.position.y = hasAuthoritativeY ? data.y : terrainY;
-
-      player.model.rotation.y = data.rotation;
-      const moon = window.moon;
-      if (moon) {
-        const moonPos = moon.position;
-        const playerPos = player.model.position;
-        const dist = playerPos.distanceTo(moonPos);
-        if (dist < MOON_RADIUS * 2) {
-          const up = new THREE.Vector3().subVectors(playerPos, moonPos).normalize();
-          player.model.up.copy(up);
-          const forward = new THREE.Vector3(Math.sin(data.rotation), 0, Math.cos(data.rotation))
-            .projectOnPlane(up)
-            .normalize();
-          const target = playerPos.clone().add(forward);
-          player.model.lookAt(target);
-        } else {
-          player.model.up.set(0, 1, 0);
-          player.model.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), data.rotation);
-        }
-      } else {
-        player.model.up.set(0, 1, 0);
-        player.model.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), data.rotation);
-      }
-
-      // Sync animation state if provided
-      const actions = player.model.userData.actions;
-      const current = player.model.userData.currentAction;
-      if (actions && data.action && current !== data.action) {
-        actions[current]?.fadeOut(0.2);
-        actions[data.action]?.reset().fadeIn(0.2).play();
-        player.model.userData.currentAction = data.action;
-        if (['mutantPunch','hurricaneKick','mmaKick'].includes(data.action)) {
-          player.model.userData.attack = {
-            name: data.action,
-            start: Date.now(),
-            hasHit: false
-          };
-        }
-      }
-
-      if (!multiplayer.connections[remoteId]) {
-        multiplayer.connections[remoteId] = {};
-      }
-      const conn = multiplayer.connections[remoteId];
-      if (!conn.listItem) {
-        const list = document.getElementById('connected-players-list');
-        const item = document.createElement('li');
-        item.id = `peer-${remoteId}`;
-        conn.listItem = item;
-        list.appendChild(item);
-      }
-      conn.listItem.textContent = `Connected to ${data.name}`;
-    }
-
-    if (data.type === 'projectile') {
-      const position = new THREE.Vector3(...data.position);
-      const direction = new THREE.Vector3(...data.direction);
-      spawnProjectile(scene, projectiles, position, direction, data.id);
-
-      const shooter = otherPlayers[data.id];
-      if (shooter) {
-        const actions = shooter.model.userData.actions;
-        const current = shooter.model.userData.currentAction;
-        const projAction = actions?.projectile;
-        if (projAction) {
-          actions[current]?.fadeOut(0.1);
-          projAction.reset().fadeIn(0.1).play();
-          shooter.model.userData.currentAction = 'projectile';
-        }
-      }
-    }
-
-    if (data.type === "monster" && monster) {
-      const target = { x: data.x, y: data.y, z: data.z };
-      monster.userData.rb?.setTranslation(target, true);
-    }
-
-    if (data.type === 'spaceship' && spaceship && !multiplayer.isHost) {
-      spaceship.body?.setTranslation({ x: data.x, y: data.y, z: data.z }, true);
-      spaceship.body?.setRotation({ x: data.rx, y: data.ry, z: data.rz, w: data.rw }, true);
-    }
-
-    if (data.type === 'grab') {
-      if (data.target === multiplayer.getId()) {
-        playerControls.setGrabbed(data.active, data.from);
-      } else {
-        const targetPlayer = otherPlayers[data.target];
-        if (targetPlayer) {
-          targetPlayer.grabbed = data.active;
-        }
-      }
-    }
-
-    if (data.type === 'grabMove') {
-      const pos = new THREE.Vector3(...data.position);
-      if (data.target === multiplayer.getId()) {
-        playerControls.updateGrabbedPosition(data.position);
-      } else {
-        const targetPlayer = otherPlayers[data.target];
-        if (targetPlayer) {
-          targetPlayer.model.position.copy(pos);
-        }
-      }
-    }
-  }
-
   let localStream = null;
   let micActive = false;
   const voiceButton = document.getElementById('voice-button');
@@ -773,22 +1062,28 @@ async function main() {
 
     surfboard.update();
     iceGun?.update();
+    spaceship?.update();
+
+    const now = performance.now();
+    const localStates = collectLocalControlStates();
+
     if (multiplayer.isHost) {
-      spaceship.update();
-      if (spaceship.body) {
-        const t = spaceship.body.translation();
-        const r = spaceship.body.rotation();
-        multiplayer.send({
-          type: 'spaceship',
-          x: t.x,
-          y: t.y,
-          z: t.z,
-          rx: r.x,
-          ry: r.y,
-          rz: r.z,
-          rw: r.w
-        });
+      localStates.forEach(({ state, sourceId }, id) => {
+        updateAuthoritativeState(id, state, sourceId);
+      });
+
+      if (now - lastEntityBroadcast >= ENTITY_BROADCAST_INTERVAL) {
+        const payload = serializeAuthoritativeStates();
+        if (Object.keys(payload).length > 0) {
+          multiplayer.send({ type: 'entityStates', states: payload });
+        }
+        lastEntityBroadcast = now;
       }
+    } else if (localStates.size > 0 && now - lastControlSend >= CONTROL_SEND_INTERVAL) {
+      localStates.forEach(({ state, sourceId }, id) => {
+        multiplayer.send({ type: 'entityControl', id, state, sourceId });
+      });
+      lastControlSend = now;
     }
 
     updateHealthUI();

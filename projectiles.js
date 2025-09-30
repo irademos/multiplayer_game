@@ -177,12 +177,6 @@ export function updateProjectiles({
 
   if (multiplayer?.isHost && monster) {
     updateMonster(monster, delta, playerModel, otherPlayers);
-    multiplayer.send({
-      type: "monster",
-      x: monster.position.x,
-      y: monster.position.y,
-      z: monster.position.z
-    });
   }
 
 }
