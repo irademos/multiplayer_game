@@ -10,6 +10,7 @@ const SWIM_SPEED = 2;
 const JUMP_FORCE = 5;
 const PLAYER_RADIUS = 0.3;
 const PLAYER_HALF_HEIGHT = 0.6;
+const FLOAT_IDLE_DISPLAY_OFFSET = 0.2;
 
 export class PlayerControls {
   constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager }) {
@@ -610,7 +611,10 @@ export class PlayerControls {
       this.audioManager?.playFootstep();
     }
     if (this.playerModel) {
-      const displayY = newY - sink;
+      let displayY = newY - sink;
+      if (this.isInWater && !isMovingNow && !this.vehicle) {
+        displayY -= FLOAT_IDLE_DISPLAY_OFFSET;
+      }
       this.playerModel.position.set(newX, displayY, newZ);
       let yawAngle = this.playerModel.rotation.y;
       if (movement.length() > 0) {
