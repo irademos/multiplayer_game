@@ -148,6 +148,10 @@ body {
   cursor: pointer;
 }
 
+.mobile-only {
+  display: none;
+}
+
 #camera-controls {
   position: fixed;
   bottom: 10px;
@@ -406,6 +410,63 @@ body {
 
 
 
+
+@media (pointer: coarse) {
+  #action-buttons {
+    bottom: 16px;
+    left: 16px;
+    gap: 6px;
+  }
+
+  #action-buttons .action-button {
+    width: 52px;
+    height: 52px;
+    font-size: 14px;
+  }
+
+  #action-buttons .mobile-action {
+    display: none;
+  }
+
+  #action-buttons.mobile-expanded .mobile-action {
+    display: flex;
+  }
+
+  #mobile-action-toggle {
+    display: flex;
+    font-size: 24px;
+    padding-bottom: 4px;
+  }
+
+  #mobile-action-toggle[aria-expanded="true"] {
+    background-color: rgba(255, 255, 255, 0.7);
+  }
+
+  .mobile-only {
+    display: flex;
+  }
+
+  #joystick-container {
+    width: 120px;
+    height: 120px;
+    bottom: 16px;
+    right: 16px;
+  }
+
+  #jump-button {
+    width: 70px;
+    height: 70px;
+    line-height: 70px;
+    font-size: 14px;
+    bottom: 140px;
+    right: 16px;
+  }
+
+  .interaction-tooltip.visible {
+    pointer-events: auto;
+    cursor: pointer;
+  }
+}
 
 @media (pointer: coarse) and (max-width: 768px),
        (pointer: coarse) and (max-height: 768px) {
