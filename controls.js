@@ -107,6 +107,16 @@ export class PlayerControls {
 
     this.interactionPromptEl = document.getElementById('interaction-tooltip');
 
+    if (this.isMobile && this.interactionPromptEl) {
+      const activateInteraction = (event) => {
+        if (!this.interactionPromptEl.classList.contains('visible')) return;
+        event.preventDefault();
+        this.handleInteractionAction();
+      };
+      this.interactionPromptEl.addEventListener('touchstart', activateInteraction, { passive: false });
+      this.interactionPromptEl.addEventListener('click', activateInteraction);
+    }
+
     this.ammo = 10;
     this.maxAmmo = 30;
     this.ammoContainerEl = document.getElementById('ammo-display');
@@ -186,7 +196,7 @@ export class PlayerControls {
       mode: 'static',
       position: { left: '50%', top: '50%' },
       color: 'rgba(255, 255, 255, 0.5)',
-      size: 120
+      size: 100
     });
     
     this.joystick.on('move', (evt, data) => {
@@ -250,11 +260,31 @@ export class PlayerControls {
     // Action buttons container
     const actionContainer = document.getElementById('action-buttons');
 
+    const toggleButton = document.getElementById('mobile-action-toggle');
+    if (actionContainer && toggleButton) {
+      const setExpanded = (expanded) => {
+        actionContainer.classList.toggle('mobile-expanded', expanded);
+        toggleButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        toggleButton.textContent = expanded ? '✕' : '⋯';
+      };
+
+      setExpanded(false);
+
+      const handleToggle = (event) => {
+        event.preventDefault();
+        const nextState = !actionContainer.classList.contains('mobile-expanded');
+        setExpanded(nextState);
+      };
+
+      toggleButton.addEventListener('touchstart', handleToggle, { passive: false });
+      toggleButton.addEventListener('click', handleToggle);
+    }
+
     // Fire button
     if (!document.getElementById('fire-button')) {
       const newFireButton = document.createElement('button');
       newFireButton.id = 'fire-button';
-      newFireButton.className = 'action-button';
+      newFireButton.className = 'action-button mobile-action';
       newFireButton.innerText = 'FIRE';
       actionContainer.appendChild(newFireButton);
     }
@@ -270,7 +300,7 @@ export class PlayerControls {
     if (!document.getElementById('kick-button')) {
       const kickButton = document.createElement('button');
       kickButton.id = 'kick-button';
-      kickButton.className = 'action-button';
+      kickButton.className = 'action-button mobile-action';
       kickButton.innerText = 'KICK';
       actionContainer.appendChild(kickButton);
       kickButton.addEventListener('touchstart', (event) => {
@@ -284,7 +314,7 @@ export class PlayerControls {
     if (!document.getElementById('punch-button')) {
       const punchButton = document.createElement('button');
       punchButton.id = 'punch-button';
-      punchButton.className = 'action-button';
+      punchButton.className = 'action-button mobile-action';
       punchButton.innerText = 'PUNCH';
       actionContainer.appendChild(punchButton);
       punchButton.addEventListener('touchstart', (event) => {
@@ -332,10 +362,7 @@ export class PlayerControls {
       }
 
       if (key === 'x') {
-        window.spaceship?.tryMount(this);
-        window.surfboard?.tryMount(this);
-        window.rowBoat?.tryMount(this);
-        window.iceGun?.tryPickup(this);
+        this.handleInteractionAction();
         return;
       }
 
@@ -399,6 +426,26 @@ export class PlayerControls {
       if (!this.enabled || this.isMobile) return;
       this.attemptFireProjectile();
     });
+  }
+
+  handleInteractionAction() {
+    if (!this.enabled) return;
+
+    if (this.vehicle) {
+      this.vehicle.dismount?.();
+      return;
+    }
+
+    const iceGun = window.iceGun;
+    if (iceGun?.holder === this) {
+      iceGun.tryPickup?.(this);
+      return;
+    }
+
+    window.spaceship?.tryMount(this);
+    window.surfboard?.tryMount(this);
+    window.rowBoat?.tryMount(this);
+    iceGun?.tryPickup?.(this);
   }
 
   playAction(actionName) {
