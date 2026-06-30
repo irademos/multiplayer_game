@@ -461,6 +461,7 @@ export class PlayerControls {
     const action = actions[actionName];
     actions[current]?.fadeOut(0.1);
     action.reset().fadeIn(0.1).play();
+    action.setEffectiveTimeScale(['mmaKick', 'hurricaneKick', 'runningKick'].includes(actionName) ? 2 : 1);
     this.playerModel.userData.currentAction = actionName;
     this.currentSpecialAction = actionName;
 

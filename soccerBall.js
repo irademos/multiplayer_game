@@ -51,7 +51,8 @@ export class SoccerBall {
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(x, y, z)
       .setLinearDamping(0.4)
-      .setAngularDamping(0.6);
+      .setAngularDamping(0.6)
+      .setCcdEnabled(true);
     this.body = this.rapierWorld.createRigidBody(rbDesc);
 
     const colDesc = RAPIER.ColliderDesc.ball(BALL_RADIUS)
@@ -78,6 +79,36 @@ export class SoccerBall {
   applyImpulse(impulse) {
     if (!this.body) return;
     this.body.applyImpulse(impulse, true);
+  }
+
+  // Make sure any player overlapping the ball always pushes/redirects it,
+  // even if the physics solver alone lets a fast-moving player rest on top
+  // of it or pass through it without imparting velocity.
+  resolvePlayerContact(playerPos, playerVel, playerRadius) {
+    if (!this.body) return;
+    const t = this.body.translation();
+    const dx = t.x - playerPos.x;
+    const dy = t.y - playerPos.y;
+    const dz = t.z - playerPos.z;
+    const distSq = dx * dx + dy * dy + dz * dz;
+    const minDist = BALL_RADIUS + playerRadius;
+    const dist = Math.sqrt(distSq);
+    if (dist >= minDist || dist < 1e-4) return;
+
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const nz = dz / dist;
+
+    // Push the ball out of overlap and carry the player's velocity into it.
+    const overlap = minDist - dist;
+    const ballVel = this.body.linvel();
+    const push = overlap * 6;
+    const carry = 0.6;
+    this.body.setLinvel({
+      x: ballVel.x + nx * push + playerVel.x * carry,
+      y: ballVel.y + Math.max(ny, 0) * push + playerVel.y * carry,
+      z: ballVel.z + nz * push + playerVel.z * carry,
+    }, true);
   }
 
   getPosition() {
