@@ -13,7 +13,7 @@ const PLAYER_HALF_HEIGHT = 0.6;
 const FLOAT_IDLE_DISPLAY_OFFSET = 0.2;
 
 export class PlayerControls {
-  constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager }) {
+  constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager, spawnPosition }) {
     this.yaw = 0;
     this.pitch = 0;
     this.pointerLocked = false;
@@ -65,7 +65,7 @@ export class PlayerControls {
     this.moveRight = 0;
     
     // Initial player position
-    const spawn = getSpawnPosition();
+    const spawn = spawnPosition ?? getSpawnPosition();
     this.playerX = spawn.x;
     this.playerY = spawn.y;
     this.playerZ = spawn.z;
@@ -339,8 +339,7 @@ export class PlayerControls {
           return;
         }
 
-        const boatControls = this.vehicle.type === 'rowboat' ||
-          (this.vehicle.type === 'surfboard' && this.vehicle.usesBoatControls?.());
+        const boatControls = this.vehicle.type === 'rowboat';
 
         if (boatControls) {
           if (e.repeat) return;
@@ -351,12 +350,10 @@ export class PlayerControls {
             this.vehicle.paddleRight?.();
             return;
           }
-          if (this.vehicle.type === 'rowboat') {
-            return;
-          }
+          return;
         }
 
-        if (this.vehicle.type !== 'surfboard') {
+        if (this.vehicle.type !== 'spaceship') {
           return;
         }
 
@@ -382,24 +379,22 @@ export class PlayerControls {
           this.hasDoubleJumped = true;
           this.playAction('hurricaneKick');
         }
-      } else if (key === 'e') {
-        if (this.vehicle) if (this.vehicle.type === 'surfboard') this.vehicle.toggleStand();
+      } else if (key === 'q') {
         if (this.isInWater) return;
         if (this.isMoving) {
           this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
         }
         this.playAction('mutantPunch');
         this.audioManager?.playAttack();
+      } else if (key === 'e') {
+        if (this.isInWater) return;
+        this.playAction('mmaKick');
+        this.audioManager?.playAttack();
       } else if (key === 'r') {
         if (this.isInWater) return;
-        if (this.isMoving) {
-          this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(1.4);
-          this.playAction('runningKick');
-          this.audioManager?.playAttack();
-        } else {
-          this.playAction('mmaKick');
-          this.audioManager?.playAttack();
-        }
+        this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(1.4);
+        this.playAction('runningKick');
+        this.audioManager?.playAttack();
       } else if (key === 'g') {
         if (this.grabbedTarget) {
           this.releaseGrab();
@@ -444,7 +439,6 @@ export class PlayerControls {
     }
 
     window.spaceship?.tryMount(this);
-    window.surfboard?.tryMount(this);
     window.rowBoat?.tryMount(this);
     iceGun?.tryPickup?.(this);
   }
@@ -517,9 +511,7 @@ export class PlayerControls {
     }
 
     if (this.vehicle) {
-      const boatControls = this.vehicle.type === 'rowboat' ||
-        (this.vehicle.type === 'surfboard' && this.vehicle.usesBoatControls?.());
-      if (boatControls) {
+      if (this.vehicle.type === 'rowboat') {
         this.isMoving = false;
         this.vehicle.alignOccupant?.();
         return;
@@ -700,25 +692,12 @@ export class PlayerControls {
       const actions = this.playerModel.userData.actions;
       if (actions && !this.isKnocked && !this.currentSpecialAction) {
         let actionName;
-        if (this.vehicle && this.vehicle.type === 'surfboard') {
-          if (this.isInWater) {
-            actionName = isMovingNow ? 'swim' : 'sit';
-            if (this.vehicle.standing) {
-              actionName = 'idle';
-            }
-          } else {
-            actionName = 'idle';
-            if (!this.canJump) actionName = 'jump';
-            else if (isMovingNow) actionName = 'run';
-          }
+        if (this.isInWater) {
+          actionName = isMovingNow ? 'swim' : 'float';
         } else {
-          if (this.isInWater) {
-            actionName = isMovingNow ? 'swim' : 'float';
-          } else {
-            actionName = 'idle';
-            if (!this.canJump) actionName = 'jump';
-            else if (isMovingNow) actionName = 'run';
-          }
+          actionName = 'idle';
+          if (!this.canJump) actionName = 'jump';
+          else if (isMovingNow) actionName = 'run';
         }
         const current = this.playerModel.userData.currentAction;
         if (actionName && current !== actionName) {
@@ -833,8 +812,6 @@ export class PlayerControls {
         promptText = "'x' exit spaceship";
       } else if (type === 'rowboat') {
         promptText = "'x' exit rowboat";
-      } else if (type === 'surfboard') {
-        promptText = "'x' exit surfboard";
       }
       visible = !!promptText;
     } else {
@@ -862,7 +839,6 @@ export class PlayerControls {
 
         consider(window.spaceship, 10, "'x' enter spaceship");
         consider(window.rowBoat, 4, "'x' enter rowboat");
-        consider(window.surfboard, 3, "'x' enter surfboard");
         consider(window.iceGun, 3, "'x' pick up gun");
       }
     }
