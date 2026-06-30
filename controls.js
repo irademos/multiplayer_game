@@ -550,7 +550,13 @@ export class PlayerControls {
     const world = window.rapierWorld;
     if (world) {
       const ray = new RAPIER.Ray({ x: t.x, y: t.y, z: t.z }, { x: 0, y: -1, z: 0 });
-      const hit = world.castRay(ray, t.y + 10, true, undefined, undefined, undefined, this.body);
+      // Exclude the soccer ball so the grounding ray never mistakes it for
+      // standable terrain (which would snap the player up onto it instead
+      // of colliding with its side).
+      const ballBody = window.soccerBall?.body;
+      const hit = world.castRay(ray, t.y + 10, true, undefined, undefined, undefined, this.body, (collider) => {
+        return collider.parent()?.handle !== ballBody?.handle;
+      });
       if (hit) {
         const hitDist = hit.toi ?? hit.timeOfImpact;
         const hitY = t.y - hitDist;
