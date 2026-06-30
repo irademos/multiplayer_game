@@ -70,7 +70,7 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, monster, audioMa
               .normalize();
             dir.y = Math.max(dir.y, 0.2);
             dir.normalize();
-            window.soccerBall.applyImpulse({ x: dir.x * 6, y: dir.y * 6, z: dir.z * 6 });
+            window.soccerBall.applyImpulse({ x: dir.x * 2, y: dir.y * 2, z: dir.z * 2 });
           }
         }
       }
