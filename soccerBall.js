@@ -84,11 +84,19 @@ export class SoccerBall {
   // Make sure any player overlapping the ball always pushes/redirects it,
   // even if the physics solver alone lets a fast-moving player rest on top
   // of it or pass through it without imparting velocity.
-  resolvePlayerContact(playerPos, playerVel, playerRadius) {
+  resolvePlayerContact(playerPos, playerVel, playerRadius, playerHalfHeight = 0) {
     if (!this.body) return;
     const t = this.body.translation();
+    // Players are capsules, not points: find the closest point on the
+    // capsule's vertical segment to the ball so a grounded ball is
+    // correctly detected as touching the player's body/legs instead of
+    // being compared against the (much higher) capsule center.
+    const closestY = Math.max(
+      playerPos.y - playerHalfHeight,
+      Math.min(playerPos.y + playerHalfHeight, t.y)
+    );
     const dx = t.x - playerPos.x;
-    const dy = t.y - playerPos.y;
+    const dy = t.y - closestY;
     const dz = t.z - playerPos.z;
     const distSq = dx * dx + dy * dy + dz * dz;
     const minDist = BALL_RADIUS + playerRadius;

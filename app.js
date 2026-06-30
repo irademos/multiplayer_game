@@ -1083,14 +1083,16 @@ async function main() {
         soccerBall.resolvePlayerContact(
           playerControls.body.translation(),
           playerControls.body.linvel(),
-          0.3
+          0.3,
+          0.6
         );
       }
       if (aiPlayer?.body) {
         soccerBall.resolvePlayerContact(
           aiPlayer.body.translation(),
           aiPlayer.body.linvel(),
-          0.3
+          0.3,
+          0.6
         );
       }
     }
