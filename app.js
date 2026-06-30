@@ -4,8 +4,8 @@ import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { loadMonsterModel } from "./models/monsterModel.js";
 import { switchMonsterAnimation } from "./characters/MonsterCharacter.js";
 import { createOrcVoice } from "./orcVoice.js";
-import { createClouds, generateIsland, createMoon, MOON_RADIUS } from "./worldGeneration.js";
-import { initWaves, spawnOceanWave, updateWaves, getWaveForceAt, getTerrainHeight } from './water.js';
+import { createClouds, generateSoccerField, createMoon, MOON_RADIUS } from "./worldGeneration.js";
+import { getTerrainHeight } from './water.js';
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
@@ -460,10 +460,7 @@ async function main() {
     );
   }
 
-  generateIsland(scene);
-  initWaves(scene);
-  // Prime with an initial distant wave
-  spawnOceanWave();
+  generateSoccerField(scene, rapierWorld);
   createMoon(scene, rapierWorld, rbToMesh);
 
   spaceship = new Spaceship(scene, rapierWorld, rbToMesh);
@@ -693,22 +690,6 @@ async function main() {
     playerControls.enabled = !levelBuilder.active;
   });
 
-  // Wave spawn timing (less frequent) and constant push during pass
-  let nextWaveIn = 10 + Math.random() * 6; // seconds
-  function scheduleNextWave() {
-    nextWaveIn = 10 + Math.random() * 6; // 10–16s between waves
-  }
-
-  function applyWaveForces() {
-    if (playerControls.body && playerControls.isInWater) {
-      const t = playerControls.body.translation();
-      const f = getWaveForceAt(t.x, t.z);
-      if (f.x !== 0 || f.z !== 0) {
-        playerControls.body.applyImpulse({ x: f.x, y: 0, z: f.z }, true);
-      }
-    }
-
-  }
 
 
   // --- RAPIER HELPERS ---
@@ -1049,7 +1030,6 @@ async function main() {
     physicsAccumulator += frameDelta;
     while (physicsAccumulator >= FIXED_DT) {
       applyGlobalGravity(rapierWorld, window.moon);
-      applyWaveForces();
       rapierWorld.step();
       physicsAccumulator -= FIXED_DT;
     }
@@ -1154,13 +1134,6 @@ async function main() {
     }
 
     const mixerDelta = mixerClock.getDelta();
-    // Update visible waves and spawn new ones less frequently
-    updateWaves(mixerDelta);
-    nextWaveIn -= mixerDelta;
-    if (nextWaveIn <= 0) {
-      spawnOceanWave();
-      scheduleNextWave();
-    }
 
     Object.values(otherPlayers).forEach(p => {
       p.model.userData.mixer?.update(mixerDelta);
