@@ -16,8 +16,8 @@ import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
 import { LevelBuilder } from './levelBuilderMode.js';
 import { AudioManager } from './audioManager.js';
-import { Surfboard } from './surfboard.js';
 import { RowBoat } from './rowboat.js';
+import { AIPlayer } from './aiPlayer.js';
 import { SoccerBall } from './soccerBall.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { applyGlobalGravity } from "./gravity.js";
@@ -335,9 +335,9 @@ async function main() {
 
   createClouds(scene);
 
-  let surfboard;
   let rowBoat;
   let soccerBall;
+  let aiPlayer;
 
   const score = { home: 0, away: 0 };
   let goalCooldown = 0;
@@ -542,40 +542,6 @@ async function main() {
     isLocallyControlled: () => true
   });
 
-  surfboard = new Surfboard(scene);
-  await surfboard.load();
-  window.surfboard = surfboard;
-  registerNetworkedEntity('surfboard', {
-    getState: () => {
-      if (!surfboard?.mesh) return null;
-      const pos = surfboard.mesh.position;
-      const q = surfboard.mesh.quaternion;
-      return {
-        position: [pos.x, pos.y, pos.z],
-        rotation: [q.x, q.y, q.z, q.w],
-        standing: !!surfboard.standing
-      };
-    },
-    applyState: state => {
-      if (!surfboard?.mesh || !state) return;
-      const [px, py, pz] = state.position || [];
-      const [rx, ry, rz, rw] = state.rotation || [];
-      if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pz)) {
-        surfboard.mesh.position.set(px, py, pz);
-      }
-      if (Number.isFinite(rx) && Number.isFinite(ry) && Number.isFinite(rz) && Number.isFinite(rw)) {
-        surfboard.mesh.quaternion.set(rx, ry, rz, rw);
-      }
-      if (typeof state.standing === 'boolean') {
-        surfboard.standing = state.standing;
-      }
-      if (surfboard.mesh) {
-        surfboard.mesh.userData.lastNetworkUpdate = performance.now();
-      }
-    },
-    isLocallyControlled: () => surfboard?.occupant === playerControls
-  });
-
   rowBoat = new RowBoat(scene);
   await rowBoat.load();
   window.rowBoat = rowBoat;
@@ -679,6 +645,10 @@ async function main() {
     return pickup;
   }
 
+  // Player spawns near the -Z goal; AI spawns near +Z goal
+  const PLAYER_SPAWN_Z = -38;
+  const playerSpawnY = getTerrainHeight(0, PLAYER_SPAWN_Z) + 1.5;
+
   playerControls = new PlayerControls({
     scene,
     camera,
@@ -687,9 +657,12 @@ async function main() {
     multiplayer,
     spawnProjectile,
     projectiles,
-    audioManager
+    audioManager,
+    spawnPosition: { x: 0, y: playerSpawnY, z: PLAYER_SPAWN_Z }
   });
   window.playerControls = playerControls;
+
+  aiPlayer = new AIPlayer(scene, rapierWorld, { spawnZ: 38, targetGoalZ: -50 });
 
   spawnAmmoPickup(new THREE.Vector3(-4, 0, 4));
   spawnAmmoPickup(new THREE.Vector3(2, 0, -3));
@@ -843,7 +816,8 @@ async function main() {
   function respawnPlayer() {
     window.localHealth = 100;
     updateHealthUI();
-    const spawn = getSpawnPosition();
+    const spawnRY = getTerrainHeight(0, PLAYER_SPAWN_Z) + 1.5;
+    const spawn = { x: 0, y: spawnRY, z: PLAYER_SPAWN_Z };
     playerModel.position.set(spawn.x, spawn.y, spawn.z);
     playerControls.playerX = spawn.x;
     playerControls.playerY = spawn.y;
@@ -1103,7 +1077,6 @@ async function main() {
       }
     }
 
-    surfboard.update();
     soccerBall?.update();
     checkGoal();
 
@@ -1151,6 +1124,7 @@ async function main() {
     });
 
     rowBoat.update();
+    aiPlayer?.update(frameDelta, soccerBall);
 
     multiplayer.send({
       type: "presence",
