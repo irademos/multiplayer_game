@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
-import { generateOcean, registerIsland, SEA_FLOOR_Y } from "./water.js";
 
 const DEFAULT_WORLD_SEED = 0x5f3759df;
 let currentWorldSeed = DEFAULT_WORLD_SEED;
@@ -114,360 +113,192 @@ export function createMoon(scene, rapierWorld, rbToMesh) {
   return moon;
 }
 
-const textureLoader = new THREE.TextureLoader();
-const textureCache = new Map();
+// Soccer field dimensions (in world units)
+const FIELD_LENGTH = 100; // along Z axis
+const FIELD_WIDTH = 60;   // along X axis
+const STAND_HEIGHT = 8;
+const STAND_DEPTH = 10;
+const GOAL_WIDTH = 10;
+const GOAL_HEIGHT = 3;
+const GOAL_DEPTH = 2;
 
-const TEXTURE_DOWNSCALE_POWER = 1; // Reduce to 1 / 2^power resolution (quarter size).
-const USE_SEAFLOOR_TEXTURE = false;
+function addGoal(scene, zSign) {
+  const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.3 });
+  const postR = 0.12;
+  const halfGoal = GOAL_WIDTH / 2;
+  const zPos = zSign * (FIELD_LENGTH / 2);
 
-const isPowerOfTwo = (value) => value && (value & (value - 1)) === 0;
-
-function loadIslandTexture(key, url, repeat = 4) {
-  const cacheKey = TEXTURE_DOWNSCALE_POWER
-    ? `${key}-down-${TEXTURE_DOWNSCALE_POWER}`
-    : key;
-  if (textureCache.has(cacheKey)) return textureCache.get(cacheKey);
-  const texture = textureLoader.load(url, (loadedTexture) => {
-    if (
-      TEXTURE_DOWNSCALE_POWER > 0 &&
-      loadedTexture.image &&
-      typeof document !== "undefined"
-    ) {
-      const { width, height } = loadedTexture.image;
-      if (isPowerOfTwo(width) && isPowerOfTwo(height)) {
-        const downscaleFactor = 1 << TEXTURE_DOWNSCALE_POWER;
-        const targetWidth = Math.max(1, Math.floor(width / downscaleFactor));
-        const targetHeight = Math.max(1, Math.floor(height / downscaleFactor));
-        if (targetWidth > 0 && targetHeight > 0) {
-          const canvas = document.createElement("canvas");
-          canvas.width = targetWidth;
-          canvas.height = targetHeight;
-          const context = canvas.getContext("2d");
-          context.drawImage(
-            loadedTexture.image,
-            0,
-            0,
-            targetWidth,
-            targetHeight
-          );
-          loadedTexture.image = canvas;
-          loadedTexture.needsUpdate = true;
-        }
-      }
-    }
-  });
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(repeat, repeat);
-  if (texture.colorSpace !== undefined) {
-    texture.colorSpace = THREE.SRGBColorSpace;
-  }
-  textureCache.set(cacheKey, texture);
-  return texture;
-}
-
-const sandMaterial = new THREE.MeshStandardMaterial({
-  map: loadIslandTexture(
-    "sand",
-    "/assets/textures/sandy_gravel_02_4k.blend/textures/sandy_gravel_02_diff_4k.jpg",
-    6
-  ),
-  roughness: 0.95,
-  metalness: 0.05,
-});
-
-const groundMaterial = new THREE.MeshStandardMaterial({
-  map: loadIslandTexture(
-    "ground",
-    "/assets/textures/forrest_ground_01_4k.blend/textures/forrest_ground_01_diff_4k.jpg",
-    4
-  ),
-  roughness: 0.85,
-  metalness: 0.05,
-});
-
-const rockMaterial = new THREE.MeshStandardMaterial({
-  map: loadIslandTexture(
-    "rock",
-    "/assets/textures/rock_face_03_4k.blend/textures/rock_face_03_diff_4k.jpg",
-    3
-  ),
-  roughness: 1.0,
-  metalness: 0.1,
-});
-
-const seaFloorMaterial = new THREE.MeshStandardMaterial({
-  map: loadIslandTexture(
-    "seafloor",
-    "/assets/textures/sandy_gravel_02_4k.blend/textures/sandy_gravel_02_diff_4k.jpg",
-    12
-  ),
-  roughness: 0.95,
-  metalness: 0.02,
-});
-
-function pseudoRandom2D(x, z) {
-  const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453123;
-  return s - Math.floor(s);
-}
-
-function smoothNoise(x, z) {
-  const xi = Math.floor(x);
-  const zi = Math.floor(z);
-  const xf = x - xi;
-  const zf = z - zi;
-
-  const topLeft = pseudoRandom2D(xi, zi);
-  const topRight = pseudoRandom2D(xi + 1, zi);
-  const bottomLeft = pseudoRandom2D(xi, zi + 1);
-  const bottomRight = pseudoRandom2D(xi + 1, zi + 1);
-
-  const u = xf * xf * (3 - 2 * xf);
-  const v = zf * zf * (3 - 2 * zf);
-
-  const top = topLeft * (1 - u) + topRight * u;
-  const bottom = bottomLeft * (1 - u) + bottomRight * u;
-
-  return top * (1 - v) + bottom * v;
-}
-
-function fractalNoise(x, z, octaves = 4, lacunarity = 2, gain = 0.5) {
-  let frequency = 1;
-  let amplitude = 1;
-  let sum = 0;
-  let amplitudeSum = 0;
-
-  for (let i = 0; i < octaves; i++) {
-    sum += smoothNoise(x * frequency, z * frequency) * amplitude;
-    amplitudeSum += amplitude;
-    frequency *= lacunarity;
-    amplitude *= gain;
+  // Two vertical posts
+  for (const xOff of [-halfGoal, halfGoal]) {
+    const post = new THREE.Mesh(
+      new THREE.CylinderGeometry(postR, postR, GOAL_HEIGHT, 8),
+      postMat
+    );
+    post.position.set(xOff, GOAL_HEIGHT / 2, zPos);
+    post.castShadow = true;
+    scene.add(post);
   }
 
-  return amplitudeSum > 0 ? sum / amplitudeSum : 0;
-}
-
-function createHeightSampler({ center, radius, segments, heights, size }) {
-  const gridSize = segments + 1;
-  const halfSize = size / 2;
-  const cellSize = size / segments;
-
-  return (x, z) => {
-    const localX = x - center.x;
-    const localZ = z - center.z;
-    const dist = Math.hypot(localX, localZ);
-
-    if (dist > radius) return SEA_FLOOR_Y;
-
-    const fx = (localX + halfSize) / cellSize;
-    const fz = (localZ + halfSize) / cellSize;
-
-    const ix0 = Math.floor(fx);
-    const iz0 = Math.floor(fz);
-
-    const ix = THREE.MathUtils.clamp(ix0, 0, segments - 1);
-    const iz = THREE.MathUtils.clamp(iz0, 0, segments - 1);
-
-    const tx = THREE.MathUtils.clamp(fx - ix, 0, 1);
-    const tz = THREE.MathUtils.clamp(fz - iz, 0, 1);
-
-    const ix1 = Math.min(ix + 1, segments);
-    const iz1 = Math.min(iz + 1, segments);
-
-    const i00 = iz * gridSize + ix;
-    const i10 = iz * gridSize + ix1;
-    const i01 = iz1 * gridSize + ix;
-    const i11 = iz1 * gridSize + ix1;
-
-    const h00 = heights[i00];
-    const h10 = heights[i10];
-    const h01 = heights[i01];
-    const h11 = heights[i11];
-
-    const h0 = h00 * (1 - tx) + h10 * tx;
-    const h1 = h01 * (1 - tx) + h11 * tx;
-
-    return h0 * (1 - tz) + h1 * tz;
-  };
-}
-
-function estimateSurfaceRadius({ center, radius, sampleHeight, segments, cellSize }) {
-  const steps = 32;
-  let maxSurface = 0;
-
-  for (let i = 0; i < steps; i++) {
-    const angle = (i / steps) * Math.PI * 2;
-    for (let j = 0; j <= segments; j++) {
-      const r = radius - j * cellSize;
-      if (r <= 0) break;
-      const sampleX = center.x + Math.cos(angle) * r;
-      const sampleZ = center.z + Math.sin(angle) * r;
-      if (sampleHeight(sampleX, sampleZ) > 0) {
-        maxSurface = Math.max(maxSurface, r);
-        break;
-      }
-    }
-  }
-
-  const margin = cellSize * 2;
-  if (maxSurface <= 0) {
-    return Math.max(0, radius * 0.75);
-  }
-  return Math.min(radius, maxSurface + margin);
-}
-
-const island_segments = 10;
-
-function createHillyIsland({ radius, maxHeight, center, segments = island_segments }) {
-  const size = radius * 2;
-  const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
-  geometry.rotateX(-Math.PI / 2);
-
-  const positions = geometry.attributes.position;
-  const gridSize = segments + 1;
-  const heights = new Float32Array(gridSize * gridSize);
-  const vertexDistances = new Float32Array(gridSize * gridSize);
-  const noiseScale = 0.08;
-  const cellSize = size / segments;
-
-  let index = 0;
-  for (let iz = 0; iz < gridSize; iz++) {
-    const zPos = -radius + (iz / segments) * size;
-    for (let ix = 0; ix < gridSize; ix++) {
-      const xPos = -radius + (ix / segments) * size;
-      const dist = Math.hypot(xPos, zPos);
-      const normalizedDist = dist / radius;
-      let height = SEA_FLOOR_Y;
-
-      if (normalizedDist < 1) {
-        const falloff = 1 - Math.pow(normalizedDist, 2.2);
-        const baseHill = Math.pow(falloff, 1.35) * maxHeight;
-        const largeScale = fractalNoise(xPos * noiseScale, zPos * noiseScale, 4);
-        const detail = fractalNoise(xPos * noiseScale * 2.4 + 200, zPos * noiseScale * 2.4 + 200, 3);
-        const noise = (largeScale * 0.7 + detail * 0.3) * 2 - 1;
-        const variation = noise * maxHeight * 0.25 * falloff;
-        let rawHeight = SEA_FLOOR_Y + baseHill + variation;
-        const beachEase = THREE.MathUtils.clamp((radius - dist) / (radius * 0.12), 0, 1);
-        height = THREE.MathUtils.lerp(SEA_FLOOR_Y, rawHeight, beachEase);
-      }
-
-      height = Math.max(height, SEA_FLOOR_Y);
-      heights[index] = height;
-      vertexDistances[index] = dist;
-      positions.setY(index, height);
-      index++;
-    }
-  }
-
-  positions.needsUpdate = true;
-  geometry.computeVertexNormals();
-
-  geometry.clearGroups();
-  const indices = geometry.index.array;
-  const beachRadius = radius * 0.72;
-  const rockHeight = SEA_FLOOR_Y + maxHeight * 0.65;
-
-  for (let i = 0; i < indices.length; i += 3) {
-    const a = indices[i];
-    const b = indices[i + 1];
-    const c = indices[i + 2];
-
-    const avgHeight = (heights[a] + heights[b] + heights[c]) / 3;
-    const avgDist = (vertexDistances[a] + vertexDistances[b] + vertexDistances[c]) / 3;
-
-    let materialIndex = 1;
-    if (avgDist > beachRadius || avgHeight < SEA_FLOOR_Y + maxHeight * 0.18) {
-      materialIndex = 0;
-    } else if (avgHeight >= rockHeight) {
-      materialIndex = 2;
-    }
-
-    geometry.addGroup(i, 3, materialIndex);
-  }
-
-  if (!geometry.groups.some(group => group.materialIndex === 0)) {
-    geometry.addGroup(0, 3, 0);
-  }
-  if (!geometry.groups.some(group => group.materialIndex === 2)) {
-    geometry.addGroup(0, 0, 2);
-  }
-
-  const mesh = new THREE.Mesh(geometry, [sandMaterial, groundMaterial, groundMaterial]);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  mesh.position.set(center.x, 0, center.z);
-
-  const getHeight = createHeightSampler({
-    center,
-    radius,
-    segments,
-    heights,
-    size,
-  });
-
-  const surfaceRadius = estimateSurfaceRadius({
-    center,
-    radius,
-    sampleHeight: getHeight,
-    segments,
-    cellSize,
-  });
-
-  return { mesh, getHeight, radius, surfaceRadius };
-}
-
-export function generateIsland(scene, { islandRadius = 20, outerRadius = 100 } = {}) {
-  const rng = getSeededRandom("islands");
-  const seaFloor = new THREE.Mesh(
-    new THREE.PlaneGeometry(outerRadius * 2, outerRadius * 2, 1, 1),
-    seaFloorMaterial
+  // Crossbar
+  const crossbar = new THREE.Mesh(
+    new THREE.CylinderGeometry(postR, postR, GOAL_WIDTH, 8),
+    postMat
   );
-  seaFloor.rotation.x = -Math.PI / 2;
-  seaFloor.position.y = SEA_FLOOR_Y;
-  seaFloor.receiveShadow = true;
-  scene.add(seaFloor);
+  crossbar.rotation.z = Math.PI / 2;
+  crossbar.position.set(0, GOAL_HEIGHT, zPos);
+  crossbar.castShadow = true;
+  scene.add(crossbar);
 
-  const mainRadius = islandRadius * (0.95 + rng() * 0.3);
-  const mainHeight = 8 + rng() * 5;
+  // Net (back plane)
+  const netMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+  const net = new THREE.Mesh(
+    new THREE.PlaneGeometry(GOAL_WIDTH, GOAL_HEIGHT),
+    netMat
+  );
+  net.position.set(0, GOAL_HEIGHT / 2, zPos + zSign * GOAL_DEPTH);
+  net.rotation.y = zSign > 0 ? 0 : Math.PI;
+  scene.add(net);
+}
 
-  const mainIsland = createHillyIsland({
-    radius: mainRadius,
-    maxHeight: mainHeight,
-    center: { x: 0, z: 0 },
-  });
-  scene.add(mainIsland.mesh);
-  registerIsland({
-    center: { x: 0, z: 0 },
-    radius: mainIsland.radius,
-    surfaceRadius: mainIsland.surfaceRadius,
-    getHeight: mainIsland.getHeight,
-  });
+function addFieldLine(scene, x, z, width, depth, y = 0.01) {
+  const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), lineMat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(x, y, z);
+  scene.add(mesh);
+}
 
-  generateOcean(scene, { x: 0, z: 0 }, 0, outerRadius);
+function addStand(scene, rapierWorld, cx, cz, rotY, length, depth, height) {
+  const standMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.9 });
+  const seatMat = new THREE.MeshStandardMaterial({ color: 0xcc2222, roughness: 0.8 });
 
-  const smallIslandCount = 4 + Math.floor(rng() * 3);
-  for (let i = 0; i < smallIslandCount; i++) {
-    const angle = rng() * Math.PI * 2;
-    const dist = islandRadius + 18 + rng() * Math.max(10, outerRadius - islandRadius - 26);
-    const center = {
-      x: Math.cos(angle) * dist,
-      z: Math.sin(angle) * dist,
-    };
-    const radius = 4.5 + rng() * 3.5;
-    const height = 3.5 + rng() * 2.5;
+  // Inclined seating block
+  const group = new THREE.Group();
+  group.position.set(cx, 0, cz);
+  group.rotation.y = rotY;
 
-    const island = createHillyIsland({
-      radius,
-      maxHeight: height,
-      center,
-      segments: island_segments / 2,
-    });
-    scene.add(island.mesh);
-    registerIsland({
-      center,
-      radius: island.radius,
-      surfaceRadius: island.surfaceRadius,
-      getHeight: island.getHeight,
-    });
+  // Stepped tiers (3 tiers)
+  const tiers = 4;
+  for (let t = 0; t < tiers; t++) {
+    const tierH = height / tiers;
+    const tierD = depth / tiers;
+    const w = length;
+    const h = tierH * (t + 1);
+    const d = tierD;
+    const zOff = -depth / 2 + tierD * t + tierD / 2;
+
+    const back = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), standMat);
+    back.position.set(0, h / 2, zOff);
+    back.castShadow = true;
+    back.receiveShadow = true;
+    group.add(back);
+
+    // Seat strip on top
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(w, 0.1, tierD * 0.6), seatMat);
+    seat.position.set(0, h + 0.05, zOff);
+    group.add(seat);
   }
+
+  scene.add(group);
+
+  // Physics collider for the stand base
+  if (rapierWorld) {
+    const rb = rapierWorld.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(cx, height / 2, cz));
+    rapierWorld.createCollider(
+      RAPIER.ColliderDesc.cuboid(length / 2, height / 2, depth / 2),
+      rb
+    );
+  }
+}
+
+export function generateSoccerField(scene, rapierWorld) {
+  const grassMat = new THREE.MeshStandardMaterial({ color: 0x2d8a2d, roughness: 0.95 });
+  const grassAlt = new THREE.MeshStandardMaterial({ color: 0x267a26, roughness: 0.95 });
+
+  // Main pitch — alternating stripe panels
+  const stripeCount = 10;
+  const stripeDepth = FIELD_LENGTH / stripeCount;
+  for (let i = 0; i < stripeCount; i++) {
+    const stripe = new THREE.Mesh(
+      new THREE.PlaneGeometry(FIELD_WIDTH, stripeDepth),
+      i % 2 === 0 ? grassMat : grassAlt
+    );
+    stripe.rotation.x = -Math.PI / 2;
+    stripe.position.set(0, 0, -FIELD_LENGTH / 2 + stripeDepth * i + stripeDepth / 2);
+    stripe.receiveShadow = true;
+    scene.add(stripe);
+  }
+
+  // Surround — darker ground beyond the pitch
+  const surroundMat = new THREE.MeshStandardMaterial({ color: 0x4a3a28, roughness: 0.95 });
+  const totalSize = 300;
+  const surround = new THREE.Mesh(new THREE.PlaneGeometry(totalSize, totalSize), surroundMat);
+  surround.rotation.x = -Math.PI / 2;
+  surround.position.set(0, -0.01, 0);
+  surround.receiveShadow = true;
+  scene.add(surround);
+
+  const LT = 0.35; // line thickness
+
+  // Touchlines (long sides)
+  addFieldLine(scene, 0, 0, LT, FIELD_LENGTH);
+  addFieldLine(scene, FIELD_WIDTH / 2, 0, LT, FIELD_LENGTH);
+  addFieldLine(scene, -FIELD_WIDTH / 2, 0, LT, FIELD_LENGTH);
+
+  // Goal lines
+  addFieldLine(scene, 0, FIELD_LENGTH / 2, FIELD_WIDTH, LT);
+  addFieldLine(scene, 0, -FIELD_LENGTH / 2, FIELD_WIDTH, LT);
+
+  // Halfway line
+  addFieldLine(scene, 0, 0, FIELD_WIDTH, LT);
+
+  // Centre circle (approximated with ring segments)
+  const circleR = 9.15;
+  const segments = 48;
+  const circleMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
+  for (let i = 0; i < segments; i++) {
+    const a0 = (i / segments) * Math.PI * 2;
+    const a1 = ((i + 1) / segments) * Math.PI * 2;
+    const x0 = Math.cos(a0) * circleR, z0 = Math.sin(a0) * circleR;
+    const x1 = Math.cos(a1) * circleR, z1 = Math.sin(a1) * circleR;
+    const segLen = Math.hypot(x1 - x0, z1 - z0);
+    const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+    const ang = Math.atan2(z1 - z0, x1 - x0);
+    const seg = new THREE.Mesh(new THREE.PlaneGeometry(segLen, LT), circleMat);
+    seg.rotation.x = -Math.PI / 2;
+    seg.rotation.z = -ang;
+    seg.position.set(mx, 0.01, mz);
+    scene.add(seg);
+  }
+
+  // Centre spot
+  const spot = new THREE.Mesh(new THREE.CircleGeometry(0.3, 16), circleMat);
+  spot.rotation.x = -Math.PI / 2;
+  spot.position.set(0, 0.01, 0);
+  scene.add(spot);
+
+  // Penalty areas
+  const paWidth = 40.32, paDepth = 16.5;
+  for (const zSign of [-1, 1]) {
+    const zCenter = zSign * (FIELD_LENGTH / 2 - paDepth / 2);
+    // outline (4 sides)
+    addFieldLine(scene, 0, zSign * FIELD_LENGTH / 2 - zSign * paDepth, paWidth, LT);
+    addFieldLine(scene, paWidth / 2, zCenter, LT, paDepth);
+    addFieldLine(scene, -paWidth / 2, zCenter, LT, paDepth);
+  }
+
+  // Goals
+  addGoal(scene, 1);
+  addGoal(scene, -1);
+
+  // Stands (4 sides)
+  const standGap = 4;
+  // Long sides
+  const longStandLen = FIELD_LENGTH + 4;
+  addStand(scene, rapierWorld, FIELD_WIDTH / 2 + standGap + STAND_DEPTH / 2, 0, Math.PI / 2, longStandLen, STAND_DEPTH, STAND_HEIGHT);
+  addStand(scene, rapierWorld, -(FIELD_WIDTH / 2 + standGap + STAND_DEPTH / 2), 0, -Math.PI / 2, longStandLen, STAND_DEPTH, STAND_HEIGHT);
+  // Short ends
+  const shortStandLen = FIELD_WIDTH + (STAND_DEPTH + standGap) * 2 + 4;
+  addStand(scene, rapierWorld, 0, FIELD_LENGTH / 2 + standGap + STAND_DEPTH / 2, 0, shortStandLen, STAND_DEPTH, STAND_HEIGHT);
+  addStand(scene, rapierWorld, 0, -(FIELD_LENGTH / 2 + standGap + STAND_DEPTH / 2), Math.PI, shortStandLen, STAND_DEPTH, STAND_HEIGHT);
 }
