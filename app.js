@@ -354,26 +354,34 @@ async function main() {
     scoreEl.textContent = `${score.home} - ${score.away}`;
   }
 
+  const SCORE_FIELD_X_HALF = 30; // field is 60 wide
+
   function checkGoal() {
     if (!soccerBall?.body) return;
     const now = performance.now();
     if (now < goalCooldown) return;
     const pos = soccerBall.getPosition();
     if (!pos) return;
-    const inX = Math.abs(pos.x) <= SCORE_GOAL_WIDTH / 2;
-    const inY = pos.y >= -0.3 && pos.y <= SCORE_GOAL_HEIGHT + 0.3;
-    if (inX && inY) {
-      if (pos.z > SCORE_FIELD_HALF) {
+
+    // Check out of bounds first (ball left field bounds without scoring)
+    const outZ = pos.z > SCORE_FIELD_HALF || pos.z < -SCORE_FIELD_HALF;
+    const outX = Math.abs(pos.x) > SCORE_FIELD_X_HALF;
+    if (outX || outZ) {
+      const inX = Math.abs(pos.x) <= SCORE_GOAL_WIDTH / 2;
+      const inY = pos.y >= -0.3 && pos.y <= SCORE_GOAL_HEIGHT + 0.3;
+      const vel = soccerBall.body.linvel();
+      // Score only if ball passed through goal from inside the field
+      if (inX && inY && pos.z > SCORE_FIELD_HALF && vel.z > 0) {
         score.away++;
         updateScoreUI();
         goalCooldown = now + 3000;
-        soccerBall.reset();
-      } else if (pos.z < -SCORE_FIELD_HALF) {
+      } else if (inX && inY && pos.z < -SCORE_FIELD_HALF && vel.z < 0) {
         score.home++;
         updateScoreUI();
         goalCooldown = now + 3000;
-        soccerBall.reset();
       }
+      // Reset ball in all out-of-bounds cases
+      soccerBall.reset();
     }
   }
 
