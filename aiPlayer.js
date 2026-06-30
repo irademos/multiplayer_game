@@ -8,7 +8,7 @@ const PLAYER_HALF_HEIGHT = 0.6;
 const PLAYER_RADIUS = 0.3;
 const KICK_RANGE = 1.8;
 const KICK_COOLDOWN = 1200;
-const KICK_IMPULSE = 20;
+const KICK_IMPULSE = 0.667;
 const GROUND_OFFSET = PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
 
 export class AIPlayer {
