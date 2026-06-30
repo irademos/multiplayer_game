@@ -306,6 +306,7 @@ export class PlayerControls {
       actionContainer.appendChild(kickButton);
       kickButton.addEventListener('touchstart', (event) => {
         if (!this.enabled || this.isInWater) return;
+        this.slideMomentum.set(0, 0, 0);
         this.playAction('mmaKick');
         event.preventDefault();
       });
@@ -388,6 +389,7 @@ export class PlayerControls {
         this.audioManager?.playAttack();
       } else if (key === 'e') {
         if (this.isInWater) return;
+        this.slideMomentum.set(0, 0, 0);
         this.playAction('mmaKick');
         this.audioManager?.playAttack();
       } else if (key === 'r') {
