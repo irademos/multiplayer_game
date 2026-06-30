@@ -122,7 +122,7 @@ const GOAL_WIDTH = 10;
 const GOAL_HEIGHT = 3;
 const GOAL_DEPTH = 2;
 
-function addGoal(scene, zSign) {
+function addGoal(scene, zSign, rapierWorld) {
   const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.3 });
   const postR = 0.12;
   const halfGoal = GOAL_WIDTH / 2;
@@ -137,6 +137,16 @@ function addGoal(scene, zSign) {
     post.position.set(xOff, GOAL_HEIGHT / 2, zPos);
     post.castShadow = true;
     scene.add(post);
+
+    if (rapierWorld) {
+      const rb = rapierWorld.createRigidBody(
+        RAPIER.RigidBodyDesc.fixed().setTranslation(xOff, GOAL_HEIGHT / 2, zPos)
+      );
+      rapierWorld.createCollider(
+        RAPIER.ColliderDesc.cylinder(GOAL_HEIGHT / 2, postR),
+        rb
+      );
+    }
   }
 
   // Crossbar
@@ -148,6 +158,21 @@ function addGoal(scene, zSign) {
   crossbar.position.set(0, GOAL_HEIGHT, zPos);
   crossbar.castShadow = true;
   scene.add(crossbar);
+
+  if (rapierWorld) {
+    // Rotate 90° around Z to make the cylinder lie along the X axis
+    const sinZ = Math.sin(Math.PI / 4);
+    const cosZ = Math.cos(Math.PI / 4);
+    const rb = rapierWorld.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed()
+        .setTranslation(0, GOAL_HEIGHT, zPos)
+        .setRotation({ x: 0, y: 0, z: sinZ, w: cosZ })
+    );
+    rapierWorld.createCollider(
+      RAPIER.ColliderDesc.cylinder(GOAL_WIDTH / 2, postR),
+      rb
+    );
+  }
 
   // Net (back plane)
   const netMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
@@ -294,8 +319,8 @@ export function generateSoccerField(scene, rapierWorld) {
   }
 
   // Goals
-  addGoal(scene, 1);
-  addGoal(scene, -1);
+  addGoal(scene, 1, rapierWorld);
+  addGoal(scene, -1, rapierWorld);
 
   // Stands (4 sides)
   const standGap = 4;
