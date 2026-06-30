@@ -3,8 +3,8 @@ import { switchMonsterAnimation } from './characters/MonsterCharacter.js';
 
 const ATTACKS = {
   mutantPunch: { damage: 10, range: 1.5, hitTime: 300, hitWindow: 300 },
-  hurricaneKick: { damage: 15, range: 2.0, hitTime: 400, hitWindow: 400 },
-  mmaKick: { damage: 12, range: 1.7, hitTime: 350, hitWindow: 300 }
+  hurricaneKick: { damage: 15, range: 2.0, hitTime: 200, hitWindow: 200 },
+  mmaKick: { damage: 12, range: 1.7, hitTime: 175, hitWindow: 150 }
 };
 
 export function updateMeleeAttacks({ playerModel, otherPlayers, monster, audioManager }) {

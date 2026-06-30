@@ -3,12 +3,14 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { PlayerCharacter } from './characters/PlayerCharacter.js';
 import { getTerrainHeight } from './water.js';
 
-const AI_SPEED = 5;
+const AI_SPEED = 5 * 0.7;
 const PLAYER_HALF_HEIGHT = 0.6;
 const PLAYER_RADIUS = 0.3;
 const KICK_RANGE = 1.8;
 const KICK_COOLDOWN = 1200;
 const KICK_IMPULSE = 0.667;
+const KICK_AIM_SPREAD = 0.35;
+const KICK_REGISTER_DELAY = 250;
 const GROUND_OFFSET = PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
 
 export class AIPlayer {
@@ -32,7 +34,8 @@ export class AIPlayer {
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(spawnX, spawnY, spawnZ)
       .setLinearDamping(0.9)
-      .setAngularDamping(0.9);
+      .setAngularDamping(0.9)
+      .setCcdEnabled(true);
     this.body = rapierWorld.createRigidBody(rbDesc);
     rapierWorld.createCollider(
       RAPIER.ColliderDesc.capsule(PLAYER_HALF_HEIGHT, PLAYER_RADIUS).setRestitution(0).setFriction(1),
@@ -85,20 +88,15 @@ export class AIPlayer {
     }
 
     if (distToBall < KICK_RANGE && now - this.lastKickTime > KICK_COOLDOWN) {
-      // Kick ball toward the target goal
+      // Kick ball toward the target goal, with some random inaccuracy
       this.lastKickTime = now;
       this.kickAnimating = true;
 
       const goalDir = new THREE.Vector3(
-        -ballPos.x * 0.05,
-        0.25,
+        -ballPos.x * 0.05 + (Math.random() * 2 - 1) * KICK_AIM_SPREAD,
+        0.25 + (Math.random() * 2 - 1) * KICK_AIM_SPREAD * 0.5,
         this.targetGoalZ < 0 ? -1 : 1
       ).normalize();
-
-      soccerBall.body.applyImpulse(
-        { x: goalDir.x * KICK_IMPULSE, y: goalDir.y * KICK_IMPULSE, z: goalDir.z * KICK_IMPULSE },
-        true
-      );
 
       const faceDir = new THREE.Vector3().subVectors(ballPos, myPos);
       faceDir.y = 0;
@@ -108,6 +106,14 @@ export class AIPlayer {
 
       this._playAction('mmaKick');
       this.body.setLinvel({ x: 0, y: vel.y, z: 0 }, true);
+
+      // Computer kicks register against the ball a bit later than the human player's
+      setTimeout(() => {
+        soccerBall.body.applyImpulse(
+          { x: goalDir.x * KICK_IMPULSE, y: goalDir.y * KICK_IMPULSE, z: goalDir.z * KICK_IMPULSE },
+          true
+        );
+      }, KICK_REGISTER_DELAY);
 
       setTimeout(() => { this.kickAnimating = false; }, 900);
       return;

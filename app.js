@@ -1078,6 +1078,22 @@ async function main() {
     }
 
     soccerBall?.update();
+    if (soccerBall?.body) {
+      if (playerControls.body) {
+        soccerBall.resolvePlayerContact(
+          playerControls.body.translation(),
+          playerControls.body.linvel(),
+          0.3
+        );
+      }
+      if (aiPlayer?.body) {
+        soccerBall.resolvePlayerContact(
+          aiPlayer.body.translation(),
+          aiPlayer.body.linvel(),
+          0.3
+        );
+      }
+    }
     checkGoal();
 
     const now = performance.now();
