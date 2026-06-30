@@ -58,6 +58,23 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, monster, audioMa
         }
       }
 
+      if (window.soccerBall?.body) {
+        const ballPos = window.soccerBall.getPosition();
+        if (ballPos) {
+          const ballVec = new THREE.Vector3(ballPos.x, ballPos.y, ballPos.z);
+          const dist = attacker.model.position.distanceTo(ballVec);
+          if (dist <= cfg.range + 0.3) {
+            hit = true;
+            const dir = new THREE.Vector3()
+              .subVectors(ballVec, attacker.model.position)
+              .normalize();
+            dir.y = Math.max(dir.y, 0.2);
+            dir.normalize();
+            window.soccerBall.applyImpulse({ x: dir.x * 6, y: dir.y * 6, z: dir.z * 6 });
+          }
+        }
+      }
+
       if (window.breakManager) {
         for (const [id, data] of window.breakManager.registry.entries()) {
           const center = data.center || data.object.position;

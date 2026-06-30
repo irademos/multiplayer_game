@@ -16,10 +16,9 @@ import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
 import { LevelBuilder } from './levelBuilderMode.js';
 import { AudioManager } from './audioManager.js';
-import { Spaceship } from './spaceship.js';
 import { Surfboard } from './surfboard.js';
 import { RowBoat } from './rowboat.js';
-import { IceGun } from './iceGun.js';
+import { SoccerBall } from './soccerBall.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { applyGlobalGravity } from "./gravity.js";
 import { getSpawnPosition } from './spawnUtils.js';
@@ -336,10 +335,9 @@ async function main() {
 
   createClouds(scene);
 
-  let spaceship;
   let surfboard;
   let rowBoat;
-  let iceGun;
+  let soccerBall;
 
   // Load additional level data (destructible props, etc.)
   const breakManager = new BreakManager(scene);
@@ -463,41 +461,39 @@ async function main() {
   generateSoccerField(scene, rapierWorld);
   createMoon(scene, rapierWorld, rbToMesh);
 
-  spaceship = new Spaceship(scene, rapierWorld, rbToMesh);
-  await spaceship.load();
-  window.spaceship = spaceship;
-  registerNetworkedEntity('spaceship', {
+  soccerBall = new SoccerBall(scene, rapierWorld, rbToMesh);
+  soccerBall.create(0, 1, 0);
+  registerNetworkedEntity('soccerball', {
     getState: () => {
-      if (!spaceship?.body) return null;
-      const t = spaceship.body.translation();
-      const r = spaceship.body.rotation();
+      if (!soccerBall?.body) return null;
+      const t = soccerBall.body.translation();
+      const r = soccerBall.body.rotation();
+      const v = soccerBall.body.linvel();
       if (!t || !r) return null;
       return {
         position: [t.x, t.y, t.z],
         rotation: [r.x, r.y, r.z, r.w],
-        thrusting: !!spaceship.thrusting
+        linvel: [v.x, v.y, v.z]
       };
     },
     applyState: state => {
-      if (!state || !spaceship) return;
+      if (!state || !soccerBall?.body) return;
       const [px, py, pz] = state.position || [];
       const [rx, ry, rz, rw] = state.rotation || [];
+      const [vx, vy, vz] = state.linvel || [];
       if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pz)) {
-        spaceship.mesh?.position.set(px, py, pz);
-        spaceship.body?.setTranslation({ x: px, y: py, z: pz }, true);
+        soccerBall.body.setTranslation({ x: px, y: py, z: pz }, true);
+        soccerBall.mesh?.position.set(px, py, pz);
       }
       if (Number.isFinite(rx) && Number.isFinite(ry) && Number.isFinite(rz) && Number.isFinite(rw)) {
-        spaceship.mesh?.quaternion.set(rx, ry, rz, rw);
-        spaceship.body?.setRotation({ x: rx, y: ry, z: rz, w: rw }, true);
+        soccerBall.body.setRotation({ x: rx, y: ry, z: rz, w: rw }, true);
+        soccerBall.mesh?.quaternion.set(rx, ry, rz, rw);
       }
-      if (typeof state.thrusting === 'boolean') {
-        spaceship.thrusting = state.thrusting;
-        if (spaceship.thrusterGroup) {
-          spaceship.thrusterGroup.visible = state.thrusting;
-        }
+      if (Number.isFinite(vx) && Number.isFinite(vy) && Number.isFinite(vz)) {
+        soccerBall.body.setLinvel({ x: vx, y: vy, z: vz }, true);
       }
     },
-    isLocallyControlled: () => spaceship?.occupant === playerControls
+    isLocallyControlled: () => true
   });
 
   surfboard = new Surfboard(scene);
@@ -572,37 +568,6 @@ async function main() {
     isLocallyControlled: () => rowBoat?.occupant === playerControls
   });
 
-  iceGun = new IceGun(scene);
-  await iceGun.load();
-  window.iceGun = iceGun;
-  registerNetworkedEntity('icegun', {
-    getState: () => {
-      if (!iceGun?.mesh) return null;
-      const pos = iceGun.mesh.position;
-      const q = iceGun.mesh.quaternion;
-      return {
-        position: [pos.x, pos.y, pos.z],
-        rotation: [q.x, q.y, q.z, q.w],
-        holderId: iceGun.holder === playerControls ? multiplayer?.getId?.() : null
-      };
-    },
-    applyState: state => {
-      if (!iceGun?.mesh || !state) return;
-      const [px, py, pz] = state.position || [];
-      const [rx, ry, rz, rw] = state.rotation || [];
-      if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pz)) {
-        iceGun.mesh.position.set(px, py, pz);
-      }
-      if (Number.isFinite(rx) && Number.isFinite(ry) && Number.isFinite(rz) && Number.isFinite(rw)) {
-        iceGun.mesh.quaternion.set(rx, ry, rz, rw);
-      }
-      iceGun.remoteHolderId = state.holderId ?? null;
-      if (state.holderId !== multiplayer?.getId?.() && iceGun.holder === playerControls) {
-        iceGun.holder = null;
-      }
-    },
-    isLocallyControlled: () => iceGun?.holder === playerControls
-  });
 
   function attachMonsterPhysics(mon) {
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
@@ -1093,8 +1058,7 @@ async function main() {
     }
 
     surfboard.update();
-    iceGun?.update();
-    spaceship?.update();
+    soccerBall?.update();
 
     const now = performance.now();
     const localStates = collectLocalControlStates();

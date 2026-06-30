@@ -203,7 +203,13 @@ function addStand(scene, rapierWorld, cx, cz, rotY, length, depth, height) {
 
   // Physics collider for the stand base
   if (rapierWorld) {
-    const rb = rapierWorld.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(cx, height / 2, cz));
+    const sinH = Math.sin(rotY / 2);
+    const cosH = Math.cos(rotY / 2);
+    const rb = rapierWorld.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed()
+        .setTranslation(cx, height / 2, cz)
+        .setRotation({ x: 0, y: sinH, z: 0, w: cosH })
+    );
     rapierWorld.createCollider(
       RAPIER.ColliderDesc.cuboid(length / 2, height / 2, depth / 2),
       rb
