@@ -68,8 +68,9 @@ export class AIPlayer {
       t.y = groundY;
     }
 
-    const ballPos = soccerBall?.getPosition?.();
-    if (!ballPos) return;
+    const rawBallPos = soccerBall?.getPosition?.();
+    if (!rawBallPos) return;
+    const ballPos = new THREE.Vector3(rawBallPos.x, rawBallPos.y, rawBallPos.z);
 
     const myPos = new THREE.Vector3(t.x, t.y, t.z);
     const distToBall = myPos.distanceTo(ballPos);
