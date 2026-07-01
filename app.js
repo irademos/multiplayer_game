@@ -166,6 +166,9 @@ async function main() {
         // Store their declared team (null if not yet assigned).
         // rebalanceTeams() will fill in nulls and broadcast final assignments.
         playerTeams[remoteId] = data.team || null;
+        if (multiplayer?.isHost && !playerTeams[remoteId]) {
+          setTimeout(rebalanceTeams, 100);
+        }
       }
 
       const assignedTeam = playerTeams[remoteId] ?? null;
@@ -277,6 +280,7 @@ async function main() {
             localTeamConfirmed = true;
             const newColor = team === 'home' ? 0x3399ff : 0xff3322;
             swapPlayerCharacter(characterModel, newColor);
+            moveLocalPlayerToSpawn(team);
           } else {
             localTeamConfirmed = true;
           }
@@ -627,9 +631,15 @@ async function main() {
 
   const projectiles = [];
 
-  // Player spawns near the -Z goal; AI spawns near +Z goal
-  const PLAYER_SPAWN_Z = -38;
-  const playerSpawnY = getTerrainHeight(0, PLAYER_SPAWN_Z) + 1.5;
+  // Blue/home spawns near the blue (-Z) goal; red/away spawns near the red (+Z) goal.
+  const TEAM_SPAWN_Z = { home: -38, away: 38 };
+
+  function getTeamSpawnPosition(team = localPlayerTeam) {
+    const spawnZ = TEAM_SPAWN_Z[team] ?? TEAM_SPAWN_Z.home;
+    return { x: 0, y: getTerrainHeight(0, spawnZ) + 1.5, z: spawnZ };
+  }
+
+  const initialSpawn = getTeamSpawnPosition('home');
 
   playerControls = new PlayerControls({
     scene,
@@ -640,13 +650,18 @@ async function main() {
     spawnProjectile,
     projectiles,
     audioManager,
-    spawnPosition: { x: 0, y: playerSpawnY, z: PLAYER_SPAWN_Z }
+    spawnPosition: initialSpawn
   });
   window.playerControls = playerControls;
 
   // --- TEAM MANAGEMENT ---
   function removeAI(player) {
     if (!player) return;
+    if (player.networkId) {
+      networkedEntities.delete(player.networkId);
+      pendingEntityStates.delete(player.networkId);
+      authoritativeEntityStates.delete(player.networkId);
+    }
     if (player.model?.parent) player.model.parent.remove(player.model);
     if (player.character?.nameLabel?.parentNode) {
       player.character.nameLabel.parentNode.removeChild(player.character.nameLabel);
@@ -669,7 +684,13 @@ async function main() {
       name: `Computer ${team === 'home' ? 'Home' : 'Away'} ${index + 1}`
     });
     ai.team = team;
+    ai.networkId = `ai-${team}-${index}`;
     aiPlayers[team].push(ai);
+    registerNetworkedEntity(ai.networkId, {
+      getState: () => ai.getState?.(),
+      applyState: state => ai.applyState?.(state),
+      isLocallyControlled: () => multiplayer?.isHost === true
+    });
   }
 
   function setAITeamCounts(counts) {
@@ -721,6 +742,23 @@ async function main() {
     return aiPlayers[team]?.[0]?.body ?? null;
   }
 
+  function moveLocalPlayerToSpawn(team = localPlayerTeam) {
+    const spawn = getTeamSpawnPosition(team);
+    playerModel.position.set(spawn.x, spawn.y, spawn.z);
+    if (playerControls) {
+      playerControls.playerX = spawn.x;
+      playerControls.playerY = spawn.y;
+      playerControls.playerZ = spawn.z;
+      playerControls.lastPosition.set(spawn.x, spawn.y, spawn.z);
+      playerControls.velocity?.set?.(0, 0, 0);
+      if (playerControls.body) {
+        playerControls.body.setTranslation({ x: spawn.x, y: spawn.y, z: spawn.z }, true);
+        playerControls.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        playerControls.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
+    }
+  }
+
   function rebalanceTeams() {
     if (!multiplayer?.isHost) return;
 
@@ -733,6 +771,7 @@ async function main() {
       if (changed) {
         const newColor = myTeam === 'home' ? 0x3399ff : 0xff3322;
         swapPlayerCharacter(characterModel, newColor);
+        moveLocalPlayerToSpawn(myTeam);
       }
     }
 
@@ -893,8 +932,7 @@ async function main() {
   function respawnPlayer() {
     window.localHealth = 100;
     updateHealthUI();
-    const spawnRY = getTerrainHeight(0, PLAYER_SPAWN_Z) + 1.5;
-    const spawn = { x: 0, y: spawnRY, z: PLAYER_SPAWN_Z };
+    const spawn = getTeamSpawnPosition(localPlayerTeam);
     playerModel.position.set(spawn.x, spawn.y, spawn.z);
     playerControls.playerX = spawn.x;
     playerControls.playerY = spawn.y;
@@ -1261,13 +1299,17 @@ async function main() {
       }
 
       players.forEach((ai, index) => {
-        ai.update(frameDelta, soccerBall, {
-          pursueBall: !ballChaser || ai === ballChaser,
-          formationIndex: index,
-          formationCount: players.length,
-          chaserIndex: ballChaserIndex >= 0 ? ballChaserIndex : null,
-          chaserPosition: ballChaserPosition
-        });
+        if (multiplayer.isHost) {
+          ai.update(frameDelta, soccerBall, {
+            pursueBall: !ballChaser || ai === ballChaser,
+            formationIndex: index,
+            formationCount: players.length,
+            chaserIndex: ballChaserIndex >= 0 ? ballChaserIndex : null,
+            chaserPosition: ballChaserPosition
+          });
+        } else {
+          ai.model.userData.mixer?.update(frameDelta);
+        }
       });
     });
 

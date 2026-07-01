@@ -92,6 +92,38 @@ export class AIPlayer {
     return new THREE.Vector3(anchorX + laneX + ballFollowX, ballPos.y, formationZ);
   }
 
+
+  getState() {
+    if (!this.body) return null;
+    const t = this.body.translation();
+    const v = this.body.linvel();
+    return {
+      position: [t.x, t.y, t.z],
+      linvel: [v.x, v.y, v.z],
+      rotationY: this.model.rotation.y,
+      action: this.model.userData.currentAction || 'idle'
+    };
+  }
+
+  applyState(state) {
+    if (!state || !this.body) return;
+    const [px, py, pz] = state.position || [];
+    const [vx, vy, vz] = state.linvel || [];
+    if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pz)) {
+      this.body.setTranslation({ x: px, y: py, z: pz }, true);
+      this.model.position.set(px, py + PLAYER_MODEL_HEIGHT_OFFSET, pz);
+    }
+    if (Number.isFinite(vx) && Number.isFinite(vy) && Number.isFinite(vz)) {
+      this.body.setLinvel({ x: vx, y: vy, z: vz }, true);
+    }
+    if (Number.isFinite(state.rotationY)) {
+      this.model.rotation.y = state.rotationY;
+    }
+    if (state.action) {
+      this._playAction(state.action);
+    }
+  }
+
   update(delta, soccerBall, { pursueBall = true, formationIndex = 0, formationCount = 1, chaserIndex = null, chaserPosition = null } = {}) {
     if (!this.body) return;
 
