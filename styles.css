@@ -569,6 +569,55 @@ body {
 .hidden {
   display: none !important;
 }
+
+#win-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.75);
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Press Start 2P', monospace;
+  text-align: center;
+  z-index: 2500;
+}
+
+#win-overlay:not(.hidden) {
+  display: flex;
+}
+
+#win-message {
+  font-size: 52px;
+  font-weight: bold;
+  text-shadow: 0 0 20px currentColor, 0 4px 8px rgba(0,0,0,0.8);
+  animation: winPulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes winPulse {
+  from { transform: scale(1); }
+  to   { transform: scale(1.06); }
+}
+
+#play-again-btn {
+  margin-top: 48px;
+  padding: 18px 48px;
+  font-size: 24px;
+  font-family: 'Press Start 2P', monospace;
+  background: #fff;
+  color: #111;
+  border: 4px solid #fff;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
+}
+
+#play-again-btn:hover {
+  transform: scale(1.08);
+  background: #eee;
+}
 /* ════════════════════════════════════════════════════════
    ARCADE LOGIN STYLES
    ════════════════════════════════════════════════════════ */
