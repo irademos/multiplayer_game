@@ -26,7 +26,7 @@ const debugNetLog = (...args) => {
 };
 
 export class Multiplayer {
-  constructor(playerName, onPeerData) {
+  constructor(playerName, onPeerData, { botsOnly = false } = {}) {
     this.connections = {};
     this.pendingConnections = new Set();
     this.pendingPayloads = new Map();
@@ -35,6 +35,7 @@ export class Multiplayer {
     this.pendingPings = {};
     this.onPeerData = onPeerData;
     this.playerName = playerName;
+    this.botsOnly = botsOnly;
     this.isHost = false;
     this.currentHostId = null;
     this.onHostChange = null;
@@ -104,28 +105,40 @@ export class Multiplayer {
       let assignedRoom = null;
       let roomIndex = 0;
 
-      if (snapshot.exists()) {
-        const rooms = snapshot.val();
-        const roomNames = Object.keys(rooms);
+      if (this.botsOnly) {
+        // Private bots-only room: find a unique unused room name so no public players can join
+        const existingRoomNames = snapshot.exists() ? Object.keys(snapshot.val()) : [];
+        let botRoomIndex = 0;
+        while (existingRoomNames.includes(`bot-room-${botRoomIndex}`)) {
+          botRoomIndex++;
+        }
+        assignedRoom = `bot-room-${botRoomIndex}`;
+      } else {
+        if (snapshot.exists()) {
+          const rooms = snapshot.val();
+          const roomNames = Object.keys(rooms);
 
-        for (const roomName of roomNames) {
-          const peersInRoom = Object.keys(rooms[roomName] || {})
-            .filter(peerId => activePeers[peerId]);
+          for (const roomName of roomNames) {
+            // Skip private bot rooms
+            if (roomName.startsWith('bot-room-')) continue;
+            const peersInRoom = Object.keys(rooms[roomName] || {})
+              .filter(peerId => activePeers[peerId]);
 
-          if (peersInRoom.length < MAX_ROOM_PLAYERS) {
-            assignedRoom = roomName;
-            debugNetLog('Entered room: ', assignedRoom);
-            break;
+            if (peersInRoom.length < MAX_ROOM_PLAYERS) {
+              assignedRoom = roomName;
+              debugNetLog('Entered room: ', assignedRoom);
+              break;
+            }
+          }
+
+          while (roomNames.includes(`room-${roomIndex}`)) {
+            roomIndex++;
           }
         }
 
-        while (roomNames.includes(`room-${roomIndex}`)) {
-          roomIndex++;
+        if (!assignedRoom) {
+          assignedRoom = `room-${roomIndex}`;
         }
-      }
-
-      if (!assignedRoom) {
-        assignedRoom = `room-${roomIndex}`;
       }
 
       const roomRef = ref(db, `rooms/${assignedRoom}/${id}`);
@@ -194,6 +207,9 @@ export class Multiplayer {
     this.unsubscribePeersListener = onValue(ref(db, 'peers'), snapshot => {
       this.peersCache = snapshot.val() || {};
       this.scheduleHostRecalculation();
+      if (typeof this.onOnlineCount === 'function') {
+        this.onOnlineCount(Object.keys(this.peersCache).length);
+      }
     });
   }
 
@@ -637,4 +653,13 @@ export class Multiplayer {
       }
     });
   }
+}
+
+// Subscribe to online player count without being in the game yet.
+// Returns an unsubscribe function.
+export function subscribeOnlineCount(callback) {
+  return onValue(ref(db, 'peers'), snapshot => {
+    const peers = snapshot.val() || {};
+    callback(Object.keys(peers).length);
+  });
 }

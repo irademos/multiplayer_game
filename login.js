@@ -81,7 +81,7 @@ function bindPinInput(inputId, displayId, max = 6) {
 
 // ─── Main init ─────────────────────────────────────────────────────────────────
 
-export function initLogin(onSuccess) {
+export async function initLogin(onSuccess) {
   const overlay = el('login-overlay');
   if (!overlay) return;
 
@@ -91,6 +91,14 @@ export function initLogin(onSuccess) {
 
   // Check for existing session
   const sessionUser = getSession();
+  if (sessionUser && sessionStorage.getItem('skipToGame')) {
+    // Fast path: skip welcome screen, go straight to game
+    sessionStorage.removeItem('skipToGame');
+    const user = await getUser(sessionUser);
+    overlay.classList.add('hidden');
+    onSuccess({ username: user?.displayName || sessionUser, character: user?.character || '/models/old_man.fbx' });
+    return;
+  }
   if (sessionUser) {
     const welcomeLabel = el('welcome-name');
     if (welcomeLabel) welcomeLabel.textContent = sessionUser.toUpperCase();

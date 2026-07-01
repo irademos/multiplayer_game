@@ -996,3 +996,61 @@ body {
   .char-emoji { font-size: 48px; }
   .char-arrow { padding: 10px 12px; font-size: 16px; }
 }
+
+/* ════════════════════════════════════════════════════════
+   DASHBOARD STYLES
+   ════════════════════════════════════════════════════════ */
+
+.dashboard-panel {
+  gap: 24px;
+  min-width: 320px;
+}
+
+.dashboard-online-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  color: #7fff7f;
+  letter-spacing: 0.1em;
+}
+
+.dashboard-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #7fff7f;
+  box-shadow: 0 0 8px #7fff7f;
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.8); }
+}
+
+.dashboard-btn-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.dashboard-big-btn {
+  width: 100%;
+  font-size: 16px;
+  padding: 16px 24px;
+  letter-spacing: 0.08em;
+}
+
+.dashboard-btn-desc {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
