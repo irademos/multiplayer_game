@@ -81,7 +81,7 @@ function bindPinInput(inputId, displayId, max = 6) {
 
 // ─── Main init ─────────────────────────────────────────────────────────────────
 
-export function initLogin(onSuccess) {
+export async function initLogin(onSuccess) {
   const overlay = el('login-overlay');
   if (!overlay) return;
 
