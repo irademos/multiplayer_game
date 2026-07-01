@@ -50,7 +50,12 @@ function el(id) { return document.getElementById(id); }
 function showScreen(id) {
   ['screen-welcome', 'screen-login', 'screen-signup'].forEach(s => {
     const node = el(s);
-    if (node) node.classList.toggle('hidden', s !== id);
+    if (!node) return;
+    if (s === id) {
+      node.classList.remove('hidden');
+    } else {
+      node.classList.add('hidden');
+    }
   });
 }
 
