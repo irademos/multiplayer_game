@@ -1238,10 +1238,12 @@ async function main() {
 
     Object.values(aiPlayers).forEach((players) => {
       let ballChaser = null;
+      let ballChaserIndex = -1;
+      let ballChaserPosition = null;
       const ballPos = soccerBall?.getPosition?.();
       if (ballPos) {
         let closestDistSq = Infinity;
-        players.forEach((ai) => {
+        players.forEach((ai, index) => {
           if (!ai.body) return;
           const aiPos = ai.body.translation();
           const dx = aiPos.x - ballPos.x;
@@ -1250,6 +1252,8 @@ async function main() {
           if (distSq < closestDistSq) {
             closestDistSq = distSq;
             ballChaser = ai;
+            ballChaserIndex = index;
+            ballChaserPosition = { x: aiPos.x, y: aiPos.y, z: aiPos.z };
           }
         });
       }
@@ -1258,7 +1262,9 @@ async function main() {
         ai.update(frameDelta, soccerBall, {
           pursueBall: !ballChaser || ai === ballChaser,
           formationIndex: index,
-          formationCount: players.length
+          formationCount: players.length,
+          chaserIndex: ballChaserIndex >= 0 ? ballChaserIndex : null,
+          chaserPosition: ballChaserPosition
         });
       });
     });
