@@ -122,8 +122,8 @@ const GOAL_WIDTH = 10;
 const GOAL_HEIGHT = 3;
 const GOAL_DEPTH = 2;
 
-function addGoal(scene, zSign, rapierWorld) {
-  const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.3 });
+function addGoal(scene, zSign, rapierWorld, color = 0xffffff) {
+  const postMat = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.3 });
   const postR = 0.12;
   const halfGoal = GOAL_WIDTH / 2;
   const zPos = zSign * (FIELD_LENGTH / 2);
@@ -175,7 +175,7 @@ function addGoal(scene, zSign, rapierWorld) {
   }
 
   // Net (back plane)
-  const netMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+  const netMat = new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
   const net = new THREE.Mesh(
     new THREE.PlaneGeometry(GOAL_WIDTH, GOAL_HEIGHT),
     netMat
@@ -185,8 +185,8 @@ function addGoal(scene, zSign, rapierWorld) {
   scene.add(net);
 }
 
-function addFieldLine(scene, x, z, width, depth, y = 0.01) {
-  const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
+function addFieldLine(scene, x, z, width, depth, y = 0.01, color = 0xffffff) {
+  const lineMat = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), lineMat);
   mesh.rotation.x = -Math.PI / 2;
   mesh.position.set(x, y, z);
@@ -270,17 +270,20 @@ export function generateSoccerField(scene, rapierWorld) {
   scene.add(surround);
 
   const LT = 0.35; // line thickness
+  const BLUE = 0x3399ff;
+  const RED  = 0xff3322;
 
-  // Touchlines (long sides)
-  addFieldLine(scene, 0, 0, LT, FIELD_LENGTH);
-  addFieldLine(scene, FIELD_WIDTH / 2, 0, LT, FIELD_LENGTH);
-  addFieldLine(scene, -FIELD_WIDTH / 2, 0, LT, FIELD_LENGTH);
+  // Touchlines (long sides) — split at halfway: blue on home (-Z) half, red on away (+Z) half
+  for (const xPos of [0, FIELD_WIDTH / 2, -FIELD_WIDTH / 2]) {
+    addFieldLine(scene, xPos, -FIELD_LENGTH / 4, LT, FIELD_LENGTH / 2, 0.01, BLUE);
+    addFieldLine(scene, xPos,  FIELD_LENGTH / 4, LT, FIELD_LENGTH / 2, 0.01, RED);
+  }
 
   // Goal lines
-  addFieldLine(scene, 0, FIELD_LENGTH / 2, FIELD_WIDTH, LT);
-  addFieldLine(scene, 0, -FIELD_LENGTH / 2, FIELD_WIDTH, LT);
+  addFieldLine(scene, 0,  FIELD_LENGTH / 2, FIELD_WIDTH, LT, 0.01, RED);   // away (+Z) side
+  addFieldLine(scene, 0, -FIELD_LENGTH / 2, FIELD_WIDTH, LT, 0.01, BLUE);  // home (-Z) side
 
-  // Halfway line
+  // Halfway line (neutral white)
   addFieldLine(scene, 0, 0, FIELD_WIDTH, LT);
 
   // Centre circle (approximated with ring segments)
@@ -308,19 +311,19 @@ export function generateSoccerField(scene, rapierWorld) {
   spot.position.set(0, 0.01, 0);
   scene.add(spot);
 
-  // Penalty areas
+  // Penalty areas — colored to match team side
   const paWidth = 40.32, paDepth = 16.5;
   for (const zSign of [-1, 1]) {
+    const paColor = zSign > 0 ? RED : BLUE;
     const zCenter = zSign * (FIELD_LENGTH / 2 - paDepth / 2);
-    // outline (4 sides)
-    addFieldLine(scene, 0, zSign * FIELD_LENGTH / 2 - zSign * paDepth, paWidth, LT);
-    addFieldLine(scene, paWidth / 2, zCenter, LT, paDepth);
-    addFieldLine(scene, -paWidth / 2, zCenter, LT, paDepth);
+    addFieldLine(scene, 0, zSign * FIELD_LENGTH / 2 - zSign * paDepth, paWidth, LT, 0.01, paColor);
+    addFieldLine(scene, paWidth / 2, zCenter, LT, paDepth, 0.01, paColor);
+    addFieldLine(scene, -paWidth / 2, zCenter, LT, paDepth, 0.01, paColor);
   }
 
-  // Goals
-  addGoal(scene, 1, rapierWorld);
-  addGoal(scene, -1, rapierWorld);
+  // Goals — blue for home (-Z), red for away (+Z)
+  addGoal(scene,  1, rapierWorld, RED);
+  addGoal(scene, -1, rapierWorld, BLUE);
 
   // Stands (4 sides)
   const standGap = 4;

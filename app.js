@@ -343,12 +343,12 @@ async function main() {
   const SCORE_FIELD_HALF = 50;
 
   const scoreEl = document.createElement('div');
-  scoreEl.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);color:#fff;font-size:28px;font-weight:bold;padding:8px 28px;border-radius:10px;z-index:200;font-family:sans-serif;pointer-events:none;letter-spacing:4px;';
-  scoreEl.textContent = '0 - 0';
+  scoreEl.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);font-size:28px;font-weight:bold;padding:8px 28px;border-radius:10px;z-index:200;font-family:sans-serif;pointer-events:none;letter-spacing:4px;';
+  scoreEl.innerHTML = '<span style="color:#3399ff">0</span> <span style="color:#fff">-</span> <span style="color:#ff3322">0</span>';
   document.body.appendChild(scoreEl);
 
   function updateScoreUI() {
-    scoreEl.textContent = `${score.home} - ${score.away}`;
+    scoreEl.innerHTML = `<span style="color:#3399ff">${score.home}</span> <span style="color:#fff">-</span> <span style="color:#ff3322">${score.away}</span>`;
   }
 
   const SCORE_FIELD_X_HALF = 30; // field is 60 wide
@@ -512,7 +512,7 @@ async function main() {
 
 
 
-  let player = new PlayerCharacter(playerName, characterModel);
+  let player = new PlayerCharacter(playerName, characterModel, 0x3399ff);
   let playerModel = player.model;
   scene.add(playerModel);
   document.body.appendChild(player.nameLabel);
@@ -791,7 +791,7 @@ async function main() {
       previousModel.remove(playerControls.parachute);
     }
 
-    const newPlayer = new PlayerCharacter(playerName, newModelPath);
+    const newPlayer = new PlayerCharacter(playerName, newModelPath, 0x3399ff);
     const newModel = newPlayer.model;
     newModel.position.copy(currentPosition);
     newModel.rotation.copy(currentRotation);

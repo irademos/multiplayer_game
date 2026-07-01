@@ -125,7 +125,8 @@ export function createPlayerModel(
   THREE,
   username,
   onLoad,
-  modelPath = '/models/old_man.fbx'
+  modelPath = '/models/old_man.fbx',
+  teamColor = null
 ) {
   const playerGroup = new THREE.Group();
   const loader = new FBXLoader();
@@ -207,6 +208,18 @@ export function createPlayerModel(
             if (o.isSkinnedMesh || o.isMesh) o.frustumCulled = false;
             if (o.material?.skinning === true) o.material.skinning = true;
           });
+
+          if (teamColor !== null) {
+            const tint = new THREE.Color(teamColor);
+            model.traverse(o => {
+              if ((o.isMesh || o.isSkinnedMesh) && o.material) {
+                const mats = Array.isArray(o.material) ? o.material : [o.material];
+                for (const mat of mats) {
+                  if (mat.color) mat.color.multiply(tint);
+                }
+              }
+            });
+          }
 
 
           // Scale and center the model so it rotates around its midpoint
