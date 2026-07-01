@@ -83,9 +83,16 @@ export class SetPieceManager {
         // Also end if ball has gone very far out (fallback)
         const farOut = Math.abs(bp.x) > FIELD_HALF_X + 8 || Math.abs(bp.z) > FIELD_HALF_Z + 8;
 
-        if (inBounds || farOut) {
+        if (inBounds) {
           this.clear();
           return true;
+        }
+        if (farOut) {
+          // Ball escaped too far; snap it back to the set piece spot
+          soccerBall.body.setTranslation(a.ballFixedPos, true);
+          soccerBall.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+          soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+          a.ballLocked = true;
         }
       }
     }

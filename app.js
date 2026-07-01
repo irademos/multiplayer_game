@@ -412,23 +412,47 @@ async function main() {
     soccerBall.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
 
-    // Teleport the taking player into the zone
+    // Teleport the taking player into the zone, offset from the ball so they
+    // don't spawn on top of it.
     const spBody = teamTaking === 'home' ? playerControls?.body : aiPlayer?.body;
     if (spBody) {
       const sy = 1.5; // drops onto ground via physics; ground collider top is Y=0
-      spBody.setTranslation({ x: ballFixedPos.x, y: sy, z: ballFixedPos.z }, true);
+
+      // Compute spawn position: offset from ball toward the interior of the zone
+      // so the player is inside the zone but not occupying the ball's spot.
+      const zoneCx = (zone.minX + zone.maxX) / 2;
+      const zoneCz = (zone.minZ + zone.maxZ) / 2;
+      let odx = zoneCx - ballFixedPos.x;
+      let odz = zoneCz - ballFixedPos.z;
+      const olen = Math.sqrt(odx * odx + odz * odz);
+      const SPAWN_OFFSET = 1.5;
+      let spawnX, spawnZ;
+      if (olen < 0.1) {
+        // Ball is at zone centre (e.g. throw-in); offset in Z within the zone
+        spawnX = ballFixedPos.x;
+        spawnZ = ballFixedPos.z + SPAWN_OFFSET;
+      } else {
+        spawnX = ballFixedPos.x + (odx / olen) * SPAWN_OFFSET;
+        spawnZ = ballFixedPos.z + (odz / olen) * SPAWN_OFFSET;
+      }
+
+      spBody.setTranslation({ x: spawnX, y: sy, z: spawnZ }, true);
       spBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
       spBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
 
       // Sync the Three.js model and PlayerControls state for the local player
       if (teamTaking === 'home' && playerModel && playerControls) {
-        playerModel.position.set(ballFixedPos.x, sy, ballFixedPos.z);
-        playerControls.playerX = ballFixedPos.x;
+        playerModel.position.set(spawnX, sy, spawnZ);
+        playerControls.playerX = spawnX;
         playerControls.playerY = sy;
-        playerControls.playerZ = ballFixedPos.z;
-        playerControls.lastPosition.set(ballFixedPos.x, sy, ballFixedPos.z);
+        playerControls.playerZ = spawnZ;
+        playerControls.lastPosition.set(spawnX, sy, spawnZ);
       }
     }
+
+    // Record the set piece taker as the current last-toucher so that if they
+    // immediately kick the ball back out, the next set piece goes to the other team.
+    soccerBall.lastTouchedTeam = teamTaking;
 
     setPieceManager.trigger(type, teamTaking, ballFixedPos, zone);
   }
