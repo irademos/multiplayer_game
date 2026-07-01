@@ -446,7 +446,8 @@ async function main() {
 
     // Goal scored?
     if (inX && inY && pos.z > SCORE_FIELD_HALF && vel.z > 0) {
-      score.away++;
+      // Red goal is on the +Z end, so scoring there awards the blue/home score.
+      score.home++;
       updateScoreUI();
       goalCooldown = now + 3000;
       soccerBall.reset();
@@ -456,7 +457,8 @@ async function main() {
       return;
     }
     if (inX && inY && pos.z < -SCORE_FIELD_HALF && vel.z < 0) {
-      score.home++;
+      // Blue goal is on the -Z end, so scoring there awards the red/away score.
+      score.away++;
       updateScoreUI();
       goalCooldown = now + 3000;
       soccerBall.reset();
