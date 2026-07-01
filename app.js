@@ -431,9 +431,99 @@ async function main() {
     scoreEl.innerHTML = `<span style="color:#3399ff">${score.home}</span> <span style="color:#fff">-</span> <span style="color:#ff3322">${score.away}</span>`;
   }
 
+  // ── 3-minute game timer ──────────────────────────────────────────────────────
+  const GAME_DURATION_S = 3 * 60;
+  let gameTimeLeft = GAME_DURATION_S;
+  let gameTimerActive = true;
+  let lastTimerTick = performance.now();
+
+  const timerEl = document.createElement('div');
+  timerEl.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#fff;font-size:20px;font-weight:bold;padding:4px 18px;border-radius:8px;z-index:200;font-family:sans-serif;pointer-events:none;letter-spacing:2px;';
+  timerEl.textContent = '3:00';
+  document.body.appendChild(timerEl);
+
+  function updateTimerUI() {
+    const m = Math.floor(gameTimeLeft / 60);
+    const s = gameTimeLeft % 60;
+    timerEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    if (gameTimeLeft <= 30) timerEl.style.color = '#ff4444';
+    else timerEl.style.color = '#fff';
+  }
+
+  const winOverlay = document.getElementById('win-overlay');
+  const winMessage = document.getElementById('win-message');
+  const playAgainBtn = document.getElementById('play-again-btn');
+
+  playAgainBtn.addEventListener('click', () => { location.reload(); });
+
+  function showWinScreen() {
+    const winningTeam = score.home > score.away ? 'home' : score.away > score.home ? 'away' : null;
+    const teamLabel = winningTeam === 'home' ? 'Blue' : winningTeam === 'away' ? 'Red' : null;
+    const color = winningTeam === 'home' ? '#3399ff' : winningTeam === 'away' ? '#ff3322' : '#ffffff';
+    const text = teamLabel ? `${teamLabel} Team Wins!` : "It's a Tie!";
+    winMessage.textContent = text;
+    winMessage.style.color = color;
+    winOverlay.classList.remove('hidden');
+
+    // Freeze all movement
+    if (playerControls) playerControls.enabled = false;
+    Object.values(aiPlayers).flat().forEach(ai => { ai.frozen = true; });
+
+    // Position winning-team players at center field in a celebration row
+    if (winningTeam) {
+      const winners = [];
+      if (localPlayerTeam === winningTeam && playerModel && playerControls) {
+        winners.push({ model: playerModel, body: playerControls.body });
+      }
+      (aiPlayers[winningTeam] || []).forEach(ai => {
+        if (ai.model && ai.body) winners.push({ model: ai.model, body: ai.body });
+      });
+
+      const spacing = 3;
+      const startX = -((winners.length - 1) * spacing) / 2;
+      winners.forEach(({ model, body }, i) => {
+        const x = startX + i * spacing;
+        model.position.set(x, 1.5, 0);
+        model.rotation.set(0, 0, 0);
+        if (body) {
+          body.setTranslation({ x, y: 1.5, z: 0 }, true);
+          body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+          body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        }
+        // Play idle animation
+        const actions = model.userData.actions;
+        const current = model.userData.currentAction;
+        if (actions?.idle) {
+          actions[current]?.fadeOut(0.2);
+          actions.idle.reset().fadeIn(0.2).play();
+          model.userData.currentAction = 'idle';
+        }
+      });
+    }
+
+    // After 4 seconds reveal the Play Again button
+    setTimeout(() => {
+      playAgainBtn.classList.remove('hidden');
+    }, 4000);
+  }
+
+  function tickGameTimer(now) {
+    if (!gameTimerActive) return;
+    const elapsed = (now - lastTimerTick) / 1000;
+    if (elapsed < 1) return;
+    lastTimerTick += Math.floor(elapsed) * 1000;
+    gameTimeLeft = Math.max(0, gameTimeLeft - Math.floor(elapsed));
+    updateTimerUI();
+    if (gameTimeLeft <= 0) {
+      gameTimerActive = false;
+      showWinScreen();
+    }
+  }
+
   const SCORE_FIELD_X_HALF = 30; // field is 60 wide
 
   function checkGoal() {
+    if (!gameTimerActive && gameTimeLeft <= 0) return;
     if (!soccerBall?.body) return;
     // Don't interrupt an active set piece
     if (setPieceManager?.isActive()) return;
@@ -1236,6 +1326,7 @@ async function main() {
     checkGoal();
 
     const now = performance.now();
+    tickGameTimer(now);
     const localStates = collectLocalControlStates();
 
     if (multiplayer.isHost) {
@@ -1301,6 +1392,10 @@ async function main() {
       }
 
       players.forEach((ai, index) => {
+        if (ai.frozen) {
+          ai.model.userData.mixer?.update(frameDelta);
+          return;
+        }
         if (multiplayer.isHost) {
           ai.update(frameDelta, soccerBall, {
             pursueBall: !ballChaser || ai === ballChaser,
