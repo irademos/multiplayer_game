@@ -105,7 +105,10 @@ export class SoccerBall {
     const dist = Math.sqrt(distSq);
     if (dist >= minDist || dist < 1e-4) return;
 
-    if (team) this.lastTouchedTeam = team;
+    const playerSpeed = Math.sqrt(
+      playerVel.x * playerVel.x + playerVel.y * playerVel.y + playerVel.z * playerVel.z
+    );
+    if (team && playerSpeed > 0.5) this.lastTouchedTeam = team;
 
     const nx = dx / dist;
     const ny = dy / dist;
