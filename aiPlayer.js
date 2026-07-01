@@ -14,12 +14,12 @@ const KICK_REGISTER_DELAY = 250;
 const GROUND_OFFSET = PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
 
 export class AIPlayer {
-  constructor(scene, rapierWorld, { spawnZ = 35, targetGoalZ = -50 } = {}) {
+  constructor(scene, rapierWorld, { spawnZ = 35, targetGoalZ = -50, color = 0xff3322 } = {}) {
     this.scene = scene;
     this.rapierWorld = rapierWorld;
     this.targetGoalZ = targetGoalZ;
 
-    this.character = new PlayerCharacter('Computer', '/models/old_man.fbx', 0xff3322);
+    this.character = new PlayerCharacter('Computer', '/models/old_man.fbx', color);
     this.model = this.character.model;
     scene.add(this.model);
     document.body.appendChild(this.character.nameLabel);
