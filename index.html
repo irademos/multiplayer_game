@@ -64,6 +64,84 @@
     </div>
   </div>
 
+  <!-- ══════════════════════════════════════════════
+       ARCADE LOGIN OVERLAY
+  ════════════════════════════════════════════════ -->
+  <div id="login-overlay" class="arcade-overlay">
+
+    <!-- ── Welcome Back screen ── -->
+    <div id="screen-welcome" class="arcade-panel hidden">
+      <div class="arcade-title blink-slow">WELCOME BACK</div>
+      <div class="arcade-subtitle" id="welcome-name"></div>
+      <div class="arcade-insert-coin">★ PRESS START ★</div>
+      <button class="arcade-btn arcade-btn-green" id="btn-start-game">▶ START GAME</button>
+      <button class="arcade-btn arcade-btn-dim" id="btn-not-you">NOT YOU? GO BACK</button>
+    </div>
+
+    <!-- ── Login screen ── -->
+    <div id="screen-login" class="arcade-panel hidden">
+      <div class="arcade-title">ARCADE</div>
+      <div class="arcade-subtitle blink-slow">INSERT COIN</div>
+
+      <div class="arcade-field">
+        <label class="arcade-label">PLAYER NAME</label>
+        <input class="arcade-input" id="login-name" type="text" maxlength="20" autocomplete="username" placeholder="ENTER NAME" spellcheck="false" />
+      </div>
+
+      <div class="arcade-field">
+        <label class="arcade-label">PIN (4-6 DIGITS)</label>
+        <div class="pin-row">
+          <input class="arcade-input pin-real" id="login-pin" type="tel" inputmode="numeric" maxlength="6" autocomplete="current-password" placeholder="" />
+          <div class="pin-display" id="login-pin-display">○○○○○○</div>
+        </div>
+      </div>
+
+      <div class="arcade-error hidden" id="login-error"></div>
+
+      <div class="arcade-btn-row">
+        <button class="arcade-btn arcade-btn-yellow" id="btn-login">LOGIN</button>
+        <button class="arcade-btn arcade-btn-red" id="btn-go-signup">SIGN UP</button>
+      </div>
+    </div>
+
+    <!-- ── Sign-up screen ── -->
+    <div id="screen-signup" class="arcade-panel hidden">
+      <div class="arcade-title">NEW PLAYER</div>
+
+      <div class="arcade-field">
+        <label class="arcade-label">PLAYER NAME</label>
+        <input class="arcade-input" id="signup-name" type="text" maxlength="20" autocomplete="username" placeholder="CHOOSE A NAME" spellcheck="false" />
+      </div>
+
+      <div class="arcade-field">
+        <label class="arcade-label">SET PIN (4-6 DIGITS)</label>
+        <div class="pin-row">
+          <input class="arcade-input pin-real" id="signup-pin" type="tel" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="" />
+          <div class="pin-display" id="signup-pin-display">○○○○○○</div>
+        </div>
+      </div>
+
+      <div class="arcade-field">
+        <label class="arcade-label">RE-ENTER PIN</label>
+        <div class="pin-row">
+          <input class="arcade-input pin-real" id="signup-pin2" type="tel" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="" />
+          <div class="pin-display" id="signup-pin2-display">○○○○○○</div>
+        </div>
+      </div>
+
+      <div class="arcade-error hidden" id="signup-error"></div>
+
+      <div class="arcade-btn-row">
+        <button class="arcade-btn arcade-btn-green" id="btn-signup">SIGN UP</button>
+        <button class="arcade-btn arcade-btn-dim" id="btn-back-to-login">◀ BACK</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       GAME OVER OVERLAY
+  ════════════════════════════════════════════════ -->
   <!-- Game Over Overlay -->
   <div id="game-over-overlay" class="hidden">
     <div id="game-over-message">GAME OVER</div>
