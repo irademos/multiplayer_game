@@ -834,7 +834,7 @@ async function main() {
 
   async function populateCharacterSelect() {
     try {
-      const characters = ['andy', 'chris', 'gemhorn_monster', 'old_man', 'wizard', 'rainbow_troll', 'alien_bumpy_bump', 'swamp_guy'];
+      const characters = ['old_man', 'base_character_2', 'Chimpanzee', 'cowboy', 'golem', 'seagull', 'zombie_boy', 'zombie_green', 'zombie'];
       characters.forEach(name => {
         const option = document.createElement('option');
         option.value = `/models/${name}.fbx`;
