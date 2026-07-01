@@ -11,7 +11,7 @@ import { updateMeleeAttacks } from './melee.js';
 import { LevelLoader } from './levelLoader.js';
 import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
-import { LevelBuilder } from './levelBuilderMode.js';
+import { recordGoal, getLeaderboard } from './leaderboard.js';
 import { AudioManager } from './audioManager.js';
 import { AIPlayer } from './aiPlayer.js';
 import { SoccerBall } from './soccerBall.js';
@@ -376,6 +376,9 @@ async function main() {
       updateScoreUI();
       goalCooldown = now + 3000;
       soccerBall.reset();
+      if (soccerBall.lastTouchedTeam === 'home') {
+        recordGoal(playerName).catch(() => {});
+      }
       return;
     }
     if (inX && inY && pos.z < -SCORE_FIELD_HALF && vel.z < 0) {
@@ -567,12 +570,6 @@ async function main() {
 
   aiPlayer = new AIPlayer(scene, rapierWorld, { spawnZ: 38, targetGoalZ: -50 });
 
-  const levelBuilder = new LevelBuilder({ scene, camera, renderer });
-  const builderBtn = document.getElementById('level-builder-button');
-  builderBtn?.addEventListener('click', () => {
-    levelBuilder.toggle();
-    playerControls.enabled = !levelBuilder.active;
-  });
 
 
 
@@ -879,6 +876,47 @@ async function main() {
     if (e.target === overlay) overlay.style.display = 'none';
   });
 
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => (c.style.display = 'none'));
+      btn.classList.add('active');
+      const tab = document.getElementById(`tab-${btn.dataset.tab}`);
+      if (tab) tab.style.display = 'block';
+      if (btn.dataset.tab === 'leaderboard') {
+        refreshLeaderboard();
+      }
+    });
+  });
+
+  async function refreshLeaderboard() {
+    const el = document.getElementById('leaderboard-list');
+    if (!el) return;
+    el.innerHTML = '<em>Loading...</em>';
+    try {
+      const rows = await getLeaderboard();
+      if (rows.length === 0) {
+        el.innerHTML = '<em>No scores yet.</em>';
+        return;
+      }
+      const table = document.createElement('table');
+      table.innerHTML = '<thead><tr><th>#</th><th>Player</th><th>Goals</th></tr></thead>';
+      const tbody = document.createElement('tbody');
+      rows.forEach((row, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${i + 1}</td><td>${row.name}</td><td>${row.goals}</td>`;
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      el.innerHTML = '';
+      el.appendChild(table);
+    } catch (err) {
+      el.innerHTML = '<em>Failed to load leaderboard.</em>';
+      console.error('Leaderboard error:', err);
+    }
+  }
+
   toggleBtn.addEventListener("click", () => {
     const visible = consoleDiv.style.display === "block";
     consoleDiv.style.display = visible ? "none" : "block";
@@ -1081,8 +1119,6 @@ async function main() {
     updateMeleeAttacks({ playerModel, otherPlayers, audioManager });
 
     breakManager.update();
-
-    levelBuilder.update();
 
     renderer.render(scene, camera);
   }
