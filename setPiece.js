@@ -80,10 +80,17 @@ export class SetPieceManager {
       const bp = soccerBall.getPosition();
       if (bp) {
         const inBounds = Math.abs(bp.x) < FIELD_HALF_X && Math.abs(bp.z) < FIELD_HALF_Z;
-        // Also end if ball has gone very far out (fallback)
+        // If ball escapes far outside the field during the set piece, reset it
+        // back to the set piece spot rather than letting it disappear off the pitch.
         const farOut = Math.abs(bp.x) > FIELD_HALF_X + 8 || Math.abs(bp.z) > FIELD_HALF_Z + 8;
 
-        if (inBounds || farOut) {
+        if (farOut) {
+          soccerBall.body.setTranslation(a.ballFixedPos, true);
+          soccerBall.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+          soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+          a.ballLocked = true;
+          a.startTime = performance.now();
+        } else if (inBounds) {
           this.clear();
           return true;
         }

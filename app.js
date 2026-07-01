@@ -412,21 +412,36 @@ async function main() {
     soccerBall.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
 
-    // Teleport the taking player into the zone
+    // Teleport the taking player into the zone, offset from the ball so they
+    // don't start overlapping it (which would corrupt lastTouchedTeam tracking).
     const spBody = teamTaking === 'home' ? playerControls?.body : aiPlayer?.body;
     if (spBody) {
       const sy = 1.5; // drops onto ground via physics; ground collider top is Y=0
-      spBody.setTranslation({ x: ballFixedPos.x, y: sy, z: ballFixedPos.z }, true);
+      let spawnX = ballFixedPos.x;
+      let spawnZ = ballFixedPos.z;
+      const OFFSET = 1.5;
+      if (type === 'throwIn') {
+        // Player stands just outside the sideline, offset in X away from field
+        spawnX = ballFixedPos.x + Math.sign(ballFixedPos.x) * OFFSET;
+      } else if (type === 'cornerKick') {
+        // Player stands inside the corner zone, away from the corner flag
+        spawnX = ballFixedPos.x - Math.sign(ballFixedPos.x) * OFFSET;
+        spawnZ = ballFixedPos.z - Math.sign(ballFixedPos.z) * OFFSET;
+      } else if (type === 'goalKick') {
+        // Player stands behind the ball (toward their own goal line)
+        spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * OFFSET;
+      }
+      spBody.setTranslation({ x: spawnX, y: sy, z: spawnZ }, true);
       spBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
       spBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
 
       // Sync the Three.js model and PlayerControls state for the local player
       if (teamTaking === 'home' && playerModel && playerControls) {
-        playerModel.position.set(ballFixedPos.x, sy, ballFixedPos.z);
-        playerControls.playerX = ballFixedPos.x;
+        playerModel.position.set(spawnX, sy, spawnZ);
+        playerControls.playerX = spawnX;
         playerControls.playerY = sy;
-        playerControls.playerZ = ballFixedPos.z;
-        playerControls.lastPosition.set(ballFixedPos.x, sy, ballFixedPos.z);
+        playerControls.playerZ = spawnZ;
+        playerControls.lastPosition.set(spawnX, sy, spawnZ);
       }
     }
 
@@ -1129,13 +1144,18 @@ async function main() {
 
     soccerBall?.update();
     if (soccerBall?.body) {
+      // During the lock phase of a set piece the set piece player is placed right
+      // next to the ball. Suppress lastTouchedTeam updates until the lock releases
+      // so that the spawn teleport doesn't corrupt who last touched the ball.
+      const spLocked = setPieceManager?.active?.ballLocked ?? false;
+      const spTeam   = setPieceManager?.active?.teamTaking;
       if (playerControls.body) {
         soccerBall.resolvePlayerContact(
           playerControls.body.translation(),
           playerControls.body.linvel(),
           0.3,
           0.6,
-          'home'
+          spLocked && spTeam === 'home' ? null : 'home'
         );
       }
       if (aiPlayer?.body) {
@@ -1144,7 +1164,7 @@ async function main() {
           aiPlayer.body.linvel(),
           0.3,
           0.6,
-          'away'
+          spLocked && spTeam === 'away' ? null : 'away'
         );
       }
     }
