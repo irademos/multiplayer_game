@@ -79,18 +79,17 @@ export class SetPieceManager {
       // Check end conditions after lock released
       const bp = soccerBall.getPosition();
       if (bp) {
-        const inBounds = Math.abs(bp.x) < FIELD_HALF_X && Math.abs(bp.z) < FIELD_HALF_Z;
-        // If ball escapes far outside the field during the set piece, reset it
-        // back to the set piece spot rather than letting it disappear off the pitch.
-        const farOut = Math.abs(bp.x) > FIELD_HALF_X + 8 || Math.abs(bp.z) > FIELD_HALF_Z + 8;
+        const inField = Math.abs(bp.x) < FIELD_HALF_X && Math.abs(bp.z) < FIELD_HALF_Z;
+        const inZone = bp.x >= a.zone.minX && bp.x <= a.zone.maxX &&
+                       bp.z >= a.zone.minZ && bp.z <= a.zone.maxZ;
 
-        if (farOut) {
+        if (!inZone && !inField) {
           soccerBall.body.setTranslation(a.ballFixedPos, true);
           soccerBall.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
           soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
           a.ballLocked = true;
           a.startTime = performance.now();
-        } else if (inBounds) {
+        } else if (inField) {
           this.clear();
           return true;
         }
@@ -271,10 +270,11 @@ export function buildSetPieceParams(ballOutPos, lastTouchedTeam) {
     const clampedZ = Math.max(-FIELD_HALF_Z + 1, Math.min(FIELD_HALF_Z - 1, ballOutPos.z));
     const ballFixedPos = { x: sideX, y: fieldY, z: clampedZ };
 
-    const hw = 3; // half-width of zone
+    const hw = 3;
+    const xSign = Math.sign(sideX);
     const zone = {
-      minX: sideX - hw,
-      maxX: sideX + hw,
+      minX: xSign > 0 ? sideX : sideX - 2 * hw,
+      maxX: xSign > 0 ? sideX + 2 * hw : sideX,
       minZ: clampedZ - hw,
       maxZ: clampedZ + hw,
     };
@@ -298,13 +298,13 @@ export function buildSetPieceParams(ballOutPos, lastTouchedTeam) {
       const cornerZ = zSign * FIELD_HALF_Z;
       const ballFixedPos = { x: cornerX, y: fieldY, z: cornerZ };
 
-      // Zone hugs the corner, extending 3.5 units into the field on each axis
+      // Zone is outside the field; the corner of the zone sits on the field corner
       const extent = 3.5;
       const zone = {
-        minX: xSign > 0 ? cornerX - extent : cornerX,
-        maxX: xSign > 0 ? cornerX : cornerX + extent,
-        minZ: zSign > 0 ? cornerZ - extent : cornerZ,
-        maxZ: zSign > 0 ? cornerZ : cornerZ + extent,
+        minX: xSign > 0 ? cornerX : cornerX - extent,
+        maxX: xSign > 0 ? cornerX + extent : cornerX,
+        minZ: zSign > 0 ? cornerZ : cornerZ - extent,
+        maxZ: zSign > 0 ? cornerZ + extent : cornerZ,
       };
       return { type: 'cornerKick', teamTaking, ballFixedPos, zone };
     } else {

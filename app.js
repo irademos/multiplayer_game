@@ -419,9 +419,9 @@ async function main() {
         // Player stands just outside the sideline, offset in X away from field
         spawnX = ballFixedPos.x + Math.sign(ballFixedPos.x) * OFFSET;
       } else if (type === 'cornerKick') {
-        // Player stands inside the corner zone, away from the corner flag
-        spawnX = ballFixedPos.x - Math.sign(ballFixedPos.x) * OFFSET;
-        spawnZ = ballFixedPos.z - Math.sign(ballFixedPos.z) * OFFSET;
+        // Player stands outside the field in the corner zone
+        spawnX = ballFixedPos.x + Math.sign(ballFixedPos.x) * OFFSET;
+        spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * OFFSET;
       } else if (type === 'goalKick') {
         // Player stands behind the ball (toward their own goal line)
         spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * OFFSET;
