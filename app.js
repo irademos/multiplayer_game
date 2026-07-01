@@ -6,6 +6,7 @@ import { getTerrainHeight } from './water.js';
 import { Multiplayer } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
+import { initLogin } from './login.js';
 import { spawnProjectile, updateProjectiles } from './projectiles.js';
 import { updateMeleeAttacks } from './melee.js';
 import { LevelLoader } from './levelLoader.js';
@@ -35,13 +36,14 @@ const FIXED_DT = 1 / 60;
 async function main() {
   document.body.addEventListener('touchstart', () => {}, { once: true });
 
-  let playerName = getCookie("playerName");
-  if (!playerName) {
-    playerName = prompt("Enter your name") || `Player${Math.floor(Math.random() * 1000)}`;
-    setCookie("playerName", playerName);
-  }
-
-  let characterModel = getCookie("characterModel") || DEFAULT_CHARACTER_MODEL;
+  // ── Arcade login gate — resolves when player authenticates ──────────────────
+  const { username: playerName, character: characterModel } = await new Promise(resolve => {
+    initLogin(({ username, character }) => {
+      setCookie('playerName', username);
+      setCookie('characterModel', character || DEFAULT_CHARACTER_MODEL);
+      resolve({ username, character: character || DEFAULT_CHARACTER_MODEL });
+    });
+  });
 
   let multiplayer = null;
   let playerControls = null;
