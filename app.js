@@ -113,7 +113,6 @@ async function main() {
   }
 
   function handleIncomingData(peerId, data) {
-    console.log('📡 Incoming data:', data);
 
     if (data.type === 'entityControl') {
       if (multiplayer?.isHost && data.id && data.state && data.sourceId) {
@@ -161,8 +160,19 @@ async function main() {
       const remoteId = data.id || peerId;
       const desiredModel = data.model || DEFAULT_CHARACTER_MODEL;
 
+      // Determine this peer's team assignment
+      const isNewPeer = !(remoteId in playerTeams);
+      if (isNewPeer) {
+        // Store their declared team (null if not yet assigned).
+        // rebalanceTeams() will fill in nulls and broadcast final assignments.
+        playerTeams[remoteId] = data.team || null;
+      }
+
+      const assignedTeam = playerTeams[remoteId] ?? null;
       const existing = otherPlayers[remoteId];
-      if (!existing || existing.modelPath !== desiredModel) {
+      const teamChanged = existing && existing.team !== assignedTeam;
+
+      if (!existing || existing.modelPath !== desiredModel || teamChanged) {
         if (existing) {
           if (existing.model && existing.model.parent) {
             existing.model.parent.remove(existing.model);
@@ -172,7 +182,8 @@ async function main() {
           }
         }
 
-        const other = new PlayerCharacter(data.name, desiredModel);
+        const teamColor = assignedTeam === 'home' ? 0x3399ff : assignedTeam === 'away' ? 0xff3322 : null;
+        const other = new PlayerCharacter(data.name, desiredModel, teamColor);
         scene.add(other.model);
         document.body.appendChild(other.nameLabel);
         otherPlayers[remoteId] = {
@@ -180,13 +191,15 @@ async function main() {
           nameLabel: other.nameLabel,
           name: data.name,
           health: existing?.health ?? 100,
-          modelPath: desiredModel
+          modelPath: desiredModel,
+          team: assignedTeam
         };
       }
 
       const player = otherPlayers[remoteId];
       player.name = data.name;
       player.modelPath = desiredModel;
+      player.team = assignedTeam;
       if (player.nameLabel) {
         player.nameLabel.innerText = data.name;
       }
@@ -255,6 +268,36 @@ async function main() {
       return;
     }
 
+    if (data.type === 'teamAssignments') {
+      const myId = multiplayer?.getId?.();
+      Object.entries(data.assignments || {}).forEach(([pid, team]) => {
+        if (pid === myId) {
+          if (team !== localPlayerTeam) {
+            localPlayerTeam = team;
+            localTeamConfirmed = true;
+            const newColor = team === 'home' ? 0x3399ff : 0xff3322;
+            swapPlayerCharacter(characterModel, newColor);
+          } else {
+            localTeamConfirmed = true;
+          }
+        } else {
+          const oldTeam = playerTeams[pid];
+          playerTeams[pid] = team;
+          // Force model rebuild on next presence if team changed
+          if (otherPlayers[pid] && oldTeam !== team) {
+            otherPlayers[pid].team = null;
+          }
+        }
+      });
+
+      const newAiTeam = data.aiTeam ?? null;
+      if (newAiTeam !== aiTeam) {
+        if (newAiTeam === null) removeAI();
+        else spawnAI(newAiTeam);
+      }
+      return;
+    }
+
     if (data.type === 'projectile') {
       const position = new THREE.Vector3(...data.position);
       const direction = new THREE.Vector3(...data.direction);
@@ -306,7 +349,7 @@ async function main() {
   }
 
   multiplayer = new Multiplayer(playerName, handleIncomingData);
-  multiplayer.onHostChange = ({ previousHostId, newHostId, isCurrentHost }) => {
+  multiplayer.onHostChange = ({ previousHostId, newHostId, isCurrentHost, roomPeerCount = 1 }) => {
     if (previousHostId && previousHostId === multiplayer.getId() && previousHostId !== newHostId) {
       const snapshot = serializeAuthoritativeStates();
       if (newHostId) {
@@ -323,6 +366,30 @@ async function main() {
           previousHostId
         });
       }
+      // If there are other players in the room, I'm a new joiner — let rebalanceTeams
+      // pick my team based on what's already occupied rather than defaulting to home.
+      if (roomPeerCount > 1) {
+        localTeamConfirmed = false;
+      }
+      // Rebalance teams after a short delay to allow presences from all peers to arrive
+      setTimeout(rebalanceTeams, 600);
+    }
+  };
+
+  multiplayer.onPeerDisconnect = (peerId) => {
+    delete playerTeams[peerId];
+    if (otherPlayers[peerId]) {
+      if (otherPlayers[peerId].model?.parent)
+        otherPlayers[peerId].model.parent.remove(otherPlayers[peerId].model);
+      if (otherPlayers[peerId].nameLabel?.parentNode)
+        otherPlayers[peerId].nameLabel.parentNode.removeChild(otherPlayers[peerId].nameLabel);
+      delete otherPlayers[peerId];
+    }
+    const listItem = document.getElementById(`peer-${peerId}`);
+    if (listItem) listItem.remove();
+    if (multiplayer?.isHost) {
+      updateAIForBalance();
+      broadcastTeamAssignments();
     }
   };
   const audioManager = new AudioManager();
@@ -334,7 +401,13 @@ async function main() {
 
   let soccerBall;
   let aiPlayer;
+  let aiTeam = null;
   let setPieceManager;
+
+  // Team management: tracks which team each peer is on ('home' | 'away')
+  const playerTeams = {};
+  let localPlayerTeam = 'home';
+  let localTeamConfirmed = false;
 
   const score = { home: 0, away: 0 };
   let goalCooldown = 0;
@@ -412,7 +485,7 @@ async function main() {
 
     // Teleport the taking player into the zone, offset from the ball so they
     // don't start overlapping it (which would corrupt lastTouchedTeam tracking).
-    const spBody = teamTaking === 'home' ? playerControls?.body : aiPlayer?.body;
+    const spBody = getBodyForTeam(teamTaking);
     if (spBody) {
       const sy = 1.5; // drops onto ground via physics; ground collider top is Y=0
       let spawnX = ballFixedPos.x;
@@ -524,7 +597,7 @@ async function main() {
         soccerBall.body.setLinvel({ x: vx, y: vy, z: vz }, true);
       }
     },
-    isLocallyControlled: () => true
+    isLocallyControlled: () => multiplayer?.isHost !== false
   });
 
 
@@ -568,10 +641,90 @@ async function main() {
   });
   window.playerControls = playerControls;
 
-  aiPlayer = new AIPlayer(scene, rapierWorld, { spawnZ: 38, targetGoalZ: -50 });
+  // --- TEAM MANAGEMENT ---
+  function removeAI() {
+    if (!aiPlayer) return;
+    if (aiPlayer.model?.parent) aiPlayer.model.parent.remove(aiPlayer.model);
+    if (aiPlayer.character?.nameLabel?.parentNode)
+      aiPlayer.character.nameLabel.parentNode.removeChild(aiPlayer.character.nameLabel);
+    if (aiPlayer.body) rapierWorld.removeRigidBody(aiPlayer.body);
+    aiPlayer = null;
+    aiTeam = null;
+  }
 
+  function spawnAI(team) {
+    removeAI();
+    const spawnZ = team === 'home' ? -38 : 38;
+    const targetGoalZ = team === 'home' ? 50 : -50;
+    const color = team === 'home' ? 0x3399ff : 0xff3322;
+    aiPlayer = new AIPlayer(scene, rapierWorld, { spawnZ, targetGoalZ, color });
+    aiTeam = team;
+  }
 
+  function countRealPlayersByTeam() {
+    const counts = { home: 0, away: 0 };
+    // Only count local player's team if it's been confirmed (not just the initial default)
+    if (localTeamConfirmed && localPlayerTeam) counts[localPlayerTeam]++;
+    Object.values(playerTeams).forEach(t => { if (t) counts[t]++; });
+    return counts;
+  }
 
+  function assignTeamToNewPlayer() {
+    const counts = countRealPlayersByTeam();
+    return counts.away < counts.home ? 'away' : 'home';
+  }
+
+  function updateAIForBalance() {
+    const counts = countRealPlayersByTeam();
+    const needed = counts.home > counts.away ? 'away' : counts.away > counts.home ? 'home' : null;
+    if (needed === aiTeam) return;
+    if (needed === null) removeAI();
+    else spawnAI(needed);
+  }
+
+  function broadcastTeamAssignments() {
+    const myId = multiplayer?.getId?.();
+    const assignments = { ...playerTeams };
+    if (myId) assignments[myId] = localPlayerTeam;
+    multiplayer.send({ type: 'teamAssignments', assignments, aiTeam });
+  }
+
+  function getBodyForTeam(team) {
+    if (localPlayerTeam === team) return playerControls?.body;
+    if (aiTeam === team) return aiPlayer?.body;
+    return null;
+  }
+
+  function rebalanceTeams() {
+    if (!multiplayer?.isHost) return;
+
+    // Assign our own team if not yet confirmed
+    if (!localTeamConfirmed) {
+      const myTeam = assignTeamToNewPlayer();
+      const changed = myTeam !== localPlayerTeam;
+      localPlayerTeam = myTeam;
+      localTeamConfirmed = true;
+      if (changed) {
+        const newColor = myTeam === 'home' ? 0x3399ff : 0xff3322;
+        swapPlayerCharacter(characterModel, newColor);
+      }
+    }
+
+    // Assign any remote players without a confirmed team
+    for (const pid of Object.keys(playerTeams)) {
+      if (!playerTeams[pid]) {
+        playerTeams[pid] = assignTeamToNewPlayer();
+      }
+    }
+
+    updateAIForBalance();
+    broadcastTeamAssignments();
+  }
+
+  // Start in solo mode: local player is home, AI is away
+  spawnAI('away');
+  localPlayerTeam = 'home';
+  localTeamConfirmed = true;
 
   // --- RAPIER HELPERS ---
   function spawnBlock({
@@ -788,8 +941,8 @@ async function main() {
   const toggleBtn = document.getElementById("toggle-console");
   const consoleDiv = document.getElementById("console-log");
 
-  function swapPlayerCharacter(newModelPath) {
-    if (!newModelPath || newModelPath === characterModel) {
+  function swapPlayerCharacter(newModelPath, teamColor = null) {
+    if (!newModelPath || (newModelPath === characterModel && teamColor === null)) {
       return;
     }
 
@@ -803,7 +956,8 @@ async function main() {
       previousModel.remove(playerControls.parachute);
     }
 
-    const newPlayer = new PlayerCharacter(playerName, newModelPath, 0x3399ff);
+    const resolvedColor = teamColor ?? (localPlayerTeam === 'home' ? 0x3399ff : 0xff3322);
+    const newPlayer = new PlayerCharacter(playerName, newModelPath, resolvedColor);
     const newModel = newPlayer.model;
     newModel.position.copy(currentPosition);
     newModel.rotation.copy(currentRotation);
@@ -999,13 +1153,13 @@ async function main() {
           spLocked && spTeam === 'home' ? null : 'home'
         );
       }
-      if (aiPlayer?.body) {
+      if (aiPlayer?.body && aiTeam) {
         soccerBall.resolvePlayerContact(
           aiPlayer.body.translation(),
           aiPlayer.body.linvel(),
           0.3,
           0.6,
-          spLocked && spTeam === 'away' ? null : 'away'
+          spLocked && spTeam === aiTeam ? null : aiTeam
         );
       }
     }
@@ -1060,9 +1214,9 @@ async function main() {
     // walk back into the exclusion zone in the same frame it was pushed out)
     if (setPieceManager?.isActive() && soccerBall) {
       const sp = setPieceManager.active;
-      const isHomeSetPiece = sp.teamTaking === 'home';
-      const setPieceBody = isHomeSetPiece ? playerControls?.body : aiPlayer?.body;
-      const otherBody    = isHomeSetPiece ? aiPlayer?.body    : playerControls?.body;
+      const otherTeam = sp.teamTaking === 'home' ? 'away' : 'home';
+      const setPieceBody = getBodyForTeam(sp.teamTaking);
+      const otherBody    = getBodyForTeam(otherTeam);
       setPieceManager.update(soccerBall, setPieceBody, otherBody);
     }
 
@@ -1071,6 +1225,7 @@ async function main() {
       id: multiplayer.getId(),
       name: playerName,
       model: characterModel,
+      team: localTeamConfirmed ? localPlayerTeam : null,
       x: playerModel.position.x,
       y: playerModel.position.y,
       z: playerModel.position.z,

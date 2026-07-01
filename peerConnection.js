@@ -16,6 +16,7 @@ export class Multiplayer {
     this.isHost = false;
     this.currentHostId = null;
     this.onHostChange = null;
+    this.onPeerDisconnect = null;
     
     this.initPeer(); // Start async setup
   }
@@ -119,7 +120,8 @@ export class Multiplayer {
             this.onHostChange({
               previousHostId,
               newHostId: hostPeerId,
-              isCurrentHost: this.isHost
+              isCurrentHost: this.isHost,
+              roomPeerCount: validPeerIds.length
             });
           } catch (err) {
             console.warn('Host change callback failed:', err);
@@ -246,8 +248,9 @@ export class Multiplayer {
   
     conn.on('close', () => {
       delete this.connections[conn.peer];
+      this.onPeerDisconnect?.(conn.peer);
     });
-  
+
     conn.on('error', err => {
       console.error('Peer error:', err);
     });
