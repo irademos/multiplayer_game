@@ -9,32 +9,85 @@ import {
 } from 'firebase/database';
 
 const MAX_ROOM_PLAYERS = 12;
+const MAX_PENDING_PAYLOADS = 75;
+const COALESCED_PAYLOAD_TYPES = new Set(['entitySnapshot', 'entityStates']);
+const PEER_RETRY_COOLDOWN_MS = 5000;
+const PEER_LOG_THROTTLE_MS = 30000;
+
+const isVerboseNetDebugEnabled = () => {
+  if (typeof window === 'undefined') return false;
+  return Boolean(window.DEBUG_NET_VERBOSE);
+};
+
+const debugNetLog = (...args) => {
+  if (isVerboseNetDebugEnabled()) {
+    console.log(...args);
+  }
+};
 
 export class Multiplayer {
   constructor(playerName, onPeerData) {
     this.connections = {};
+    this.pendingConnections = new Set();
+    this.pendingPayloads = new Map();
+    this.pendingConnectionRetries = new Map();
+    this.failedConnectionAt = new Map();
+    this.pendingPings = {};
     this.onPeerData = onPeerData;
     this.playerName = playerName;
     this.isHost = false;
     this.currentHostId = null;
     this.onHostChange = null;
     this.onPeerDisconnect = null;
+    this.onConnectionError = null;
+    this.onPingUpdate = null;
+    this.lastPingMs = null;
+    this.lastPingAt = null;
+    this.lastError = null;
+    this.lastHostLogId = null;
+    this.lastPeerLogKey = '';
+    this.lastPeerLogAt = 0;
+    this.lastValidPeerSetKey = '';
+    this.lastOrderedPeerIds = [];
+    this.peersCache = {};
+    this.roomPeerIds = [];
+    this.unsubscribePeersListener = null;
+    this.unsubscribeRoomListener = null;
+    this.hostRecalcTimer = null;
     
     this.initPeer(); // Start async setup
   }
 
   async initPeer() {
-    // Fetch TURN credentials
-    const response = await fetch(`https://multiplayer-game.metered.live/api/v1/turn/credentials?apiKey=${import.meta.env.VITE_METERED_API_KEY}`);
-    const dynamic = await response.json();
-  
-    // Select only the first two TURN entries (after filtering out STUNs, just in case)
-    const turnServers = dynamic.filter(server => server.urls.startsWith("turn")).slice(0, 2);
-  
-    const iceServers = [
-      { urls: "stun:stun.l.google.com:19302" },
-      ...turnServers
-    ];
+    let iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
+    const fetchTimeoutMs = 5000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), fetchTimeoutMs);
+
+    try {
+      const response = await fetch(
+        `https://multiplayer-game.metered.live/api/v1/turn/credentials?apiKey=${import.meta.env.VITE_METERED_API_KEY}`,
+        { signal: controller.signal }
+      );
+      if (!response.ok) {
+        throw new Error(`TURN credential fetch failed with status ${response.status}`);
+      }
+      const dynamic = await response.json();
+      if (!Array.isArray(dynamic)) {
+        throw new Error('TURN credential response was not an array');
+      }
+      const turnServers = dynamic
+        .filter(server => typeof server?.urls === 'string' && server.urls.startsWith('turn'))
+        .slice(0, 2);
+      if (turnServers.length > 0) {
+        iceServers = [...iceServers, ...turnServers];
+      }
+    } catch (err) {
+      console.warn('Failed to fetch TURN credentials. Falling back to STUN only.', err);
+      this.recordError(err);
+    } finally {
+      clearTimeout(timeoutId);
+    }
   
     this.peer = new Peer({
       config: { iceServers }
@@ -61,7 +114,7 @@ export class Multiplayer {
 
           if (peersInRoom.length < MAX_ROOM_PLAYERS) {
             assignedRoom = roomName;
-            console.log("Entered room: ", assignedRoom);
+            debugNetLog('Entered room: ', assignedRoom);
             break;
           }
         }
@@ -76,6 +129,7 @@ export class Multiplayer {
       }
 
       const roomRef = ref(db, `rooms/${assignedRoom}/${id}`);
+      this.roomId = assignedRoom;
       await remove(roomRef);
       await set(roomRef, true);
 
@@ -87,103 +141,20 @@ export class Multiplayer {
         timestamp: Date.now()
       });
 
-      // Setup server-side disconnection cleanup
       onDisconnect(roomRef).remove();
       onDisconnect(peerRef).remove();
 
-      // Still use beforeunload for graceful exit (optional)
       window.addEventListener('beforeunload', () => {
         remove(roomRef);
         remove(peerRef);
       });
 
-      onValue(ref(db, `rooms/${assignedRoom}`), async snapshot => {
-        const roomPeersObj = snapshot.val() || {};
-        const allPeerIds = Object.keys(roomPeersObj);
-
-        // Get all active peers
-        const peersSnapshot = await get(ref(db, 'peers'));
-        const activePeers = peersSnapshot.exists() ? peersSnapshot.val() : {};
-
-        // Filter for only currently active peer IDs
-        const validPeerIds = allPeerIds.filter(pid => activePeers[pid]);
-
-        // Sort by join timestamp so the most recent becomes host
-        validPeerIds.sort((a, b) => {
-          return activePeers[b]?.timestamp - activePeers[a]?.timestamp;
-        });
-
-        console.log("My ID:", this.id);
-        console.log("Valid Peers (more recent first):", validPeerIds);
-
-        // The latest joined player becomes the host
-        const hostPeerId = validPeerIds[0];
-        const previousHostId = this.currentHostId;
-        this.currentHostId = hostPeerId;
-        this.isHost = (hostPeerId === this.id);
-
-        if (this.isHost) {
-          console.log("👑 I am the host player");
-        }
-
-        if (previousHostId !== hostPeerId && typeof this.onHostChange === 'function') {
-          try {
-            this.onHostChange({
-              previousHostId,
-              newHostId: hostPeerId,
-              isCurrentHost: this.isHost,
-              roomPeerCount: validPeerIds.length
-            });
-          } catch (err) {
-            console.warn('Host change callback failed:', err);
-          }
-        }
-
-        // Connect to any valid peers we haven't yet connected to
-        for (const peerId of validPeerIds) {
-          if (peerId !== this.id && !this.connections[peerId]) {
-            this.connectToPeer(peerId);
-            console.log("Connected to peer:", peerId);
-          }
-        }
-      });
-
+      this.attachPeersListener();
+      this.attachRoomListener(assignedRoom);
     });
 
     this.peer.on('connection', conn => {
       this.setupConnection(conn);
-
-      // Add to connected players list
-      const list = document.getElementById('connected-players-list');
-      const item = document.createElement('li');
-      item.id = `peer-${conn.peer}`;
-
-
-      // Wait for name to come through "presence"
-      item.textContent = `Connected to (waiting...)`;
-      if (!this.connections[conn.peer]) {
-        this.connections[conn.peer] = {};
-      }
-      this.connections[conn.peer].listItem = item;
-      list.appendChild(item);
-
-      // Setup basic ping test
-      const pingStart = Date.now();
-      conn.send({ type: "ping" });
-
-      conn.on('data', data => {
-        if (data.type === "pong") {
-          const rtt = Date.now() - pingStart;
-          document.getElementById("ping-display").textContent = rtt;
-        }
-      });
-
-      // Reply to ping
-      conn.on('data', data => {
-        if (data.type === "ping") {
-          conn.send({ type: "pong" });
-        }
-      });
     });
 
     this.peer.on('call', call => {
@@ -198,80 +169,243 @@ export class Multiplayer {
           this.voiceAudios[call.peer].audio.pause();
           delete this.voiceAudios[call.peer];
         }
-
-        delete this.connections[conn.peer];
-        const item = document.getElementById(`peer-${conn.peer}`);
-        if (item) item.remove();
       });
 
-      conn.on('error', err => {
-        console.error('Peer error:', err);
-        const errList = document.getElementById('connection-errors-list');
-        const item = document.createElement('li');
-        item.textContent = `❌ ${conn.peer || 'Unknown peer'}: ${err.message}`;
-        errList.appendChild(item);
+      call.on('error', err => {
+        console.error('Peer call error:', err);
+        this.recordError(err);
       });
-
     });
- 
-    onValue(ref(db, 'peers'), snapshot => {
-      const peers = snapshot.val() || {};
+
+    this.peer.on('disconnected', () => {
+      this.resetRealtimeListeners();
+    });
+
+    this.peer.on('close', () => {
+      this.resetRealtimeListeners();
     });
   }
 
+  attachPeersListener() {
+    if (this.unsubscribePeersListener) {
+      this.unsubscribePeersListener();
+      this.unsubscribePeersListener = null;
+    }
+    this.unsubscribePeersListener = onValue(ref(db, 'peers'), snapshot => {
+      this.peersCache = snapshot.val() || {};
+      this.scheduleHostRecalculation();
+    });
+  }
+
+  attachRoomListener(roomId) {
+    if (!roomId) return;
+    if (this.unsubscribeRoomListener) {
+      this.unsubscribeRoomListener();
+      this.unsubscribeRoomListener = null;
+    }
+    this.unsubscribeRoomListener = onValue(ref(db, `rooms/${roomId}`), snapshot => {
+      const roomPeersObj = snapshot.val() || {};
+      this.roomPeerIds = Object.keys(roomPeersObj);
+      this.scheduleHostRecalculation();
+    });
+  }
+
+  scheduleHostRecalculation() {
+    if (this.hostRecalcTimer) return;
+    this.hostRecalcTimer = setTimeout(() => {
+      this.hostRecalcTimer = null;
+      this.recalculateHostAndPeers();
+    }, 25);
+  }
+
+  recalculateHostAndPeers() {
+    const activePeers = this.peersCache || {};
+    const validPeerIds = (this.roomPeerIds || []).filter(pid => activePeers[pid]);
+    const validPeerSetKey = validPeerIds.slice().sort().join(',');
+    const previousHostId = this.currentHostId;
+    const hostStillValid = previousHostId && validPeerIds.includes(previousHostId);
+
+    let orderedPeerIds = this.lastOrderedPeerIds;
+    const hasPeerSetChanged = validPeerSetKey !== this.lastValidPeerSetKey;
+    if (hasPeerSetChanged || !hostStillValid) {
+      orderedPeerIds = [...validPeerIds].sort((a, b) => {
+        const timestampA = activePeers[a]?.timestamp ?? 0;
+        const timestampB = activePeers[b]?.timestamp ?? 0;
+        if (timestampA !== timestampB) return timestampA - timestampB;
+        return a.localeCompare(b);
+      });
+      this.lastOrderedPeerIds = orderedPeerIds;
+      this.lastValidPeerSetKey = validPeerSetKey;
+    }
+
+    const nowMs = Date.now();
+    const peerLogKey = `${this.id}|${orderedPeerIds.join(',')}`;
+    if (isVerboseNetDebugEnabled() && (peerLogKey !== this.lastPeerLogKey || nowMs - this.lastPeerLogAt > PEER_LOG_THROTTLE_MS)) {
+      debugNetLog('My ID:', this.id);
+      debugNetLog('Valid Peers (oldest first):', orderedPeerIds);
+      this.lastPeerLogKey = peerLogKey;
+      this.lastPeerLogAt = nowMs;
+    }
+
+    const hostPeerId = hostStillValid ? previousHostId : orderedPeerIds[0];
+    this.currentHostId = hostPeerId;
+    this.isHost = (hostPeerId === this.id);
+
+    if (this.isHost && this.lastHostLogId !== this.id) {
+      debugNetLog('👑 I am the host player');
+      this.lastHostLogId = this.id;
+    }
+
+    if (previousHostId !== hostPeerId && typeof this.onHostChange === 'function') {
+      try {
+        this.onHostChange({
+          previousHostId,
+          newHostId: hostPeerId,
+          isCurrentHost: this.isHost,
+          roomPeerCount: validPeerIds.length
+        });
+      } catch (err) {
+        console.warn('Host change callback failed:', err);
+      }
+    }
+
+    for (const peerId of orderedPeerIds) {
+      if (peerId !== this.id && !this.connections[peerId] && this.shouldAttemptConnection(peerId)) {
+        this.connectToPeer(peerId);
+      }
+    }
+  }
+
+  resetRealtimeListeners() {
+    if (this.unsubscribeRoomListener) {
+      this.unsubscribeRoomListener();
+      this.unsubscribeRoomListener = null;
+    }
+    if (this.unsubscribePeersListener) {
+      this.unsubscribePeersListener();
+      this.unsubscribePeersListener = null;
+    }
+    if (this.hostRecalcTimer) {
+      clearTimeout(this.hostRecalcTimer);
+      this.hostRecalcTimer = null;
+    }
+  }
+
   connectToPeer(peerId) {
+    if (this.pendingConnections.has(peerId)) return;
+    if (!this.peer || this.peer.destroyed) {
+      console.warn('Peer connection not ready for', peerId);
+      return;
+    }
     const conn = this.peer.connect(peerId);
+    if (!conn) {
+      console.warn('Failed to create peer connection for', peerId);
+      this.failedConnectionAt.set(peerId, Date.now());
+      return;
+    }
+    this.pendingConnections.add(peerId);
     this.setupConnection(conn);
   }
 
   setupConnection(conn) {
+    if (!conn || typeof conn.on !== 'function') {
+      console.warn('Invalid peer connection', conn);
+      if (conn?.peer) {
+        this.pendingConnections.delete(conn.peer);
+        this.failedConnectionAt.set(conn.peer, Date.now());
+      }
+      return;
+    }
+
     conn.on('open', () => {
       this.connections[conn.peer] = conn;
-      conn.on('data', data => this.onPeerData(conn.peer, data));
-  
-      // Attempt to access the internal peer connection
-      try {
-        const interval = setInterval(async () => {
-          // PeerJS sometimes delays access to the connection internals
-          const pc = conn._pc || conn.peerConnection || conn._connection?.peerConnection;
-          if (!pc) {
-            console.warn("RTCPeerConnection not ready for", conn.peer);
-            return;
-          }
-          if (pc && pc.connectionState === 'connected') {
-            clearInterval(interval);
-  
-            const stats = await pc.getStats();
-            stats.forEach(report => {
-              if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-                console.log(`🎯 Connected to peer ${conn.peer}`);
-                console.log('Selected candidate pair:');
-                console.log(`🔹 Local: ${report.localCandidateId}`);
-                console.log(`🔸 Remote: ${report.remoteCandidateId}`);
-              }
-            });
-          }
-        }, 1000);
-      } catch (err) {
-        console.warn(`Could not access RTCPeerConnection for peer ${conn.peer}`, err);
+      this.pendingConnections.delete(conn.peer);
+      this.failedConnectionAt.delete(conn.peer);
+      this.clearConnectionRetry(conn.peer);
+      debugNetLog('Connected to peer:', conn.peer);
+
+      const queuedPayloads = this.pendingPayloads.get(conn.peer);
+      if (queuedPayloads?.length) {
+        queuedPayloads.forEach(payload => conn.send(payload));
+        this.pendingPayloads.delete(conn.peer);
       }
+
+      conn.on('data', data => this.handlePeerData(conn, data));
+      this.runOneShotConnectionDiagnostics(conn);
+      this.startPingLoop(conn);
     });
   
     conn.on('close', () => {
+      this.stopPingLoop(conn.peer);
+      if (conn.diagnosticsTimeoutId) {
+        clearTimeout(conn.diagnosticsTimeoutId);
+        conn.diagnosticsTimeoutId = null;
+      }
       delete this.connections[conn.peer];
+      this.pendingConnections.delete(conn.peer);
+      this.pendingPayloads.delete(conn.peer);
+      this.clearConnectionRetry(conn.peer);
       this.onPeerDisconnect?.(conn.peer);
     });
 
     conn.on('error', err => {
       console.error('Peer error:', err);
+      this.recordError(err);
+      if (conn.diagnosticsTimeoutId) {
+        clearTimeout(conn.diagnosticsTimeoutId);
+        conn.diagnosticsTimeoutId = null;
+      }
+      if (conn?.peer) {
+        this.pendingConnections.delete(conn.peer);
+        this.failedConnectionAt.set(conn.peer, Date.now());
+        this.pendingPayloads.delete(conn.peer);
+        this.clearConnectionRetry(conn.peer);
+      }
     });
+  }
+
+  handlePeerData(conn, data) {
+    const isObjectPayload = data && typeof data === 'object' && !Array.isArray(data);
+    if (!isObjectPayload) {
+      console.warn('Dropping non-object peer payload', data);
+      return;
+    }
+    if (data.type === 'ping') {
+      conn.send({ type: 'pong', ts: data.ts || Date.now() });
+      return;
+    }
+    if (data.type === 'pong') {
+      const sentAt = data.ts || this.pendingPings?.[conn.peer];
+      if (sentAt) {
+        const rtt = Date.now() - sentAt;
+        this.lastPingMs = rtt;
+        this.lastPingAt = Date.now();
+        this.onPingUpdate?.(rtt);
+      }
+      return;
+    }
+    this.onPeerData(conn.peer, data);
+  }
+
+  shouldAttemptConnection(peerId) {
+    if (!peerId) return false;
+    if (this.pendingConnections.has(peerId)) return false;
+    const lastFailedAt = this.failedConnectionAt.get(peerId) || 0;
+    return Date.now() - lastFailedAt > PEER_RETRY_COOLDOWN_MS;
+  }
+
+  clearConnectionRetry(peerId) {
+    if (this.pendingConnectionRetries.has(peerId)) {
+      clearTimeout(this.pendingConnectionRetries.get(peerId));
+      this.pendingConnectionRetries.delete(peerId);
+    }
   }
 
   startVoice(stream) {
     for (const peerId in this.connections) {
       const conn = this.connections[peerId];
       if (!conn.callActive) {
-        const call = this.peer.call(peerId, stream);
+        this.peer.call(peerId, stream);
         conn.callActive = true;
       }
     }
@@ -297,14 +431,12 @@ export class Multiplayer {
     audio.srcObject = stream;
     audio.playsInline = true; // iOS-specific
 
-    // Ensure audio can play (especially on mobile)
     audio.onloadedmetadata = () => {
       audio.play().catch(err => {
         console.warn(`Audio play failed for ${peerId}:`, err);
       });
     };
 
-    // Prevent memory leaks from duplicates
     if (this.voiceAudios?.[peerId]?.audio) {
       this.voiceAudios[peerId].audio.pause();
       this.voiceAudios[peerId].audio.srcObject = null;
@@ -322,7 +454,7 @@ export class Multiplayer {
         } else if (typeof conn.once === 'function') {
           conn.once('open', () => conn.send(data));
         } else {
-          console.warn("Invalid connection object", conn);
+          console.warn('Invalid connection object', conn);
         }
       }
     });
@@ -344,20 +476,165 @@ export class Multiplayer {
         existing.send(data);
         return;
       }
-      if (typeof existing.once === 'function') {
-        existing.once('open', () => existing.send(data));
-        return;
-      }
+      this.enqueuePendingPayload(peerId, data);
+      return;
     }
 
     try {
-      const conn = this.peer.connect(peerId);
-      this.setupConnection(conn);
-      if (typeof conn.once === 'function') {
-        conn.once('open', () => conn.send(data));
+      if (this.pendingConnections.has(peerId)) {
+        this.enqueuePendingPayload(peerId, data);
+        return;
       }
+      if (!this.shouldAttemptConnection(peerId)) {
+        this.enqueuePendingPayload(peerId, data);
+        this.scheduleConnectionRetry(peerId);
+        return;
+      }
+      if (!this.peer || this.peer.destroyed) {
+        console.warn('Peer connection not ready for', peerId);
+        return;
+      }
+      const conn = this.peer.connect(peerId);
+      this.pendingConnections.add(peerId);
+      this.setupConnection(conn);
+      this.enqueuePendingPayload(peerId, data);
     } catch (err) {
       console.warn(`Failed to send direct message to ${peerId}:`, err);
+      this.recordError(err);
     }
+  }
+
+  enqueuePendingPayload(peerId, data) {
+    if (!this.pendingPayloads.has(peerId)) {
+      this.pendingPayloads.set(peerId, []);
+    }
+    const queue = this.pendingPayloads.get(peerId);
+    if (data?.type && COALESCED_PAYLOAD_TYPES.has(data.type)) {
+      for (let i = queue.length - 1; i >= 0; i -= 1) {
+        if (queue[i]?.type === data.type) {
+          queue.splice(i, 1);
+        }
+      }
+    }
+    queue.push(data);
+    if (queue.length > MAX_PENDING_PAYLOADS) {
+      const dropCount = queue.length - MAX_PENDING_PAYLOADS;
+      queue.splice(0, dropCount);
+      console.warn(
+        `Pending payload queue exceeded ${MAX_PENDING_PAYLOADS}; dropped ${dropCount} oldest messages for peer ${peerId}.`
+      );
+    }
+  }
+
+  scheduleConnectionRetry(peerId) {
+    if (!peerId || this.pendingConnectionRetries.has(peerId)) return;
+    const lastFailedAt = this.failedConnectionAt.get(peerId) || 0;
+    const delayMs = Math.max(0, PEER_RETRY_COOLDOWN_MS - (Date.now() - lastFailedAt));
+    const timeoutId = setTimeout(() => {
+      this.pendingConnectionRetries.delete(peerId);
+      if (!this.pendingPayloads.get(peerId)?.length) return;
+      if (!this.shouldAttemptConnection(peerId)) {
+        this.scheduleConnectionRetry(peerId);
+        return;
+      }
+      this.connectToPeer(peerId);
+    }, delayMs);
+    this.pendingConnectionRetries.set(peerId, timeoutId);
+  }
+
+  recordError(err) {
+    const message = err?.message || String(err || 'Unknown error');
+    this.lastError = {
+      message,
+      timestamp: Date.now()
+    };
+    if (typeof this.onConnectionError === 'function') {
+      this.onConnectionError(this.lastError);
+    }
+  }
+
+  runOneShotConnectionDiagnostics(conn) {
+    if (!isVerboseNetDebugEnabled()) return;
+    const maxAttempts = 6;
+    const attemptDelayMs = 1000;
+    let attempts = 0;
+
+    const runDiagnostics = async () => {
+      attempts += 1;
+      try {
+        const pc = conn._pc || conn.peerConnection || conn._connection?.peerConnection;
+        if (!pc) {
+          if (attempts < maxAttempts) {
+            conn.diagnosticsTimeoutId = setTimeout(runDiagnostics, attemptDelayMs);
+          } else {
+            debugNetLog('RTCPeerConnection not ready for', conn.peer);
+          }
+          return;
+        }
+        if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) return;
+
+        const stats = await pc.getStats();
+        stats.forEach(report => {
+          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+            debugNetLog(`🎯 Connected to peer ${conn.peer}`);
+            debugNetLog('Selected candidate pair:');
+            debugNetLog(`🔹 Local: ${report.localCandidateId}`);
+            debugNetLog(`🔸 Remote: ${report.remoteCandidateId}`);
+          }
+        });
+      } catch (err) {
+        console.warn(`Could not access RTCPeerConnection stats for peer ${conn.peer}`, err);
+      }
+    };
+
+    conn.diagnosticsTimeoutId = setTimeout(runDiagnostics, attemptDelayMs);
+  }
+
+  startPingLoop(conn) {
+    if (!conn || !conn.peer) return;
+    this.stopPingLoop(conn.peer);
+    const intervalId = setInterval(() => {
+      if (!conn.open) return;
+      const ts = Date.now();
+      this.pendingPings[conn.peer] = ts;
+      conn.send({ type: 'ping', ts });
+    }, 8000);
+    conn.pingIntervalId = intervalId;
+  }
+
+  stopPingLoop(peerId) {
+    const conn = this.connections?.[peerId];
+    if (conn?.pingIntervalId) {
+      clearInterval(conn.pingIntervalId);
+      conn.pingIntervalId = null;
+    }
+    if (this.pendingPings?.[peerId]) {
+      delete this.pendingPings[peerId];
+    }
+  }
+
+  reconnect() {
+    this.resetRealtimeListeners();
+    this.attachPeersListener();
+    this.attachRoomListener(this.roomId);
+    if (this.peer?.disconnected) {
+      try {
+        this.peer.reconnect();
+      } catch (err) {
+        this.recordError(err);
+      }
+      return;
+    }
+    if (this.peer?.destroyed) {
+      this.recordError(new Error('Peer connection was destroyed.'));
+      return;
+    }
+    Object.keys(this.connections).forEach(peerId => {
+      try {
+        this.connectToPeer(peerId);
+      } catch (err) {
+        this.recordError(err);
+      }
+    });
   }
 }
