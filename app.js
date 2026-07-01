@@ -1178,7 +1178,7 @@ async function main() {
           spLocked && spTeam === localPlayerTeam ? null : localPlayerTeam
         );
       }
-      Object.values(aiPlayers).forEach((players) => {
+      Object.entries(aiPlayers).forEach(([team, players]) => {
         players.forEach((ai) => {
           if (!ai.body) return;
           soccerBall.resolvePlayerContact(
