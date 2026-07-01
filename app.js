@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
 import { createClouds, generateSoccerField, createMoon, MOON_RADIUS } from "./worldGeneration.js";
 import { getTerrainHeight } from './water.js';
-import { Multiplayer } from './peerConnection.js';
+import { Multiplayer, subscribeOnlineCount } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
 import { initLogin } from './login.js';
@@ -42,6 +42,29 @@ async function main() {
       setCookie('playerName', username);
       setCookie('characterModel', character || DEFAULT_CHARACTER_MODEL);
       resolve({ username, character: character || DEFAULT_CHARACTER_MODEL });
+    });
+  });
+
+  // ── Dashboard — choose Play Online vs Play Bots ─────────────────────────────
+  const botsOnly = await new Promise(resolve => {
+    const overlay = document.getElementById('dashboard-overlay');
+    const onlineNumEl = document.getElementById('dashboard-online-num');
+    overlay.classList.remove('hidden');
+
+    const unsubCount = subscribeOnlineCount(count => {
+      if (onlineNumEl) onlineNumEl.textContent = count;
+    });
+
+    document.getElementById('btn-play-online').addEventListener('click', () => {
+      unsubCount();
+      overlay.classList.add('hidden');
+      resolve(false);
+    });
+
+    document.getElementById('btn-play-bots').addEventListener('click', () => {
+      unsubCount();
+      overlay.classList.add('hidden');
+      resolve(true);
     });
   });
 
@@ -355,7 +378,7 @@ async function main() {
     }
   }
 
-  multiplayer = new Multiplayer(playerName, handleIncomingData);
+  multiplayer = new Multiplayer(playerName, handleIncomingData, { botsOnly });
   multiplayer.onHostChange = ({ previousHostId, newHostId, isCurrentHost, roomPeerCount = 1 }) => {
     if (previousHostId && previousHostId === multiplayer.getId() && previousHostId !== newHostId) {
       const snapshot = serializeAuthoritativeStates();
@@ -670,7 +693,10 @@ async function main() {
   const winMessage = document.getElementById('win-message');
   const playAgainBtn = document.getElementById('play-again-btn');
 
-  playAgainBtn.addEventListener('click', () => { location.reload(); });
+  playAgainBtn.addEventListener('click', () => {
+    sessionStorage.setItem('skipToGame', '1');
+    location.reload();
+  });
 
   function showWinScreen() {
     const winningTeam = score.home > score.away ? 'home' : score.away > score.home ? 'away' : null;

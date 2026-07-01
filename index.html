@@ -139,6 +139,29 @@
   </div>
 
   <!-- ══════════════════════════════════════════════
+       DASHBOARD OVERLAY
+  ════════════════════════════════════════════════ -->
+  <div id="dashboard-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel dashboard-panel">
+      <div class="arcade-title">GOAL QUEST</div>
+      <div class="dashboard-online-count">
+        <span class="dashboard-dot"></span>
+        <span id="dashboard-online-num">0</span> ONLINE
+      </div>
+      <div class="dashboard-btn-group">
+        <button class="arcade-btn arcade-btn-green dashboard-big-btn" id="btn-play-online">
+          ▶ PLAY ONLINE
+        </button>
+        <div class="dashboard-btn-desc">JOIN OTHER PLAYERS</div>
+        <button class="arcade-btn arcade-btn-yellow dashboard-big-btn" id="btn-play-bots">
+          ▶ PLAY VS BOTS
+        </button>
+        <div class="dashboard-btn-desc">PRIVATE — NO RANDOMS</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
        GAME OVER OVERLAY
   ════════════════════════════════════════════════ -->
   <!-- Game Over Overlay -->
@@ -157,7 +180,7 @@
   <!-- Win Screen Overlay -->
   <div id="win-overlay" class="hidden">
     <div id="win-message"></div>
-    <button id="play-again-btn" class="hidden">Play Again?</button>
+    <button id="play-again-btn" class="hidden">BACK TO MENU</button>
   </div>
 
   <script src="app.js" type="module"></script>
