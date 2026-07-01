@@ -120,7 +120,8 @@ export class Multiplayer {
             this.onHostChange({
               previousHostId,
               newHostId: hostPeerId,
-              isCurrentHost: this.isHost
+              isCurrentHost: this.isHost,
+              roomPeerCount: validPeerIds.length
             });
           } catch (err) {
             console.warn('Host change callback failed:', err);

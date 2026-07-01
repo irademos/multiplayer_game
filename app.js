@@ -113,7 +113,6 @@ async function main() {
   }
 
   function handleIncomingData(peerId, data) {
-    console.log('📡 Incoming data:', data);
 
     if (data.type === 'entityControl') {
       if (multiplayer?.isHost && data.id && data.state && data.sourceId) {
@@ -350,7 +349,7 @@ async function main() {
   }
 
   multiplayer = new Multiplayer(playerName, handleIncomingData);
-  multiplayer.onHostChange = ({ previousHostId, newHostId, isCurrentHost }) => {
+  multiplayer.onHostChange = ({ previousHostId, newHostId, isCurrentHost, roomPeerCount = 1 }) => {
     if (previousHostId && previousHostId === multiplayer.getId() && previousHostId !== newHostId) {
       const snapshot = serializeAuthoritativeStates();
       if (newHostId) {
@@ -366,8 +365,10 @@ async function main() {
           requesterId: multiplayer.getId(),
           previousHostId
         });
-        // Becoming host after joining a room with existing players:
-        // reset team confirmation so rebalanceTeams can assign the correct team.
+      }
+      // If there are other players in the room, I'm a new joiner — let rebalanceTeams
+      // pick my team based on what's already occupied rather than defaulting to home.
+      if (roomPeerCount > 1) {
         localTeamConfirmed = false;
       }
       // Rebalance teams after a short delay to allow presences from all peers to arrive
@@ -596,7 +597,7 @@ async function main() {
         soccerBall.body.setLinvel({ x: vx, y: vy, z: vz }, true);
       }
     },
-    isLocallyControlled: () => true
+    isLocallyControlled: () => multiplayer?.isHost !== false
   });
 
 
