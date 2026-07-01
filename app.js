@@ -415,7 +415,7 @@ async function main() {
     // Teleport the taking player into the zone
     const spBody = teamTaking === 'home' ? playerControls?.body : aiPlayer?.body;
     if (spBody) {
-      const sy = getTerrainHeight(ballFixedPos.x, ballFixedPos.z) + 1.5;
+      const sy = 1.5; // drops onto ground via physics; ground collider top is Y=0
       spBody.setTranslation({ x: ballFixedPos.x, y: sy, z: ballFixedPos.z }, true);
       spBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
       spBody.setAngvel({ x: 0, y: 0, z: 0 }, true);

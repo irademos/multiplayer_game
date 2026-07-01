@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { getTerrainHeight } from './water.js';
 
 const FIELD_HALF_X = 30;
 const FIELD_HALF_Z = 50;
@@ -127,7 +126,7 @@ export class SetPieceManager {
     const cz = (minZ + maxZ) / 2;
     const w = maxX - minX;
     const d = maxZ - minZ;
-    const y = getTerrainHeight(cx, cz) + 0.02;
+    const y = 0.02; // just above the ground (ground collider top is Y=0)
     const boxH = 2.5;
 
     // Translucent floor
@@ -256,7 +255,7 @@ export function buildSetPieceParams(ballOutPos, lastTouchedTeam) {
   const outZ = Math.abs(ballOutPos.z) > FIELD_HALF_Z;
   const outX = Math.abs(ballOutPos.x) > FIELD_HALF_X;
 
-  const fieldY = getTerrainHeight(0, 0) + 0.24; // ball sits just above ground
+  const fieldY = 0.3; // ball radius above ground (ground collider top is Y=0)
 
   if (outX && !outZ) {
     // ── THROW-IN ──────────────────────────────────────────────────────────
