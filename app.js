@@ -290,10 +290,11 @@ async function main() {
         }
       });
 
-      const newAiTeam = data.aiTeam ?? null;
-      if (newAiTeam !== aiTeam) {
-        if (newAiTeam === null) removeAI();
-        else spawnAI(newAiTeam);
+      if (data.aiCounts) {
+        setAITeamCounts(data.aiCounts);
+      } else if ('aiTeam' in data) {
+        // Backward compatibility with older hosts that only supported one computer player.
+        setAITeamCounts({ home: data.aiTeam === 'home' ? 1 : 0, away: data.aiTeam === 'away' ? 1 : 0 });
       }
       return;
     }
@@ -400,8 +401,8 @@ async function main() {
   createClouds(scene);
 
   let soccerBall;
-  let aiPlayer;
-  let aiTeam = null;
+  const MIN_PLAYERS_PER_TEAM = 3;
+  const aiPlayers = { home: [], away: [] };
   let setPieceManager;
 
   // Team management: tracks which team each peer is on ('home' | 'away')
@@ -642,23 +643,43 @@ async function main() {
   window.playerControls = playerControls;
 
   // --- TEAM MANAGEMENT ---
-  function removeAI() {
-    if (!aiPlayer) return;
-    if (aiPlayer.model?.parent) aiPlayer.model.parent.remove(aiPlayer.model);
-    if (aiPlayer.character?.nameLabel?.parentNode)
-      aiPlayer.character.nameLabel.parentNode.removeChild(aiPlayer.character.nameLabel);
-    if (aiPlayer.body) rapierWorld.removeRigidBody(aiPlayer.body);
-    aiPlayer = null;
-    aiTeam = null;
+  function removeAI(player) {
+    if (!player) return;
+    if (player.model?.parent) player.model.parent.remove(player.model);
+    if (player.character?.nameLabel?.parentNode) {
+      player.character.nameLabel.parentNode.removeChild(player.character.nameLabel);
+    }
+    if (player.body) rapierWorld.removeRigidBody(player.body);
   }
 
-  function spawnAI(team) {
-    removeAI();
+
+  function spawnAI(team, index) {
     const spawnZ = team === 'home' ? -38 : 38;
     const targetGoalZ = team === 'home' ? 50 : -50;
     const color = team === 'home' ? 0x3399ff : 0xff3322;
-    aiPlayer = new AIPlayer(scene, rapierWorld, { spawnZ, targetGoalZ, color });
-    aiTeam = team;
+    const spacing = 4;
+    const spawnX = (index - (MIN_PLAYERS_PER_TEAM - 1) / 2) * spacing;
+    const ai = new AIPlayer(scene, rapierWorld, {
+      spawnX,
+      spawnZ,
+      targetGoalZ,
+      color,
+      name: `Computer ${team === 'home' ? 'Home' : 'Away'} ${index + 1}`
+    });
+    ai.team = team;
+    aiPlayers[team].push(ai);
+  }
+
+  function setAITeamCounts(counts) {
+    ['home', 'away'].forEach((team) => {
+      const targetCount = Math.max(0, counts?.[team] || 0);
+      while (aiPlayers[team].length > targetCount) {
+        removeAI(aiPlayers[team].pop());
+      }
+      while (aiPlayers[team].length < targetCount) {
+        spawnAI(team, aiPlayers[team].length);
+      }
+    });
   }
 
   function countRealPlayersByTeam() {
@@ -669,30 +690,33 @@ async function main() {
     return counts;
   }
 
+  function countNeededAIByTeam() {
+    const realCounts = countRealPlayersByTeam();
+    return {
+      home: Math.max(0, MIN_PLAYERS_PER_TEAM - realCounts.home),
+      away: Math.max(0, MIN_PLAYERS_PER_TEAM - realCounts.away)
+    };
+  }
+
   function assignTeamToNewPlayer() {
     const counts = countRealPlayersByTeam();
     return counts.away < counts.home ? 'away' : 'home';
   }
 
   function updateAIForBalance() {
-    const counts = countRealPlayersByTeam();
-    const needed = counts.home > counts.away ? 'away' : counts.away > counts.home ? 'home' : null;
-    if (needed === aiTeam) return;
-    if (needed === null) removeAI();
-    else spawnAI(needed);
+    setAITeamCounts(countNeededAIByTeam());
   }
 
   function broadcastTeamAssignments() {
     const myId = multiplayer?.getId?.();
     const assignments = { ...playerTeams };
     if (myId) assignments[myId] = localPlayerTeam;
-    multiplayer.send({ type: 'teamAssignments', assignments, aiTeam });
+    multiplayer.send({ type: 'teamAssignments', assignments, aiCounts: countNeededAIByTeam() });
   }
 
   function getBodyForTeam(team) {
     if (localPlayerTeam === team) return playerControls?.body;
-    if (aiTeam === team) return aiPlayer?.body;
-    return null;
+    return aiPlayers[team]?.[0]?.body ?? null;
   }
 
   function rebalanceTeams() {
@@ -721,10 +745,11 @@ async function main() {
     broadcastTeamAssignments();
   }
 
-  // Start in solo mode: local player is home, AI is away
-  spawnAI('away');
+  // Start in solo mode: local player is home with enough computers to make
+  // three players on each team.
   localPlayerTeam = 'home';
   localTeamConfirmed = true;
+  updateAIForBalance();
 
   // --- RAPIER HELPERS ---
   function spawnBlock({
@@ -1150,18 +1175,21 @@ async function main() {
           playerControls.body.linvel(),
           0.3,
           0.6,
-          spLocked && spTeam === 'home' ? null : 'home'
+          spLocked && spTeam === localPlayerTeam ? null : localPlayerTeam
         );
       }
-      if (aiPlayer?.body && aiTeam) {
-        soccerBall.resolvePlayerContact(
-          aiPlayer.body.translation(),
-          aiPlayer.body.linvel(),
-          0.3,
-          0.6,
-          spLocked && spTeam === aiTeam ? null : aiTeam
-        );
-      }
+      Object.entries(aiPlayers).forEach(([team, players]) => {
+        players.forEach((ai) => {
+          if (!ai.body) return;
+          soccerBall.resolvePlayerContact(
+            ai.body.translation(),
+            ai.body.linvel(),
+            0.3,
+            0.6,
+            spLocked && spTeam === team ? null : team
+          );
+        });
+      });
     }
     checkGoal();
 
@@ -1208,7 +1236,9 @@ async function main() {
       p.model.userData.mixer?.update(mixerDelta);
     });
 
-    aiPlayer?.update(frameDelta, soccerBall);
+    Object.values(aiPlayers).forEach(players => {
+      players.forEach(ai => ai.update(frameDelta, soccerBall));
+    });
 
     // Set piece zone enforcement (runs after AI update so AI can't immediately
     // walk back into the exclusion zone in the same frame it was pushed out)
