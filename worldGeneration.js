@@ -283,9 +283,9 @@ export function generateSoccerField(scene, rapierWorld) {
   addFieldLine(scene, 0,  FIELD_LENGTH / 2, FIELD_WIDTH, LT, 0.01, RED);   // away (+Z) side
   addFieldLine(scene, 0, -FIELD_LENGTH / 2, FIELD_WIDTH, LT, 0.01, BLUE);  // home (-Z) side
 
-  // Halfway line — blue on −X half (blue team's side), red on +X half (red team's side)
-  addFieldLine(scene, -FIELD_WIDTH / 4, 0, FIELD_WIDTH / 2, LT, 0.01, BLUE);
-  addFieldLine(scene,  FIELD_WIDTH / 4, 0, FIELD_WIDTH / 2, LT, 0.01, RED);
+  // Halfway line — two full-width parallel lines: blue on blue team's side (−Z), red on red team's side (+Z)
+  addFieldLine(scene, 0, -LT, FIELD_WIDTH, LT, 0.01, BLUE);
+  addFieldLine(scene, 0,  LT, FIELD_WIDTH, LT, 0.01, RED);
 
   // Centre circle — blue on home (−Z) half, red on away (+Z) half
   const circleR = 9.15;
@@ -331,10 +331,17 @@ export function generateSoccerField(scene, rapierWorld) {
 
   // Stands (4 sides)
   const standGap = 4;
-  // Long sides
+  // Long sides — split each into a blue half (−Z, blue team's side) and a red half (+Z, red team's side)
   const longStandLen = FIELD_LENGTH + 4;
-  addStand(scene, rapierWorld, FIELD_WIDTH / 2 + standGap + STAND_DEPTH / 2, 0, Math.PI / 2, longStandLen, STAND_DEPTH, STAND_HEIGHT);
-  addStand(scene, rapierWorld, -(FIELD_WIDTH / 2 + standGap + STAND_DEPTH / 2), 0, -Math.PI / 2, longStandLen, STAND_DEPTH, STAND_HEIGHT);
+  const halfStandLen = longStandLen / 2;
+  const halfStandZ   = longStandLen / 4;
+  for (const [cx, rotY] of [
+    [ FIELD_WIDTH / 2 + standGap + STAND_DEPTH / 2,  Math.PI / 2],
+    [-(FIELD_WIDTH / 2 + standGap + STAND_DEPTH / 2), -Math.PI / 2],
+  ]) {
+    addStand(scene, rapierWorld, cx, -halfStandZ, rotY, halfStandLen, STAND_DEPTH, STAND_HEIGHT, BLUE);
+    addStand(scene, rapierWorld, cx,  halfStandZ, rotY, halfStandLen, STAND_DEPTH, STAND_HEIGHT, RED);
+  }
   // Short ends
   const shortStandLen = FIELD_WIDTH + (STAND_DEPTH + standGap) * 2 + 4;
   addStand(scene, rapierWorld, 0, FIELD_LENGTH / 2 + standGap + STAND_DEPTH / 2, 0, shortStandLen, STAND_DEPTH, STAND_HEIGHT);
