@@ -19,6 +19,7 @@ import { AudioManager } from './audioManager.js';
 import { RowBoat } from './rowboat.js';
 import { AIPlayer } from './aiPlayer.js';
 import { SoccerBall } from './soccerBall.js';
+import { SetPieceManager, buildSetPieceParams } from './setPiece.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { applyGlobalGravity } from "./gravity.js";
 import { getSpawnPosition } from './spawnUtils.js';
@@ -338,6 +339,7 @@ async function main() {
   let rowBoat;
   let soccerBall;
   let aiPlayer;
+  let setPieceManager;
 
   const score = { home: 0, away: 0 };
   let goalCooldown = 0;
@@ -358,31 +360,77 @@ async function main() {
 
   function checkGoal() {
     if (!soccerBall?.body) return;
+    // Don't interrupt an active set piece
+    if (setPieceManager?.isActive()) return;
     const now = performance.now();
     if (now < goalCooldown) return;
     const pos = soccerBall.getPosition();
     if (!pos) return;
 
-    // Check out of bounds first (ball left field bounds without scoring)
     const outZ = pos.z > SCORE_FIELD_HALF || pos.z < -SCORE_FIELD_HALF;
     const outX = Math.abs(pos.x) > SCORE_FIELD_X_HALF;
-    if (outX || outZ) {
-      const inX = Math.abs(pos.x) <= SCORE_GOAL_WIDTH / 2;
-      const inY = pos.y >= -0.3 && pos.y <= SCORE_GOAL_HEIGHT + 0.3;
-      const vel = soccerBall.body.linvel();
-      // Score only if ball passed through goal from inside the field
-      if (inX && inY && pos.z > SCORE_FIELD_HALF && vel.z > 0) {
-        score.away++;
-        updateScoreUI();
-        goalCooldown = now + 3000;
-      } else if (inX && inY && pos.z < -SCORE_FIELD_HALF && vel.z < 0) {
-        score.home++;
-        updateScoreUI();
-        goalCooldown = now + 3000;
-      }
-      // Reset ball in all out-of-bounds cases
+    if (!outX && !outZ) return;
+
+    const inX = Math.abs(pos.x) <= SCORE_GOAL_WIDTH / 2;
+    const inY = pos.y >= -0.3 && pos.y <= SCORE_GOAL_HEIGHT + 0.3;
+    const vel = soccerBall.body.linvel();
+
+    // Goal scored?
+    if (inX && inY && pos.z > SCORE_FIELD_HALF && vel.z > 0) {
+      score.away++;
+      updateScoreUI();
+      goalCooldown = now + 3000;
       soccerBall.reset();
+      return;
     }
+    if (inX && inY && pos.z < -SCORE_FIELD_HALF && vel.z < 0) {
+      score.home++;
+      updateScoreUI();
+      goalCooldown = now + 3000;
+      soccerBall.reset();
+      return;
+    }
+
+    // Not a goal — trigger the appropriate set piece
+    triggerSetPiece(pos);
+  }
+
+  function triggerSetPiece(ballOutPos) {
+    if (!setPieceManager) return;
+    const lastTouched = soccerBall.lastTouchedTeam ?? 'away'; // default: give home team the benefit
+
+    const params = buildSetPieceParams(ballOutPos, lastTouched);
+    if (!params) {
+      soccerBall.reset();
+      return;
+    }
+
+    const { type, teamTaking, ballFixedPos, zone } = params;
+
+    // Place ball at set piece spot
+    soccerBall.body.setTranslation(ballFixedPos, true);
+    soccerBall.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+
+    // Teleport the taking player into the zone
+    const spBody = teamTaking === 'home' ? playerControls?.body : aiPlayer?.body;
+    if (spBody) {
+      const sy = 1.5; // drops onto ground via physics; ground collider top is Y=0
+      spBody.setTranslation({ x: ballFixedPos.x, y: sy, z: ballFixedPos.z }, true);
+      spBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      spBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+
+      // Sync the Three.js model and PlayerControls state for the local player
+      if (teamTaking === 'home' && playerModel && playerControls) {
+        playerModel.position.set(ballFixedPos.x, sy, ballFixedPos.z);
+        playerControls.playerX = ballFixedPos.x;
+        playerControls.playerY = sy;
+        playerControls.playerZ = ballFixedPos.z;
+        playerControls.lastPosition.set(ballFixedPos.x, sy, ballFixedPos.z);
+      }
+    }
+
+    setPieceManager.trigger(type, teamTaking, ballFixedPos, zone);
   }
 
   // Load additional level data (destructible props, etc.)
@@ -506,6 +554,8 @@ async function main() {
 
   generateSoccerField(scene, rapierWorld);
   createMoon(scene, rapierWorld, rbToMesh);
+
+  setPieceManager = new SetPieceManager(scene);
 
   soccerBall = new SoccerBall(scene, rapierWorld, rbToMesh);
   soccerBall.create(0, 1, 0);
@@ -1084,7 +1134,8 @@ async function main() {
           playerControls.body.translation(),
           playerControls.body.linvel(),
           0.3,
-          0.6
+          0.6,
+          'home'
         );
       }
       if (aiPlayer?.body) {
@@ -1092,7 +1143,8 @@ async function main() {
           aiPlayer.body.translation(),
           aiPlayer.body.linvel(),
           0.3,
-          0.6
+          0.6,
+          'away'
         );
       }
     }
@@ -1143,6 +1195,16 @@ async function main() {
 
     rowBoat.update();
     aiPlayer?.update(frameDelta, soccerBall);
+
+    // Set piece zone enforcement (runs after AI update so AI can't immediately
+    // walk back into the exclusion zone in the same frame it was pushed out)
+    if (setPieceManager?.isActive() && soccerBall) {
+      const sp = setPieceManager.active;
+      const isHomeSetPiece = sp.teamTaking === 'home';
+      const setPieceBody = isHomeSetPiece ? playerControls?.body : aiPlayer?.body;
+      const otherBody    = isHomeSetPiece ? aiPlayer?.body    : playerControls?.body;
+      setPieceManager.update(soccerBall, setPieceBody, otherBody);
+    }
 
     multiplayer.send({
       type: "presence",
