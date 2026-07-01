@@ -19,7 +19,7 @@ export class AIPlayer {
     this.rapierWorld = rapierWorld;
     this.targetGoalZ = targetGoalZ;
 
-    this.character = new PlayerCharacter('Computer', '/models/old_man.fbx');
+    this.character = new PlayerCharacter('Computer', '/models/old_man.fbx', 0xff3322);
     this.model = this.character.model;
     scene.add(this.model);
     document.body.appendChild(this.character.nameLabel);

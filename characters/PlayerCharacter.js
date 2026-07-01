@@ -4,7 +4,7 @@ import { createPlayerModel } from "../models/playerModel.js";
 import * as THREE from "three";
 
 export class PlayerCharacter extends CharacterBase {
-  constructor(username, modelPath) {
+  constructor(username, modelPath, teamColor = null) {
     const { model, nameLabel } = createPlayerModel(
       THREE,
       username,
@@ -12,7 +12,8 @@ export class PlayerCharacter extends CharacterBase {
         this.mixer = mixer;
         this.actions = actions;
       },
-      modelPath
+      modelPath,
+      teamColor
     );
     super(model);
     this.nameLabel = nameLabel;
