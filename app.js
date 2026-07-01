@@ -1236,8 +1236,37 @@ async function main() {
       p.model.userData.mixer?.update(mixerDelta);
     });
 
-    Object.values(aiPlayers).forEach(players => {
-      players.forEach(ai => ai.update(frameDelta, soccerBall));
+    Object.values(aiPlayers).forEach((players) => {
+      let ballChaser = null;
+      let ballChaserIndex = -1;
+      let ballChaserPosition = null;
+      const ballPos = soccerBall?.getPosition?.();
+      if (ballPos) {
+        let closestDistSq = Infinity;
+        players.forEach((ai, index) => {
+          if (!ai.body) return;
+          const aiPos = ai.body.translation();
+          const dx = aiPos.x - ballPos.x;
+          const dz = aiPos.z - ballPos.z;
+          const distSq = dx * dx + dz * dz;
+          if (distSq < closestDistSq) {
+            closestDistSq = distSq;
+            ballChaser = ai;
+            ballChaserIndex = index;
+            ballChaserPosition = { x: aiPos.x, y: aiPos.y, z: aiPos.z };
+          }
+        });
+      }
+
+      players.forEach((ai, index) => {
+        ai.update(frameDelta, soccerBall, {
+          pursueBall: !ballChaser || ai === ballChaser,
+          formationIndex: index,
+          formationCount: players.length,
+          chaserIndex: ballChaserIndex >= 0 ? ballChaserIndex : null,
+          chaserPosition: ballChaserPosition
+        });
+      });
     });
 
     // Set piece zone enforcement (runs after AI update so AI can't immediately

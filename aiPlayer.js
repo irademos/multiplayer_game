@@ -12,12 +12,20 @@ const KICK_IMPULSE = 0.3;
 const KICK_AIM_SPREAD = 0.35;
 const KICK_REGISTER_DELAY = 250;
 const GROUND_OFFSET = PLAYER_HALF_HEIGHT + PLAYER_RADIUS;
+const PLAYER_MODEL_HEIGHT_OFFSET = 0.5;
+const FORMATION_X_SPACING = 4;
+const FORMATION_BACK_MARGIN = 12;
+const FORMATION_FRONT_MARGIN = 14;
+const FORMATION_ROLE_Z_SPACING = 10;
+const FORMATION_BALL_X_INFLUENCE = 0.35;
+const FORMATION_ANCHOR_BALL_BLEND = 0.45;
 
 export class AIPlayer {
   constructor(scene, rapierWorld, { spawnX = 0, spawnZ = 35, targetGoalZ = -50, color = 0xff3322, name = 'Computer' } = {}) {
     this.scene = scene;
     this.rapierWorld = rapierWorld;
     this.targetGoalZ = targetGoalZ;
+    this.ownGoalZ = -targetGoalZ;
 
     this.character = new PlayerCharacter(name, '/models/old_man.fbx', color);
     this.model = this.character.model;
@@ -28,7 +36,7 @@ export class AIPlayer {
     this.kickAnimating = false;
 
     const spawnY = getTerrainHeight(spawnX, spawnZ) + GROUND_OFFSET + 0.5;
-    this.model.position.set(spawnX, spawnY, spawnZ);
+    this.model.position.set(spawnX, spawnY + PLAYER_MODEL_HEIGHT_OFFSET, spawnZ);
 
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(spawnX, spawnY, spawnZ)
@@ -52,7 +60,39 @@ export class AIPlayer {
     this.model.userData.currentAction = actionName;
   }
 
-  update(delta, soccerBall) {
+  _getBallPressurePosition(ballPos) {
+    // Position to approach ball from goal side so AI is behind ball relative to target.
+    const backingOffset = new THREE.Vector3(0, 0, this.targetGoalZ < 0 ? 1.0 : -1.0);
+    return ballPos.clone().add(backingOffset);
+  }
+
+  _getFormationPosition(ballPos, formationIndex, formationCount, chaserIndex, chaserPosition) {
+    const count = Math.max(1, formationCount);
+    const index = Math.max(0, Math.min(count - 1, formationIndex));
+    const anchorIndex = chaserIndex ?? Math.floor((count - 1) / 2);
+    const attackDir = Math.sign(this.targetGoalZ - this.ownGoalZ) || 1;
+    const minZ = Math.min(this.ownGoalZ + attackDir * FORMATION_BACK_MARGIN, this.targetGoalZ - attackDir * FORMATION_FRONT_MARGIN);
+    const maxZ = Math.max(this.ownGoalZ + attackDir * FORMATION_BACK_MARGIN, this.targetGoalZ - attackDir * FORMATION_FRONT_MARGIN);
+
+    // Support players move with the play instead of parking on static field
+    // thirds. Use the ball/chaser as the moving anchor, then keep each role a
+    // few yards ahead or behind that anchor along the attacking direction.
+    const anchorX = chaserPosition
+      ? THREE.MathUtils.lerp(chaserPosition.x, ballPos.x, FORMATION_ANCHOR_BALL_BLEND)
+      : ballPos.x;
+    const anchorZ = chaserPosition
+      ? THREE.MathUtils.lerp(chaserPosition.z, ballPos.z, FORMATION_ANCHOR_BALL_BLEND)
+      : ballPos.z;
+    const roleOffset = (index - anchorIndex) * FORMATION_ROLE_Z_SPACING * attackDir;
+    const formationZ = THREE.MathUtils.clamp(anchorZ + roleOffset, minZ, maxZ);
+    const centeredIndex = index - (count - 1) / 2;
+    const laneX = centeredIndex * FORMATION_X_SPACING;
+    const ballFollowX = THREE.MathUtils.clamp((ballPos.x - anchorX) * FORMATION_BALL_X_INFLUENCE, -8, 8);
+
+    return new THREE.Vector3(anchorX + laneX + ballFollowX, ballPos.y, formationZ);
+  }
+
+  update(delta, soccerBall, { pursueBall = true, formationIndex = 0, formationCount = 1, chaserIndex = null, chaserPosition = null } = {}) {
     if (!this.body) return;
 
     const mixer = this.model.userData.mixer;
@@ -79,7 +119,7 @@ export class AIPlayer {
     const now = Date.now();
 
     // Sync model to physics
-    this.model.position.set(t.x, t.y, t.z);
+    this.model.position.set(t.x, t.y + PLAYER_MODEL_HEIGHT_OFFSET, t.z);
 
     if (this.kickAnimating) {
       this.body.setLinvel({ x: 0, y: vel.y, z: 0 }, true);
@@ -118,9 +158,9 @@ export class AIPlayer {
       return;
     }
 
-    // Position to approach ball from goal side so AI is behind ball relative to target
-    const backingOffset = new THREE.Vector3(0, 0, this.targetGoalZ < 0 ? 1.0 : -1.0);
-    const targetPos = ballPos.clone().add(backingOffset);
+    const targetPos = pursueBall
+      ? this._getBallPressurePosition(ballPos)
+      : this._getFormationPosition(ballPos, formationIndex, formationCount, chaserIndex, chaserPosition);
 
     const moveDir = new THREE.Vector3(targetPos.x - t.x, 0, targetPos.z - t.z);
     const dist = moveDir.length();
