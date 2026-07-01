@@ -49,6 +49,8 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) 
           const dist = attacker.model.position.distanceTo(ballVec);
           if (dist <= cfg.range + 0.3) {
             hit = true;
+            const team = attacker.id === 'local' ? 'home' : 'away';
+            window.soccerBall.lastTouchedTeam = team;
             const dir = new THREE.Vector3()
               .subVectors(ballVec, attacker.model.position)
               .normalize();
