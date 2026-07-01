@@ -418,6 +418,222 @@ async function main() {
 
   const score = { home: 0, away: 0 };
   let goalCooldown = 0;
+  let goalCelebrationActive = false;
+
+  // ── Goal celebration ─────────────────────────────────────────────────────────
+  let _confettiParticles = [];
+  let _confettiEl = null;
+  let _goalOverlayEl = null;
+
+  function _ensureGoalOverlay() {
+    if (_goalOverlayEl) return;
+    const el = document.createElement('div');
+    el.style.cssText = [
+      'position:fixed', 'inset:0', 'display:flex', 'align-items:center',
+      'justify-content:center', 'pointer-events:none', 'z-index:500',
+      'opacity:0', 'transition:opacity 0.3s',
+    ].join(';');
+    el.innerHTML = `<div style="
+      font-family:Impact,sans-serif;
+      font-size:clamp(80px,18vw,200px);
+      color:#ffe600;
+      text-shadow:0 0 40px #ff8800,0 0 80px #ff4400,4px 4px 0 #000,-4px -4px 0 #000,4px -4px 0 #000,-4px 4px 0 #000;
+      letter-spacing:10px;
+      animation:goalPulse 0.5s ease-in-out infinite alternate;
+    ">GOAL!</div>`;
+    const style = document.createElement('style');
+    style.textContent = `@keyframes goalPulse{from{transform:scale(1) rotate(-3deg)}to{transform:scale(1.08) rotate(3deg)}}`;
+    document.head.appendChild(style);
+    document.body.appendChild(el);
+    _goalOverlayEl = el;
+  }
+
+  function _showGoalOverlay() {
+    _ensureGoalOverlay();
+    _goalOverlayEl.style.opacity = '1';
+  }
+
+  function _hideGoalOverlay() {
+    if (_goalOverlayEl) _goalOverlayEl.style.opacity = '0';
+  }
+
+  function _ensureConfettiCanvas() {
+    if (_confettiEl) return;
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:499;';
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    document.body.appendChild(canvas);
+    _confettiEl = canvas;
+    window.addEventListener('resize', () => {
+      if (_confettiEl) { _confettiEl.width = window.innerWidth; _confettiEl.height = window.innerHeight; }
+    });
+  }
+
+  function _spawnConfetti(teamColor) {
+    _ensureConfettiCanvas();
+    _confettiEl.style.display = 'block';
+    _confettiParticles = [];
+    const colors = teamColor === 'home'
+      ? ['#3399ff','#66bbff','#ffffff','#ffe600','#00ddff']
+      : ['#ff3322','#ff8844','#ffffff','#ffe600','#ff66aa'];
+    for (let i = 0; i < 220; i++) {
+      _confettiParticles.push({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight - window.innerHeight,
+        vx: (Math.random() - 0.5) * 6,
+        vy: Math.random() * 4 + 2,
+        rot: Math.random() * Math.PI * 2,
+        rotV: (Math.random() - 0.5) * 0.3,
+        w: Math.random() * 10 + 5,
+        h: Math.random() * 5 + 3,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
+  function _updateConfetti() {
+    if (!_confettiEl || _confettiParticles.length === 0) return;
+    const ctx = _confettiEl.getContext('2d');
+    ctx.clearRect(0, 0, _confettiEl.width, _confettiEl.height);
+    const alive = [];
+    for (const p of _confettiParticles) {
+      p.x += p.vx + Math.sin(p.phase) * 1.5;
+      p.y += p.vy;
+      p.rot += p.rotV;
+      p.phase += 0.05;
+      p.vy += 0.08; // gravity
+      if (p.y < _confettiEl.height + 20) alive.push(p);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+    _confettiParticles = alive;
+  }
+
+  function _clearConfetti() {
+    if (_confettiEl) {
+      const ctx = _confettiEl.getContext('2d');
+      ctx.clearRect(0, 0, _confettiEl.width, _confettiEl.height);
+      _confettiEl.style.display = 'none';
+    }
+    _confettiParticles = [];
+  }
+
+  // 3-D burst of coloured particles from the goal mouth
+  function _spawnGoalExplosion(goalPos, teamColor) {
+    const colors = teamColor === 'home'
+      ? [0x3399ff, 0x66bbff, 0xffee00, 0xffffff]
+      : [0xff3322, 0xff8844, 0xffee00, 0xffffff];
+    const geo = new THREE.SphereGeometry(0.18, 6, 6);
+    const particles = [];
+    for (let i = 0; i < 80; i++) {
+      const mat = new THREE.MeshBasicMaterial({ color: colors[Math.floor(Math.random() * colors.length)] });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(goalPos.x + (Math.random() - 0.5) * 4, goalPos.y + Math.random() * 2, goalPos.z);
+      scene.add(mesh);
+      const speed = Math.random() * 18 + 6;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI;
+      particles.push({
+        mesh,
+        vx: Math.sin(phi) * Math.cos(theta) * speed,
+        vy: Math.sin(phi) * Math.sin(theta) * speed + 5,
+        vz: Math.cos(phi) * speed * 0.3,
+        life: 1.0,
+      });
+    }
+
+    let lastT = performance.now();
+    function animateExplosion(now) {
+      const dt = Math.min((now - lastT) / 1000, 0.05);
+      lastT = now;
+      let anyAlive = false;
+      for (const p of particles) {
+        if (p.life <= 0) continue;
+        p.mesh.position.x += p.vx * dt;
+        p.mesh.position.y += p.vy * dt;
+        p.mesh.position.z += p.vz * dt;
+        p.vy -= 20 * dt; // gravity
+        p.life -= dt * 0.6;
+        p.mesh.material.opacity = p.life;
+        p.mesh.material.transparent = true;
+        if (p.life <= 0) {
+          scene.remove(p.mesh);
+          p.mesh.geometry.dispose();
+          p.mesh.material.dispose();
+        } else {
+          anyAlive = true;
+        }
+      }
+      if (anyAlive) requestAnimationFrame(animateExplosion);
+    }
+    requestAnimationFrame(animateExplosion);
+  }
+
+  function _resetPlayersToSides() {
+    // Reset local player
+    moveLocalPlayerToSpawn(localPlayerTeam);
+    // Reset AI players to their spawn positions
+    ['home', 'away'].forEach(team => {
+      const spawnZ = team === 'home' ? -38 : 38;
+      aiPlayers[team].forEach((ai, i) => {
+        if (!ai.body) return;
+        const spacing = 4;
+        const spawnX = (i - (aiPlayers[team].length - 1) / 2) * spacing;
+        ai.body.setTranslation({ x: spawnX, y: 1.5, z: spawnZ }, true);
+        ai.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        ai.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      });
+    });
+  }
+
+  function triggerGoalCelebration(scoringTeam, goalPos, onComplete) {
+    goalCelebrationActive = true;
+    if (playerControls) playerControls.enabled = false;
+    Object.values(aiPlayers).flat().forEach(ai => { ai.frozen = true; });
+
+    // Freeze ball in place
+    if (soccerBall?.body) {
+      soccerBall.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    }
+
+    _showGoalOverlay();
+    _spawnConfetti(scoringTeam);
+    _spawnGoalExplosion(goalPos, scoringTeam);
+
+    setTimeout(() => {
+      _hideGoalOverlay();
+      _clearConfetti();
+
+      // Reset ball
+      soccerBall.reset();
+
+      // Reset players to their sides
+      _resetPlayersToSides();
+
+      // Spawn one defender from the team that conceded near center
+      const defendingTeam = scoringTeam === 'home' ? 'away' : 'home';
+      const defAI = aiPlayers[defendingTeam]?.[0];
+      if (defAI?.body) {
+        defAI.body.setTranslation({ x: (Math.random() - 0.5) * 6, y: 1.5, z: (defendingTeam === 'home' ? -3 : 3) }, true);
+        defAI.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        defAI.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
+
+      // Unfreeze
+      if (playerControls) playerControls.enabled = true;
+      Object.values(aiPlayers).flat().forEach(ai => { ai.frozen = false; });
+      goalCelebrationActive = false;
+
+      if (onComplete) onComplete();
+    }, 4000);
+  }
   const SCORE_GOAL_WIDTH = 10;
   const SCORE_GOAL_HEIGHT = 3;
   const SCORE_FIELD_HALF = 50;
@@ -525,6 +741,7 @@ async function main() {
   function checkGoal() {
     if (!gameTimerActive && gameTimeLeft <= 0) return;
     if (!soccerBall?.body) return;
+    if (goalCelebrationActive) return;
     // Don't interrupt an active set piece
     if (setPieceManager?.isActive()) return;
     const now = performance.now();
@@ -545,19 +762,21 @@ async function main() {
       // Red goal is on the +Z end, so scoring there awards the blue/home score.
       score.home++;
       updateScoreUI();
-      goalCooldown = now + 3000;
-      soccerBall.reset();
-      if (soccerBall.lastTouchedTeam === 'home') {
-        recordGoal(playerName).catch(() => {});
-      }
+      goalCooldown = now + 7000;
+      const goalPos = { x: 0, y: 1.5, z: SCORE_FIELD_HALF };
+      const didTouch = soccerBall.lastTouchedTeam;
+      triggerGoalCelebration('home', goalPos, () => {
+        if (didTouch === 'home') recordGoal(playerName).catch(() => {});
+      });
       return;
     }
     if (inX && inY && pos.z < -SCORE_FIELD_HALF && vel.z < 0) {
       // Blue goal is on the -Z end, so scoring there awards the red/away score.
       score.away++;
       updateScoreUI();
-      goalCooldown = now + 3000;
-      soccerBall.reset();
+      goalCooldown = now + 7000;
+      const goalPos = { x: 0, y: 1.5, z: -SCORE_FIELD_HALF };
+      triggerGoalCelebration('away', goalPos, null);
       return;
     }
 
@@ -1475,6 +1694,7 @@ async function main() {
 
     breakManager.update();
 
+    _updateConfetti();
     renderer.render(scene, camera);
   }
 
