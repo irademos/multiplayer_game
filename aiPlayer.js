@@ -54,7 +54,7 @@ export class AIPlayer {
     const actions = this.model.userData.actions;
     if (!actions?.[actionName]) return;
     const current = this.model.userData.currentAction;
-    if (current === actionName && !['mmaKick', 'mutantPunch'].includes(actionName)) return;
+    if (current === actionName) return;
     actions[current]?.fadeOut(0.15);
     const action = actions[actionName].reset().fadeIn(0.15);
     action.setEffectiveTimeScale(['mmaKick', 'hurricaneKick', 'runningKick'].includes(actionName) ? 2 : 1);
