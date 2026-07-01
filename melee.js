@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { switchMonsterAnimation } from './characters/MonsterCharacter.js';
 
 const ATTACKS = {
   mutantPunch: { damage: 10, range: 1.5, hitTime: 300, hitWindow: 300 },
@@ -7,7 +6,7 @@ const ATTACKS = {
   mmaKick: { damage: 12, range: 1.7, hitTime: 175, hitWindow: 150 }
 };
 
-export function updateMeleeAttacks({ playerModel, otherPlayers, monster, audioManager }) {
+export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) {
   const now = Date.now();
   const players = [
     { id: 'local', model: playerModel },
@@ -39,21 +38,6 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, monster, audioMa
             if (tp) {
               tp.health = Math.max(0, (tp.health || 100) - cfg.damage);
             }
-          }
-        }
-      }
-
-      if (monster) {
-        const dist = attacker.model.position.distanceTo(monster.position);
-        if (dist <= cfg.range) {
-          hit = true;
-          window.monsterHealth = Math.max(0, window.monsterHealth - cfg.damage);
-          if (window.monsterHealth > 0 && !monster.userData.hitReacting) {
-            switchMonsterAnimation(monster, "Death");
-            monster.userData.hitReacting = true;
-            setTimeout(() => {
-              monster.userData.hitReacting = false;
-            }, 100);
           }
         }
       }

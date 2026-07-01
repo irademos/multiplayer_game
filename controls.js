@@ -281,22 +281,6 @@ export class PlayerControls {
       toggleButton.addEventListener('click', handleToggle);
     }
 
-    // Fire button
-    if (!document.getElementById('fire-button')) {
-      const newFireButton = document.createElement('button');
-      newFireButton.id = 'fire-button';
-      newFireButton.className = 'action-button mobile-action';
-      newFireButton.innerText = 'FIRE';
-      actionContainer.appendChild(newFireButton);
-    }
-
-    document.getElementById('fire-button').addEventListener('touchstart', (event) => {
-      if (!this.enabled) return;
-      if (this.attemptFireProjectile()) {
-        event.preventDefault();
-      }
-    });
-
     // Kick button
     if (!document.getElementById('kick-button')) {
       const kickButton = document.createElement('button');
@@ -337,20 +321,6 @@ export class PlayerControls {
       if (this.vehicle) {
         if (key === 'x') {
           this.vehicle.dismount();
-          return;
-        }
-
-        const boatControls = this.vehicle.type === 'rowboat';
-
-        if (boatControls) {
-          if (e.repeat) return;
-          if (key === 'z') {
-            this.vehicle.paddleLeft?.();
-            return;
-          } else if (key === 'c') {
-            this.vehicle.paddleRight?.();
-            return;
-          }
           return;
         }
 
@@ -441,7 +411,6 @@ export class PlayerControls {
     }
 
     window.spaceship?.tryMount(this);
-    window.rowBoat?.tryMount(this);
     iceGun?.tryPickup?.(this);
   }
 
@@ -511,14 +480,6 @@ export class PlayerControls {
       this.vehicle.applyInput({ thrust, yaw, pitch });
       this.isMoving = thrust;
       return;
-    }
-
-    if (this.vehicle) {
-      if (this.vehicle.type === 'rowboat') {
-        this.isMoving = false;
-        this.vehicle.alignOccupant?.();
-        return;
-      }
     }
 
     if (!this.body) return;
@@ -819,8 +780,6 @@ export class PlayerControls {
       const type = this.vehicle.type;
       if (type === 'spaceship') {
         promptText = "'x' exit spaceship";
-      } else if (type === 'rowboat') {
-        promptText = "'x' exit rowboat";
       }
       visible = !!promptText;
     } else {
@@ -847,7 +806,6 @@ export class PlayerControls {
         };
 
         consider(window.spaceship, 10, "'x' enter spaceship");
-        consider(window.rowBoat, 4, "'x' enter rowboat");
         consider(window.iceGun, 3, "'x' pick up gun");
       }
     }
@@ -985,9 +943,6 @@ export class PlayerControls {
     if (target.type === 'player') {
       target.model.position.copy(targetPos);
       this.multiplayer.send({ type: 'grabMove', from: this.multiplayer.getId(), target: target.id, position: targetPos.toArray() });
-    } else if (target.type === 'monster') {
-      target.model.position.copy(targetPos);
-      target.model.userData.rb?.setTranslation(targetPos, true);
     } else if (target.type === 'object') {
       target.object.position.copy(targetPos);
       if (target.object.userData?.rb) {
@@ -1006,15 +961,6 @@ export class PlayerControls {
       const dist = playerPos.distanceTo(p.model.position);
       if (dist < minDist) {
         closest = { type: 'player', id, model: p.model };
-        minDist = dist;
-      }
-    }
-
-    const mon = window.monster;
-    if (mon) {
-      const dist = playerPos.distanceTo(mon.position);
-      if (dist < minDist) {
-        closest = { type: 'monster', model: mon };
         minDist = dist;
       }
     }

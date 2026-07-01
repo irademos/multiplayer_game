@@ -1,9 +1,6 @@
 // app.js
 import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
-import { loadMonsterModel } from "./models/monsterModel.js";
-import { switchMonsterAnimation } from "./characters/MonsterCharacter.js";
-import { createOrcVoice } from "./orcVoice.js";
 import { createClouds, generateSoccerField, createMoon, MOON_RADIUS } from "./worldGeneration.js";
 import { getTerrainHeight } from './water.js';
 import { Multiplayer } from './peerConnection.js';
@@ -16,7 +13,6 @@ import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
 import { LevelBuilder } from './levelBuilderMode.js';
 import { AudioManager } from './audioManager.js';
-import { RowBoat } from './rowboat.js';
 import { AIPlayer } from './aiPlayer.js';
 import { SoccerBall } from './soccerBall.js';
 import { SetPieceManager, buildSetPieceParams } from './setPiece.js';
@@ -278,7 +274,7 @@ async function main() {
       return;
     }
 
-    if (data.type === 'spaceship' || data.type === 'monster') {
+    if (data.type === 'spaceship') {
       // Legacy messages handled by networked system; ignore to avoid conflicts.
       return;
     }
@@ -336,7 +332,6 @@ async function main() {
 
   createClouds(scene);
 
-  let rowBoat;
   let soccerBall;
   let aiPlayer;
   let setPieceManager;
@@ -440,84 +435,6 @@ async function main() {
   // Expose to window for debugging
   window.breakManager = breakManager;
 
-  let monster = null;
-  loadMonsterModel(scene, data => {
-    monster = data.model;
-    // Expose monster globally for interactions like grabbing
-    window.monster = monster;
-    monster.userData.mixer = data.mixer;
-    monster.userData.actions = data.actions;
-    monster.userData.currentAction = "Idle";
-    monster.userData.direction = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
-    // Tune monster movement speeds so it doesn't feel stuck in slow motion.
-    // "wanderSpeed" is used while the monster roams around in friendly mode,
-    // while "chaseSpeed" is used when it targets players in enemy mode.
-    monster.userData.wanderSpeed = 0.04;
-    monster.userData.chaseSpeed = 0.14;
-    monster.userData.lastDirectionChange = Date.now();
-    monster.userData.mode = "friendly"; // default behavior
-
-    const monsterSpawn = getSpawnPosition({ heightOffset: 0.5 });
-    monster.position.set(monsterSpawn.x, monsterSpawn.y, monsterSpawn.z);
-    monster.userData.spawnPoint = monsterSpawn;
-    if (monster.userData.rb) {
-      monster.userData.rb.setTranslation({ x: monsterSpawn.x, y: monsterSpawn.y, z: monsterSpawn.z }, true);
-    }
-
-    const orcPhrases = [
-      "Uggghh",
-      "Ooo Goo",
-      "grrreeeoookkk egggh uh uh",
-      "errrga ooogah"
-    ];
-    monster.userData.voice = createOrcVoice(orcPhrases);
-    if (rapierWorld) attachMonsterPhysics(monster);
-    registerNetworkedEntity('monster', {
-      getState: () => {
-        if (!monster) return null;
-        const pos = monster.position;
-        const q = monster.quaternion;
-        return {
-          position: [pos.x, pos.y, pos.z],
-          rotation: [q.x, q.y, q.z, q.w],
-          mode: monster.userData.mode,
-          action: monster.userData.currentAction,
-          health: typeof window.monsterHealth === 'number' ? window.monsterHealth : undefined
-        };
-      },
-      applyState: state => {
-        if (!monster || !state) return;
-        const [px, py, pz] = state.position || [];
-        const [rx, ry, rz, rw] = state.rotation || [];
-        if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pz)) {
-          monster.position.set(px, py, pz);
-          monster.userData.rb?.setTranslation({ x: px, y: py, z: pz }, true);
-        }
-        if (Number.isFinite(rx) && Number.isFinite(ry) && Number.isFinite(rz) && Number.isFinite(rw)) {
-          monster.quaternion.set(rx, ry, rz, rw);
-          monster.userData.rb?.setRotation({ x: rx, y: ry, z: rz, w: rw }, true);
-        }
-        if (typeof state.mode === 'string') {
-          monster.userData.mode = state.mode;
-        }
-        if (typeof state.health === 'number') {
-          window.monsterHealth = state.health;
-        }
-        if (state.action && monster.userData.currentAction !== state.action && monster.userData.actions) {
-          switchMonsterAnimation(monster, state.action);
-        }
-      },
-      isLocallyControlled: () => multiplayer?.isHost && !!monster
-    });
-  });
-
-  // Allow mode switching from console or other scripts
-  window.setMonsterMode = mode => {
-    if (monster && (mode === "friendly" || mode === "enemy")) {
-      monster.userData.mode = mode;
-    }
-  };
-
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   document.getElementById('game-container').appendChild(renderer.domElement);
@@ -592,58 +509,6 @@ async function main() {
     isLocallyControlled: () => true
   });
 
-  rowBoat = new RowBoat(scene);
-  await rowBoat.load();
-  window.rowBoat = rowBoat;
-  registerNetworkedEntity('rowboat', {
-    getState: () => {
-      if (!rowBoat?.mesh) return null;
-      const pos = rowBoat.mesh.position;
-      return {
-        position: [pos.x, pos.y, pos.z],
-        rotationY: rowBoat.mesh.rotation.y,
-        velocity: [rowBoat.velocity.x, rowBoat.velocity.y, rowBoat.velocity.z],
-        angularVelocity: rowBoat.angularVelocity,
-        oarState: rowBoat.oarState
-      };
-    },
-    applyState: state => {
-      if (!rowBoat?.mesh || !state) return;
-      const [px, py, pz] = state.position || [];
-      if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pz)) {
-        rowBoat.mesh.position.set(px, py, pz);
-      }
-      if (Number.isFinite(state.rotationY)) {
-        rowBoat.mesh.rotation.y = state.rotationY;
-      }
-      const [vx, vy, vz] = state.velocity || [];
-      if (Number.isFinite(vx) && Number.isFinite(vy) && Number.isFinite(vz)) {
-        rowBoat.velocity.set(vx, vy, vz);
-      }
-      if (Number.isFinite(state.angularVelocity)) {
-        rowBoat.angularVelocity = state.angularVelocity;
-      }
-      if (state.oarState && rowBoat.oarState !== state.oarState) {
-        rowBoat.setOarState(state.oarState, { immediate: true });
-      }
-    },
-    isLocallyControlled: () => rowBoat?.occupant === playerControls
-  });
-
-
-  function attachMonsterPhysics(mon) {
-    const rbDesc = RAPIER.RigidBodyDesc.dynamic()
-      .setTranslation(mon.position.x, mon.position.y, mon.position.z)
-      .setLinearDamping(0.5)
-      .setAngularDamping(0.5);
-    const rb = rapierWorld.createRigidBody(rbDesc);
-    const colDesc = RAPIER.ColliderDesc.capsule(0.6, 0.3);
-    rapierWorld.createCollider(colDesc, rb);
-    mon.userData.rb = rb;
-    rbToMesh.set(rb, mon);
-  }
-
-  if (monster) attachMonsterPhysics(monster);
 
 
 
@@ -655,7 +520,6 @@ async function main() {
   audioManager.playBGS('Forest Day/Forest Day.ogg');
 
   window.localHealth = 100;
-  window.monsterHealth = 100;
 
   const healthFill = document.getElementById('health-fill');
   function updateHealthUI() {
@@ -668,32 +532,6 @@ async function main() {
   let playerDead = false;
 
   const projectiles = [];
-  const ammoPickups = [];
-  const AMMO_PICKUP_AMOUNT = 5;
-
-  function spawnAmmoPickup(position) {
-    const spawnPos = position.clone();
-    const terrainHeight = getTerrainHeight(spawnPos.x, spawnPos.z);
-    spawnPos.y = terrainHeight + 0.6;
-
-    const geometry = new THREE.IcosahedronGeometry(0.25, 0);
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x7fd0ff,
-      emissive: 0x225577,
-      emissiveIntensity: 0.4,
-      metalness: 0.1,
-      roughness: 0.4,
-    });
-
-    const pickup = new THREE.Mesh(geometry, material);
-    pickup.position.copy(spawnPos);
-    pickup.castShadow = true;
-    pickup.userData.baseY = spawnPos.y;
-    pickup.userData.phase = Math.random() * Math.PI * 2;
-    scene.add(pickup);
-    ammoPickups.push(pickup);
-    return pickup;
-  }
 
   // Player spawns near the -Z goal; AI spawns near +Z goal
   const PLAYER_SPAWN_Z = -38;
@@ -713,9 +551,6 @@ async function main() {
   window.playerControls = playerControls;
 
   aiPlayer = new AIPlayer(scene, rapierWorld, { spawnZ: 38, targetGoalZ: -50 });
-
-  spawnAmmoPickup(new THREE.Vector3(-4, 0, 4));
-  spawnAmmoPickup(new THREE.Vector3(2, 0, -3));
 
   const levelBuilder = new LevelBuilder({ scene, camera, renderer });
   const builderBtn = document.getElementById('level-builder-button');
@@ -894,28 +729,18 @@ async function main() {
     fire: () => playerControls.triggerFire(),
     shoot: () => playerControls.triggerFire()
   });
-  const talkButton = document.getElementById('talk-button');
-  if (talkButton) {
-    let talking = false;
-    const startTalking = (e) => {
+
+  const rollButton = document.getElementById('roll-button');
+  if (rollButton) {
+    const doRoll = (e) => {
       e.preventDefault();
-      if (!talking) {
-        talking = true;
-        speech.start();
-      }
+      if (!playerControls.enabled || playerControls.isInWater) return;
+      playerControls.slideMomentum.copy(playerControls.lastMoveDirection).multiplyScalar(1.4);
+      playerControls.playAction('runningKick');
+      playerControls.audioManager?.playAttack();
     };
-    const stopTalking = (e) => {
-      if (talking) {
-        if (e) e.preventDefault();
-        talking = false;
-        speech.stop();
-      }
-    };
-    talkButton.addEventListener('mousedown', startTalking);
-    talkButton.addEventListener('touchstart', startTalking);
-    window.addEventListener('mouseup', stopTalking);
-    window.addEventListener('touchend', stopTalking);
-    window.addEventListener('touchcancel', stopTalking);
+    rollButton.addEventListener('touchstart', doRoll, { passive: false });
+    rollButton.addEventListener('mousedown', doRoll);
   }
 
   let localStream = null;
@@ -1105,28 +930,6 @@ async function main() {
 
     playerControls.update();
 
-    const pickupTime = performance.now() * 0.002;
-    for (let i = ammoPickups.length - 1; i >= 0; i--) {
-      const pickup = ammoPickups[i];
-      if (!pickup) continue;
-
-      if (pickup.userData.baseY === undefined) {
-        pickup.userData.baseY = pickup.position.y;
-      }
-
-      pickup.rotation.y += 0.03;
-      const phase = pickup.userData.phase ?? 0;
-      pickup.position.y = pickup.userData.baseY + Math.sin(pickupTime + phase) * 0.1;
-
-      if (playerModel.position.distanceTo(pickup.position) < 1.2) {
-        playerControls.addAmmo(AMMO_PICKUP_AMOUNT);
-        scene.remove(pickup);
-        pickup.geometry?.dispose();
-        pickup.material?.dispose();
-        ammoPickups.splice(i, 1);
-      }
-    }
-
     soccerBall?.update();
     if (soccerBall?.body) {
       if (playerControls.body) {
@@ -1193,7 +996,6 @@ async function main() {
       p.model.userData.mixer?.update(mixerDelta);
     });
 
-    rowBoat.update();
     aiPlayer?.update(frameDelta, soccerBall);
 
     // Set piece zone enforcement (runs after AI update so AI can't immediately
@@ -1253,11 +1055,10 @@ async function main() {
       playerModel,
       otherPlayers,
       multiplayer,
-      monster,
       delta: frameDelta
     });
 
-    updateMeleeAttacks({ playerModel, otherPlayers, monster, audioManager });
+    updateMeleeAttacks({ playerModel, otherPlayers, audioManager });
 
     breakManager.update();
 
