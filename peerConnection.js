@@ -8,6 +8,8 @@ import {
   onDisconnect
 } from 'firebase/database';
 
+const MAX_ROOM_PLAYERS = 12;
+
 export class Multiplayer {
   constructor(playerName, onPeerData) {
     this.connections = {};
@@ -43,19 +45,28 @@ export class Multiplayer {
 
       const roomsRef = ref(db, 'rooms');
       const snapshot = await get(roomsRef);
+      const peersSnapshot = await get(ref(db, 'peers'));
+      const activePeers = peersSnapshot.exists() ? peersSnapshot.val() : {};
 
       let assignedRoom = null;
       let roomIndex = 0;
 
       if (snapshot.exists()) {
         const rooms = snapshot.val();
-        for (const roomName in rooms) {
-          const peersInRoom = Object.keys(rooms[roomName]);
-          if (peersInRoom.length < 20) {
+        const roomNames = Object.keys(rooms);
+
+        for (const roomName of roomNames) {
+          const peersInRoom = Object.keys(rooms[roomName] || {})
+            .filter(peerId => activePeers[peerId]);
+
+          if (peersInRoom.length < MAX_ROOM_PLAYERS) {
             assignedRoom = roomName;
-            console.log("Entered room: ", assignedRoom)
+            console.log("Entered room: ", assignedRoom);
             break;
           }
+        }
+
+        while (roomNames.includes(`room-${roomIndex}`)) {
           roomIndex++;
         }
       }
