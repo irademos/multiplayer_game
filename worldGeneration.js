@@ -193,9 +193,9 @@ function addFieldLine(scene, x, z, width, depth, y = 0.01, color = 0xffffff) {
   scene.add(mesh);
 }
 
-function addStand(scene, rapierWorld, cx, cz, rotY, length, depth, height) {
+function addStand(scene, rapierWorld, cx, cz, rotY, length, depth, height, seatColor = 0xcc2222) {
   const standMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.9 });
-  const seatMat = new THREE.MeshStandardMaterial({ color: 0xcc2222, roughness: 0.8 });
+  const seatMat = new THREE.MeshStandardMaterial({ color: seatColor, roughness: 0.8 });
 
   // Inclined seating block
   const group = new THREE.Group();
@@ -274,7 +274,7 @@ export function generateSoccerField(scene, rapierWorld) {
   const RED  = 0xff3322;
 
   // Touchlines (long sides) — split at halfway: blue on home (-Z) half, red on away (+Z) half
-  for (const xPos of [0, FIELD_WIDTH / 2, -FIELD_WIDTH / 2]) {
+  for (const xPos of [FIELD_WIDTH / 2, -FIELD_WIDTH / 2]) {
     addFieldLine(scene, xPos, -FIELD_LENGTH / 4, LT, FIELD_LENGTH / 2, 0.01, BLUE);
     addFieldLine(scene, xPos,  FIELD_LENGTH / 4, LT, FIELD_LENGTH / 2, 0.01, RED);
   }
@@ -283,13 +283,15 @@ export function generateSoccerField(scene, rapierWorld) {
   addFieldLine(scene, 0,  FIELD_LENGTH / 2, FIELD_WIDTH, LT, 0.01, RED);   // away (+Z) side
   addFieldLine(scene, 0, -FIELD_LENGTH / 2, FIELD_WIDTH, LT, 0.01, BLUE);  // home (-Z) side
 
-  // Halfway line (neutral white)
-  addFieldLine(scene, 0, 0, FIELD_WIDTH, LT);
+  // Halfway line — blue on −X half (blue team's side), red on +X half (red team's side)
+  addFieldLine(scene, -FIELD_WIDTH / 4, 0, FIELD_WIDTH / 2, LT, 0.01, BLUE);
+  addFieldLine(scene,  FIELD_WIDTH / 4, 0, FIELD_WIDTH / 2, LT, 0.01, RED);
 
-  // Centre circle (approximated with ring segments)
+  // Centre circle — blue on home (−Z) half, red on away (+Z) half
   const circleR = 9.15;
   const segments = 48;
-  const circleMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
+  const circleBlueMat = new THREE.MeshStandardMaterial({ color: BLUE, roughness: 0.8 });
+  const circleRedMat  = new THREE.MeshStandardMaterial({ color: RED,  roughness: 0.8 });
   for (let i = 0; i < segments; i++) {
     const a0 = (i / segments) * Math.PI * 2;
     const a1 = ((i + 1) / segments) * Math.PI * 2;
@@ -298,14 +300,16 @@ export function generateSoccerField(scene, rapierWorld) {
     const segLen = Math.hypot(x1 - x0, z1 - z0);
     const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
     const ang = Math.atan2(z1 - z0, x1 - x0);
-    const seg = new THREE.Mesh(new THREE.PlaneGeometry(segLen, LT), circleMat);
+    const mat = mz < 0 ? circleBlueMat : circleRedMat;
+    const seg = new THREE.Mesh(new THREE.PlaneGeometry(segLen, LT), mat);
     seg.rotation.x = -Math.PI / 2;
     seg.rotation.z = -ang;
     seg.position.set(mx, 0.01, mz);
     scene.add(seg);
   }
 
-  // Centre spot
+  // Centre spot (white)
+  const circleMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
   const spot = new THREE.Mesh(new THREE.CircleGeometry(0.3, 16), circleMat);
   spot.rotation.x = -Math.PI / 2;
   spot.position.set(0, 0.01, 0);
@@ -334,5 +338,5 @@ export function generateSoccerField(scene, rapierWorld) {
   // Short ends
   const shortStandLen = FIELD_WIDTH + (STAND_DEPTH + standGap) * 2 + 4;
   addStand(scene, rapierWorld, 0, FIELD_LENGTH / 2 + standGap + STAND_DEPTH / 2, 0, shortStandLen, STAND_DEPTH, STAND_HEIGHT);
-  addStand(scene, rapierWorld, 0, -(FIELD_LENGTH / 2 + standGap + STAND_DEPTH / 2), Math.PI, shortStandLen, STAND_DEPTH, STAND_HEIGHT);
+  addStand(scene, rapierWorld, 0, -(FIELD_LENGTH / 2 + standGap + STAND_DEPTH / 2), Math.PI, shortStandLen, STAND_DEPTH, STAND_HEIGHT, BLUE);
 }
