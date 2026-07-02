@@ -1614,7 +1614,7 @@ async function main() {
   if (rollButton) {
     const doRoll = (e) => {
       e.preventDefault();
-      if (!playerControls.enabled || playerControls.isInWater) return;
+      if (!playerControls.enabled || playerControls.isInWater || playerControls.currentSpecialAction) return;
       playerControls.slideMomentum.copy(playerControls.lastMoveDirection).multiplyScalar(1.4);
       playerControls.playAction('runningKick');
       playerControls.audioManager?.playAttack();

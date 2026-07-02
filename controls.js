@@ -675,7 +675,7 @@ export class PlayerControls {
       let yawAngle = this.playerModel.rotation.y;
       if (movement.length() > 0) {
         yawAngle = Math.atan2(movement.x, movement.z);
-        if (this.currentSpecialAction === 'slide') yawAngle += Math.PI / 2;
+        if (this.currentSpecialAction === 'slide') yawAngle -= Math.PI / 2;
         // this.playerModel.rotation.y = yawAngle;
       }
 
