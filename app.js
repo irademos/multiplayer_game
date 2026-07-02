@@ -1984,6 +1984,13 @@ async function main() {
     }
   });
 
+  let followBallCamera = false;
+  const followBallBtn = document.getElementById('follow-ball-button');
+  followBallBtn.addEventListener('click', () => {
+    followBallCamera = !followBallCamera;
+    followBallBtn.classList.toggle('active', followBallCamera);
+  });
+
   const settingsBtn = document.getElementById('settings-button');
   const overlay = document.getElementById('settings-overlay');
   const nameInput = document.getElementById('name-input');
@@ -2451,6 +2458,30 @@ async function main() {
 
     _updateConfetti();
     if (playerModel) updateRainbowTrail(playerModel, playerControls?.isMoving ?? false);
+
+    if (followBallCamera && playerModel && soccerBall?.body) {
+      const ballRaw = soccerBall.getPosition();
+      const ballPos = new THREE.Vector3(ballRaw.x, ballRaw.y, ballRaw.z);
+      const playerPos = playerModel.position;
+
+      // Direction from player to ball (horizontal only)
+      const toBall = new THREE.Vector3(ballPos.x - playerPos.x, 0, ballPos.z - playerPos.z);
+      const horizDist = toBall.length();
+
+      // Camera sits behind the player (opposite the ball direction), elevated
+      const camHeight = 14;
+      const camBack = 7;
+      const behindDir = horizDist > 0.1
+        ? toBall.clone().normalize().negate()
+        : new THREE.Vector3(0, 0, 1);
+
+      const camPos = playerPos.clone()
+        .add(behindDir.multiplyScalar(camBack))
+        .add(new THREE.Vector3(0, camHeight, 0));
+      camera.position.copy(camPos);
+      camera.lookAt(ballPos);
+    }
+
     renderer.render(scene, camera);
   }
 
