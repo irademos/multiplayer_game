@@ -458,6 +458,7 @@ async function main() {
         teamTaking: activeSP.teamTaking,
         ballFixedPos: activeSP.ballFixedPos,
         zone: activeSP.zone,
+        exclusionZone: activeSP.exclusionZone,
         takerNetworkId: activeSP.takerNetworkId,
       } : null;
 
@@ -549,6 +550,7 @@ async function main() {
           teamTaking: data.teamTaking,
           ballFixedPos: data.ballFixedPos,
           zone: data.zone,
+          exclusionZone: data.exclusionZone ?? null,
           takerNetworkId: data.takerNetworkId ?? null,
         });
       }
@@ -1079,7 +1081,7 @@ async function main() {
       return;
     }
 
-    const { type, teamTaking, ballFixedPos, zone } = params;
+    const { type, teamTaking, ballFixedPos, zone, exclusionZone } = params;
 
     // Determine the designated taker: prefer local player if on the taking team,
     // otherwise fall back to the first AI on that team.
@@ -1090,14 +1092,14 @@ async function main() {
       takerNetworkId = aiPlayers[teamTaking]?.[0]?.networkId ?? null;
     }
 
-    applySetPiece({ spType: type, teamTaking, ballFixedPos, zone, takerNetworkId });
+    applySetPiece({ spType: type, teamTaking, ballFixedPos, zone, exclusionZone, takerNetworkId });
 
     // Broadcast the set piece to all connected clients
-    multiplayer.send({ type: 'setPiece', spType: type, teamTaking, ballFixedPos, zone, takerNetworkId });
+    multiplayer.send({ type: 'setPiece', spType: type, teamTaking, ballFixedPos, zone, exclusionZone, takerNetworkId });
   }
 
   // Apply a set piece locally (runs on host via triggerSetPiece and on clients via network message).
-  function applySetPiece({ spType, teamTaking, ballFixedPos, zone, takerNetworkId }) {
+  function applySetPiece({ spType, teamTaking, ballFixedPos, zone, exclusionZone, takerNetworkId }) {
     if (!setPieceManager) return;
 
     // Place ball at set piece spot
@@ -1164,7 +1166,7 @@ async function main() {
       }
     }
 
-    setPieceManager.trigger(spType, teamTaking, ballFixedPos, zone, takerNetworkId);
+    setPieceManager.trigger(spType, teamTaking, ballFixedPos, zone, takerNetworkId, exclusionZone);
   }
 
   // Load additional level data (destructible props, etc.)
@@ -1994,18 +1996,28 @@ async function main() {
         }
       }
 
-      // All other locally-simulated bodies must be pushed out of the zone
+      // Split locally-simulated bodies into two groups:
+      // - otherBodies: all non-taker bodies pushed out of the small taker zone
+      // - opposingBodies: only opposing team bodies pushed out of the larger exclusion zone
+      const opposingTeam = sp.teamTaking === 'home' ? 'away' : 'home';
       const otherBodies = [];
+      const opposingBodies = [];
       if (playerControls?.body && playerControls.body !== takerBody) {
         otherBodies.push(playerControls.body);
+        if (localPlayerTeam === opposingTeam) {
+          opposingBodies.push(playerControls.body);
+        }
       }
       for (const team of ['home', 'away']) {
         for (const ai of (aiPlayers[team] ?? [])) {
-          if (ai.body && ai.body !== takerBody) otherBodies.push(ai.body);
+          if (ai.body && ai.body !== takerBody) {
+            otherBodies.push(ai.body);
+            if (team === opposingTeam) opposingBodies.push(ai.body);
+          }
         }
       }
 
-      const ended = setPieceManager.update(soccerBall, takerBody, otherBodies);
+      const ended = setPieceManager.update(soccerBall, takerBody, otherBodies, opposingBodies);
       if (ended && multiplayer.isHost) {
         multiplayer.send({ type: 'setPieceClear' });
       }
