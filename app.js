@@ -37,7 +37,7 @@ async function main() {
   document.body.addEventListener('touchstart', () => {}, { once: true });
 
   // ── Arcade login gate — resolves when player authenticates ──────────────────
-  const { username: playerName, character: characterModel } = await new Promise(resolve => {
+  let { username: playerName, character: characterModel } = await new Promise(resolve => {
     initLogin(({ username, character }) => {
       setCookie('playerName', username);
       setCookie('characterModel', character || DEFAULT_CHARACTER_MODEL);
@@ -213,6 +213,10 @@ async function main() {
       const dummyOverlay = document.createElement('div');
       showCharacterSelect(dummyOverlay, sessionUser, ({ character }) => {
         setCookie('characterModel', character, 365);
+        if (character !== characterModel) {
+          characterModel = character;
+          swapPlayerCharacter(characterModel);
+        }
         openProfileOverlay();
       });
     });
@@ -2067,6 +2071,8 @@ async function main() {
     if (selectedModel && selectedModel !== characterModel) {
       characterModel = selectedModel;
       swapPlayerCharacter(characterModel);
+      const sessionUser = getSession();
+      if (sessionUser) updateUserCharacter(sessionUser, characterModel);
     }
     setCookie("characterModel", characterModel);
 
