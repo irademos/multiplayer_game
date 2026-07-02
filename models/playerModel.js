@@ -253,6 +253,7 @@ export function createPlayerModel(
             mutantPunch: 'Mutant Punch.fbx',
             mmaKick: 'Mma Kick.fbx',
             runningKick: 'Stand To Roll.fbx',
+            slide: 'Female Laying Pose.fbx',
             hurricaneKick: 'Hurricane Kick.fbx',
             projectile: 'Projectile.fbx',
             die: 'Dying.fbx',
@@ -273,7 +274,7 @@ export function createPlayerModel(
                   // const action = mixer.clipAction(clean);
                   const action = mixer.clipAction(clip);
                   if (
-                    ['jump', 'hit', 'mutantPunch', 'mmaKick', 'runningKick', 'hurricaneKick', 'projectile', 'die'].includes(name)
+                    ['jump', 'hit', 'mutantPunch', 'mmaKick', 'runningKick', 'hurricaneKick', 'projectile', 'die', 'slide'].includes(name)
                   ) {
                     action.loop = THREE.LoopOnce;
                     action.clampWhenFinished = true;

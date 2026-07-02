@@ -3,7 +3,8 @@ import * as THREE from 'three';
 const ATTACKS = {
   mutantPunch: { damage: 10, range: 1.5, hitTime: 300, hitWindow: 300 },
   hurricaneKick: { damage: 15, range: 2.0, hitTime: 200, hitWindow: 200 },
-  mmaKick: { damage: 12, range: 1.7, hitTime: 175, hitWindow: 150 }
+  mmaKick: { damage: 12, range: 1.7, hitTime: 175, hitWindow: 150 },
+  slide: { damage: 0, range: 1.8, hitTime: 50, hitWindow: 3000, ballForce: 0.55 }
 };
 
 export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) {
@@ -21,22 +22,24 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) 
     const elapsed = now - info.start;
     if (elapsed >= cfg.hitTime && elapsed <= cfg.hitTime + cfg.hitWindow && !info.hasHit) {
       let hit = false;
-      for (const target of players) {
-        if (target === attacker) continue;
-        const dist = attacker.model.position.distanceTo(target.model.position);
-        if (dist <= cfg.range) {
-          hit = true;
-          if (target.id === 'local') {
-            window.localHealth = Math.max(0, window.localHealth - cfg.damage);
-            if (window.playerControls) {
-              const dir = new THREE.Vector3().subVectors(target.model.position, attacker.model.position).normalize();
-              const impulse = dir.multiplyScalar(0.15);
-              window.playerControls.applyKnockback(impulse);
-            }
-          } else {
-            const tp = otherPlayers[target.id];
-            if (tp) {
-              tp.health = Math.max(0, (tp.health || 100) - cfg.damage);
+      if (cfg.damage > 0) {
+        for (const target of players) {
+          if (target === attacker) continue;
+          const dist = attacker.model.position.distanceTo(target.model.position);
+          if (dist <= cfg.range) {
+            hit = true;
+            if (target.id === 'local') {
+              window.localHealth = Math.max(0, window.localHealth - cfg.damage);
+              if (window.playerControls) {
+                const dir = new THREE.Vector3().subVectors(target.model.position, attacker.model.position).normalize();
+                const impulse = dir.multiplyScalar(0.15);
+                window.playerControls.applyKnockback(impulse);
+              }
+            } else {
+              const tp = otherPlayers[target.id];
+              if (tp) {
+                tp.health = Math.max(0, (tp.health || 100) - cfg.damage);
+              }
             }
           }
         }
@@ -56,7 +59,8 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) 
               .normalize();
             dir.y = Math.max(dir.y, 0.2);
             dir.normalize();
-            window.soccerBall.applyImpulse({ x: dir.x * 0.3, y: dir.y * 0.3, z: dir.z * 0.3 });
+            const force = cfg.ballForce ?? 0.3;
+            window.soccerBall.applyImpulse({ x: dir.x * force, y: dir.y * force, z: dir.z * force });
           }
         }
       }

@@ -32,6 +32,7 @@ export class PlayerControls {
     this.isKnocked = false;
     this.knockbackRestYaw = 0;
     this.slideMomentum = new THREE.Vector3();
+    this.slideMomentumDecay = 0.99;
     this.lastMoveDirection = new THREE.Vector3();
     this.grabbedTarget = null;
     this.isGrabbed = false;
@@ -309,6 +310,27 @@ export class PlayerControls {
         event.preventDefault();
       });
     }
+
+    // Slide button
+    if (!document.getElementById('slide-button')) {
+      const slideButton = document.createElement('button');
+      slideButton.id = 'slide-button';
+      slideButton.className = 'action-button mobile-action';
+      slideButton.innerText = 'SLIDE';
+      actionContainer.appendChild(slideButton);
+      slideButton.addEventListener('touchstart', (event) => {
+        if (!this.enabled || this.isInWater || this.currentSpecialAction) return;
+        const vel = this.body?.linvel();
+        const hSpeed = vel ? Math.hypot(vel.x, vel.z) : 0;
+        const speedRatio = Math.min(hSpeed / SPEED, 1);
+        const magnitude = 0.8 + speedRatio * 1.8;
+        this.slideMomentumDecay = 0.970 + speedRatio * 0.025;
+        this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(magnitude);
+        this.playAction('slide');
+        this.audioManager?.playAttack();
+        event.preventDefault();
+      });
+    }
   }
   
   setupEventListeners() {
@@ -367,6 +389,16 @@ export class PlayerControls {
         this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(1.4);
         this.playAction('runningKick');
         this.audioManager?.playAttack();
+      } else if (key === 'z') {
+        if (this.isInWater || this.currentSpecialAction) return;
+        const vel = this.body?.linvel();
+        const hSpeed = vel ? Math.hypot(vel.x, vel.z) : 0;
+        const speedRatio = Math.min(hSpeed / SPEED, 1);
+        const magnitude = 0.8 + speedRatio * 1.8;
+        this.slideMomentumDecay = 0.970 + speedRatio * 0.025;
+        this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(magnitude);
+        this.playAction('slide');
+        this.audioManager?.playAttack();
       } else if (key === 'g') {
         if (this.grabbedTarget) {
           this.releaseGrab();
@@ -418,6 +450,7 @@ export class PlayerControls {
     if (!this.playerModel) return;
     const actions = this.playerModel.userData.actions;
     if (!actions || !actions[actionName]) return;
+    if (this.currentSpecialAction === 'slide' && actionName !== 'slide') return;
 
     if (this.runningKickTimer) {
       clearTimeout(this.runningKickTimer);
@@ -436,7 +469,7 @@ export class PlayerControls {
     this.playerModel.userData.currentAction = actionName;
     this.currentSpecialAction = actionName;
 
-    if (["mutantPunch", "hurricaneKick", "mmaKick", "runningKick"].includes(actionName)) {
+    if (["mutantPunch", "hurricaneKick", "mmaKick", "runningKick", "slide"].includes(actionName)) {
       this.playerModel.userData.attack = {
         name: actionName,
         start: Date.now(),
@@ -554,7 +587,7 @@ export class PlayerControls {
       t.y = groundExpectedY;
     }
     const moveDirection = new THREE.Vector3(0, 0, 0);
-    const movementLocked = ['mutantPunch', 'mmaKick', 'runningKick'].includes(this.currentSpecialAction);
+    const movementLocked = ['mutantPunch', 'mmaKick', 'runningKick', 'slide'].includes(this.currentSpecialAction);
     if (!movementLocked) {
       if (this.isMobile) {
         if (this.joystickForce > 0.1) {
@@ -592,7 +625,8 @@ export class PlayerControls {
     }
     if (movementLocked) {
       movement.copy(this.slideMomentum);
-      this.slideMomentum.multiplyScalar(0.99);
+      const decay = this.currentSpecialAction === 'slide' ? this.slideMomentumDecay : 0.99;
+      this.slideMomentum.multiplyScalar(decay);
       if (this.slideMomentum.length() < 0.01) this.slideMomentum.set(0, 0, 0);
     } else if (movement.length() > 0) {
       this.lastMoveDirection.copy(movement);
