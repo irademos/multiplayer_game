@@ -119,7 +119,11 @@ async function main() {
           rows.forEach((row, i) => {
             const tr = document.createElement('tr');
             if (i === 0) tr.classList.add('lb-top');
-            tr.innerHTML = `<td>${i + 1}</td><td>${row.name}</td><td>${row.goals || 0}</td><td>${row.wins || 0}</td><td>${row.draws || 0}</td><td>${row.losses || 0}</td>`;
+            [i + 1, row.name, row.goals || 0, row.wins || 0, row.draws || 0, row.losses || 0].forEach(val => {
+              const td = document.createElement('td');
+              td.textContent = val;
+              tr.appendChild(td);
+            });
             tbody.appendChild(tr);
           });
           table.appendChild(tbody);
@@ -465,6 +469,7 @@ async function main() {
         ballState,
         gameTimeLeft,
         setPieceState,
+        score: { home: score.home, away: score.away },
       });
 
       broadcastTeamAssignments();
@@ -479,6 +484,14 @@ async function main() {
         gameTimeLeft = hostTimeLeft;
         lastTimerTick = performance.now();
         updateTimerUI();
+      }
+
+      // Sync the score from the host so late joiners have the correct state
+      if (data.score && typeof data.score.home === 'number') {
+        score.home = data.score.home;
+        score.away = data.score.away;
+        updateScoreUI();
+        scoreAuthoritative = true;
       }
 
       // Apply team assignment if not yet confirmed
@@ -672,6 +685,8 @@ async function main() {
   let receivedJoinResponse = false;
 
   const score = { home: 0, away: 0 };
+  // True when score reflects authoritative state (host always true; clients set after joinResponse)
+  let scoreAuthoritative = false;
   let goalCooldown = 0;
   let goalCelebrationActive = false;
 
@@ -907,6 +922,8 @@ async function main() {
   let gameTimeLeft = GAME_DURATION_S;
   let gameTimerActive = true;
   let lastTimerTick = performance.now();
+  // Host always has the authoritative score; clients get it synced via joinResponse
+  if (multiplayer.isHost) scoreAuthoritative = true;
 
   const timerEl = document.createElement('div');
   timerEl.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#fff;font-size:20px;font-weight:bold;padding:4px 18px;border-radius:8px;z-index:200;font-family:sans-serif;pointer-events:none;letter-spacing:2px;';
@@ -937,12 +954,15 @@ async function main() {
     const text = teamLabel ? `${teamLabel} Team Wins!` : "It's a Tie!";
     winMessage.textContent = text;
 
-    // Record game result for the local player
-    let result;
-    if (winningTeam === null) result = 'draw';
-    else if (winningTeam === localPlayerTeam) result = 'win';
-    else result = 'loss';
-    recordGameResult(playerName, result).catch(() => {});
+    // Record game result only when we have the authoritative score (host always does;
+    // clients get it synced via joinResponse — late joiners without a sync are skipped).
+    if (scoreAuthoritative) {
+      let result;
+      if (winningTeam === null) result = 'draw';
+      else if (winningTeam === localPlayerTeam) result = 'win';
+      else result = 'loss';
+      recordGameResult(playerName, result).catch(() => {});
+    }
     winMessage.style.color = color;
     winOverlay.classList.remove('hidden');
 
@@ -1754,7 +1774,11 @@ async function main() {
       const tbody = document.createElement('tbody');
       rows.forEach((row, i) => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${i + 1}</td><td>${row.name}</td><td>${row.goals || 0}</td><td>${row.wins || 0}</td><td>${row.draws || 0}</td><td>${row.losses || 0}</td>`;
+        [i + 1, row.name, row.goals || 0, row.wins || 0, row.draws || 0, row.losses || 0].forEach(val => {
+          const td = document.createElement('td');
+          td.textContent = val;
+          tr.appendChild(td);
+        });
         tbody.appendChild(tr);
       });
       table.appendChild(tbody);
