@@ -44,7 +44,6 @@ export class Multiplayer {
     this.onPeerConnected = null;
     this.onConnectionError = null;
     this.onPingUpdate = null;
-    this.onGameStartTime = null;
     this.lastPingMs = null;
     this.lastPingAt = null;
     this.lastError = null;
@@ -153,16 +152,16 @@ export class Multiplayer {
       await remove(roomRef);
       await set(roomRef, true);
 
-      // Store server-authoritative game start time when creating a new room so
-      // late-joining players can sync their countdown timer correctly.
-      const startTimeRef = ref(db, `rooms/${assignedRoom}/startTime`);
-      if (isNewRoom) {
-        await set(startTimeRef, serverTimestamp());
-      }
-      const startTimeSnap = await get(startTimeRef);
-      const gameStartTime = startTimeSnap.val();
-      if (typeof this.onGameStartTime === 'function') {
-        this.onGameStartTime(gameStartTime);
+      // Store server-authoritative game start time when we are the first active
+      // peer in a room (new room OR re-entering an empty room after a previous
+      // session), so the timestamp is always fresh for a new game.
+      const isFirstActiveInRoom = isNewRoom ||
+        (Object.keys(activePeers).filter(pid => {
+          const p = activePeers[pid];
+          return p?.roomId === assignedRoom && pid !== id;
+        }).length === 0);
+      if (isFirstActiveInRoom) {
+        await set(ref(db, `rooms/${assignedRoom}/startTime`), serverTimestamp());
       }
 
       const peerRef = ref(db, `peers/${id}`);

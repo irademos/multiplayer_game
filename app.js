@@ -384,7 +384,8 @@ async function main() {
         team: assignedTeam,
         spawnPosition,
         aiStates,
-        ballState
+        ballState,
+        gameTimeLeft
       });
 
       broadcastTeamAssignments();
@@ -392,7 +393,14 @@ async function main() {
     }
 
     if (data.type === 'joinResponse') {
-      const { team, spawnPosition, aiStates, ballState } = data;
+      const { team, spawnPosition, aiStates, ballState, gameTimeLeft: hostTimeLeft } = data;
+
+      // Sync the countdown to the host's current time so all players match
+      if (typeof hostTimeLeft === 'number') {
+        gameTimeLeft = hostTimeLeft;
+        lastTimerTick = performance.now();
+        updateTimerUI();
+      }
 
       // Apply team assignment if not yet confirmed
       if (!localTeamConfirmed) {
@@ -795,16 +803,6 @@ async function main() {
   let gameTimeLeft = GAME_DURATION_S;
   let gameTimerActive = true;
   let lastTimerTick = performance.now();
-
-  // Sync the countdown to the server-authoritative start time stored in Firebase.
-  // This runs once after room assignment so all players see the same time remaining.
-  multiplayer.onGameStartTime = (startTime) => {
-    if (!startTime) return;
-    const elapsedS = Math.floor((Date.now() - startTime) / 1000);
-    gameTimeLeft = Math.max(0, GAME_DURATION_S - elapsedS);
-    if (!gameTimerActive && gameTimeLeft > 0) gameTimerActive = true;
-    updateTimerUI();
-  };
 
   const timerEl = document.createElement('div');
   timerEl.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#fff;font-size:20px;font-weight:bold;padding:4px 18px;border-radius:8px;z-index:200;font-family:sans-serif;pointer-events:none;letter-spacing:2px;';
