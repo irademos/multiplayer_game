@@ -1876,7 +1876,8 @@ async function main() {
             formationIndex: index,
             formationCount: players.length,
             chaserIndex: ballChaserIndex >= 0 ? ballChaserIndex : null,
-            chaserPosition: ballChaserPosition
+            chaserPosition: ballChaserPosition,
+            teammates: players
           });
         } else {
           ai.model.userData.mixer?.update(frameDelta);
