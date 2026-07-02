@@ -19,6 +19,7 @@ const FORMATION_FRONT_MARGIN = 14;
 const FORMATION_ROLE_Z_SPACING = 10;
 const FORMATION_BALL_X_INFLUENCE = 0.35;
 const FORMATION_ANCHOR_BALL_BLEND = 0.45;
+const DRIBBLE_DURATION = 5000;
 
 export class AIPlayer {
   constructor(scene, rapierWorld, { spawnX = 0, spawnZ = 35, targetGoalZ = -50, color = 0xff3322, name = 'Computer' } = {}) {
@@ -34,6 +35,8 @@ export class AIPlayer {
 
     this.lastKickTime = 0;
     this.kickAnimating = false;
+    this.dribbling = false;
+    this.dribbleDecideTime = 0;
 
     const spawnY = getTerrainHeight(spawnX, spawnZ) + GROUND_OFFSET + 0.5;
     this.model.position.set(spawnX, spawnY + PLAYER_MODEL_HEIGHT_OFFSET, spawnZ);
@@ -126,7 +129,7 @@ export class AIPlayer {
     }
   }
 
-  update(delta, soccerBall, { pursueBall = true, formationIndex = 0, formationCount = 1, chaserIndex = null, chaserPosition = null } = {}) {
+  update(delta, soccerBall, { pursueBall = true, formationIndex = 0, formationCount = 1, chaserIndex = null, chaserPosition = null, teammates = [] } = {}) {
     if (!this.body) return;
 
     const mixer = this.model.userData.mixer;
@@ -160,16 +163,50 @@ export class AIPlayer {
       return;
     }
 
-    if (distToBall < KICK_RANGE && now - this.lastKickTime > KICK_COOLDOWN) {
-      // Kick ball toward the target goal, with some random inaccuracy
+    // Decide dribble vs kick when near ball and cooldown is up
+    if (pursueBall && distToBall < KICK_RANGE * 2.5 && now - this.dribbleDecideTime > DRIBBLE_DURATION) {
+      this.dribbling = Math.random() < 0.5;
+      this.dribbleDecideTime = now;
+    }
+
+    if (distToBall < KICK_RANGE && now - this.lastKickTime > KICK_COOLDOWN && !this.dribbling) {
+      // Find a teammate closer to the target goal to pass to
+      const myDistToGoal = Math.abs(myPos.z - this.targetGoalZ);
+      let passTarget = null;
+      let bestDist = Infinity;
+      for (const tm of teammates) {
+        if (!tm.body || tm === this) continue;
+        const tmT = tm.body.translation();
+        const tmDistToGoal = Math.abs(tmT.z - this.targetGoalZ);
+        if (tmDistToGoal < myDistToGoal) {
+          const tmPos = new THREE.Vector3(tmT.x, tmT.y, tmT.z);
+          const d = myPos.distanceTo(tmPos);
+          if (d < bestDist) {
+            bestDist = d;
+            passTarget = tmPos;
+          }
+        }
+      }
+
+      let goalDir;
+      if (passTarget) {
+        // Aim toward the teammate with slight inaccuracy
+        goalDir = new THREE.Vector3(
+          passTarget.x - ballPos.x + (Math.random() * 2 - 1) * KICK_AIM_SPREAD,
+          0.2,
+          passTarget.z - ballPos.z + (Math.random() * 2 - 1) * KICK_AIM_SPREAD
+        ).normalize();
+      } else {
+        // Kick toward goal with slight inaccuracy
+        goalDir = new THREE.Vector3(
+          -ballPos.x * 0.05 + (Math.random() * 2 - 1) * KICK_AIM_SPREAD,
+          0.25 + (Math.random() * 2 - 1) * KICK_AIM_SPREAD * 0.5,
+          this.targetGoalZ < 0 ? -1 : 1
+        ).normalize();
+      }
+
       this.lastKickTime = now;
       this.kickAnimating = true;
-
-      const goalDir = new THREE.Vector3(
-        -ballPos.x * 0.05 + (Math.random() * 2 - 1) * KICK_AIM_SPREAD,
-        0.25 + (Math.random() * 2 - 1) * KICK_AIM_SPREAD * 0.5,
-        this.targetGoalZ < 0 ? -1 : 1
-      ).normalize();
 
       const faceDir = new THREE.Vector3().subVectors(ballPos, myPos);
       faceDir.y = 0;
@@ -180,7 +217,6 @@ export class AIPlayer {
       this._playAction('mmaKick');
       this.body.setLinvel({ x: 0, y: vel.y, z: 0 }, true);
 
-      // Computer kicks register against the ball a bit later than the human player's
       setTimeout(() => {
         soccerBall.body.applyImpulse(
           { x: goalDir.x * KICK_IMPULSE, y: goalDir.y * KICK_IMPULSE, z: goalDir.z * KICK_IMPULSE },
@@ -192,9 +228,21 @@ export class AIPlayer {
       return;
     }
 
-    const targetPos = pursueBall
-      ? this._getBallPressurePosition(ballPos)
-      : this._getFormationPosition(ballPos, formationIndex, formationCount, chaserIndex, chaserPosition);
+    // Dribble: run into the ball to push it toward the goal
+    let targetPos;
+    if (pursueBall && this.dribbling && distToBall < KICK_RANGE * 3) {
+      const dribbleDir = new THREE.Vector3(
+        -ballPos.x * 0.05,
+        0,
+        this.targetGoalZ < 0 ? -1 : 1
+      ).normalize();
+      // Aim to run through the ball from behind
+      targetPos = ballPos.clone().sub(dribbleDir.clone().multiplyScalar(0.4));
+    } else {
+      targetPos = pursueBall
+        ? this._getBallPressurePosition(ballPos)
+        : this._getFormationPosition(ballPos, formationIndex, formationCount, chaserIndex, chaserPosition);
+    }
 
     const moveDir = new THREE.Vector3(targetPos.x - t.x, 0, targetPos.z - t.z);
     const dist = moveDir.length();
