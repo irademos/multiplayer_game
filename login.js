@@ -1,6 +1,6 @@
 // login.js — Arcade-style login/signup with Firebase PIN auth
 import { db } from './firebase-init.js';
-import { ref, get, set, runTransaction } from 'firebase/database';
+import { ref, get, set, remove, runTransaction } from 'firebase/database';
 import { getCookie, setCookie } from './utils.js';
 
 const SESSION_COOKIE = 'arcadeSession';
@@ -293,6 +293,24 @@ function showCharacterSelect(overlay, username, onSuccess) {
       el('char-ok').disabled = false;
     }
   });
+}
+
+export async function changePin(username, oldPin, newPin) {
+  const user = await getUser(username);
+  if (!user) throw new Error('USER_NOT_FOUND');
+  const oldHash = await hashPin(username, oldPin);
+  if (oldHash !== user.pinHash) throw new Error('WRONG_PIN');
+  const newHash = await hashPin(username, newPin);
+  await set(ref(db, `users/${username.toLowerCase()}/pinHash`), newHash);
+}
+
+function sanitizeName(name) {
+  return name.replace(/[.#$[\]/]/g, '_').slice(0, 50);
+}
+
+export async function deleteAccount(username) {
+  await remove(ref(db, `users/${username.toLowerCase()}`));
+  await remove(ref(db, `leaderboard/${sanitizeName(username)}`));
 }
 
 export { getSession, clearSession, getUser, updateUserCharacter, showCharacterSelect, CHARACTERS };

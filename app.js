@@ -6,7 +6,7 @@ import { getTerrainHeight } from './water.js';
 import { Multiplayer, subscribeOnlineCount } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
-import { initLogin, getSession, getUser, updateUserDisplayName, getUserUpgrades, purchaseUpgrade, showCharacterSelect, updateUserCharacter, CHARACTERS } from './login.js';
+import { initLogin, getSession, clearSession, getUser, updateUserDisplayName, getUserUpgrades, purchaseUpgrade, showCharacterSelect, updateUserCharacter, CHARACTERS, changePin, deleteAccount } from './login.js';
 import { spawnProjectile, updateProjectiles } from './projectiles.js';
 import { updateMeleeAttacks } from './melee.js';
 import { LevelLoader } from './levelLoader.js';
@@ -309,6 +309,104 @@ async function main() {
     document.getElementById('btn-shop-close').addEventListener('click', () => {
       document.getElementById('shop-overlay').classList.add('hidden');
       openProfileOverlay();
+    });
+
+    // ── Advanced Settings ────────────────────────────────────────────────────────
+    function bindAdvPinInput(inputId, displayId) {
+      const input = document.getElementById(inputId);
+      const display = document.getElementById(displayId);
+      if (!input || !display) return;
+      display.textContent = '○○○○○○';
+      input.addEventListener('input', () => {
+        input.value = input.value.replace(/\D/g, '').slice(0, 6);
+        const n = input.value.length;
+        display.textContent = '●'.repeat(n) + '○'.repeat(6 - n);
+      });
+    }
+
+    function openAdvancedSettings() {
+      document.getElementById('profile-overlay').classList.add('hidden');
+      ['adv-old-pin', 'adv-new-pin', 'adv-new-pin2'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      ['adv-old-pin-display', 'adv-new-pin-display', 'adv-new-pin2-display'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '○○○○○○';
+      });
+      document.getElementById('adv-pin-error').classList.add('hidden');
+      document.getElementById('adv-pin-ok').classList.add('hidden');
+      document.getElementById('advanced-settings-overlay').classList.remove('hidden');
+    }
+
+    bindAdvPinInput('adv-old-pin', 'adv-old-pin-display');
+    bindAdvPinInput('adv-new-pin', 'adv-new-pin-display');
+    bindAdvPinInput('adv-new-pin2', 'adv-new-pin2-display');
+
+    document.getElementById('btn-adv-settings-open').addEventListener('click', openAdvancedSettings);
+
+    document.getElementById('btn-adv-settings-close').addEventListener('click', () => {
+      document.getElementById('advanced-settings-overlay').classList.add('hidden');
+      openProfileOverlay();
+    });
+
+    document.getElementById('btn-adv-save-pin').addEventListener('click', async () => {
+      const oldPin = document.getElementById('adv-old-pin').value.trim();
+      const newPin = document.getElementById('adv-new-pin').value.trim();
+      const newPin2 = document.getElementById('adv-new-pin2').value.trim();
+      const errEl = document.getElementById('adv-pin-error');
+      const okEl = document.getElementById('adv-pin-ok');
+      errEl.classList.add('hidden');
+      okEl.classList.add('hidden');
+
+      if (!oldPin || oldPin.length < 4) { errEl.textContent = 'ENTER YOUR CURRENT PIN (4-6 DIGITS)'; errEl.classList.remove('hidden'); return; }
+      if (!newPin || newPin.length < 4) { errEl.textContent = 'NEW PIN MUST BE 4-6 DIGITS'; errEl.classList.remove('hidden'); return; }
+      if (newPin !== newPin2) { errEl.textContent = 'NEW PINS DO NOT MATCH'; errEl.classList.remove('hidden'); return; }
+      if (newPin === oldPin) { errEl.textContent = 'NEW PIN SAME AS OLD PIN'; errEl.classList.remove('hidden'); return; }
+
+      const btn = document.getElementById('btn-adv-save-pin');
+      btn.textContent = 'SAVING...';
+      btn.disabled = true;
+      try {
+        await changePin(getSession(), oldPin, newPin);
+        okEl.classList.remove('hidden');
+        ['adv-old-pin', 'adv-new-pin', 'adv-new-pin2'].forEach(id => { document.getElementById(id).value = ''; });
+        ['adv-old-pin-display', 'adv-new-pin-display', 'adv-new-pin2-display'].forEach(id => { document.getElementById(id).textContent = '○○○○○○'; });
+      } catch (err) {
+        if (err.message === 'WRONG_PIN') errEl.textContent = 'CURRENT PIN IS INCORRECT';
+        else errEl.textContent = 'ERROR — CHECK CONNECTION';
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.textContent = 'SAVE NEW PIN';
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('btn-adv-delete-account').addEventListener('click', () => {
+      document.getElementById('delete-error').classList.add('hidden');
+      document.getElementById('delete-confirm-overlay').classList.remove('hidden');
+    });
+
+    document.getElementById('btn-delete-no').addEventListener('click', () => {
+      document.getElementById('delete-confirm-overlay').classList.add('hidden');
+    });
+
+    document.getElementById('btn-delete-yes').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-delete-yes');
+      const errEl = document.getElementById('delete-error');
+      btn.textContent = 'DELETING...';
+      btn.disabled = true;
+      errEl.classList.add('hidden');
+      try {
+        await deleteAccount(getSession());
+        clearSession();
+        window.location.reload();
+      } catch {
+        errEl.textContent = 'ERROR — CHECK CONNECTION';
+        errEl.classList.remove('hidden');
+        btn.textContent = 'YES, DELETE';
+        btn.disabled = false;
+      }
     });
 
     // Preload upgrade state so the trail activates on game start if already owned
