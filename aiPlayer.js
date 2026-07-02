@@ -20,6 +20,10 @@ const FORMATION_ROLE_Z_SPACING = 10;
 const FORMATION_BALL_X_INFLUENCE = 0.35;
 const FORMATION_ANCHOR_BALL_BLEND = 0.45;
 const DRIBBLE_DURATION = 5000;
+const FIELD_X_HALF = 28;   // stay a couple metres from the sideline
+const FIELD_Z_HALF = 48;   // stay a couple metres from the goal-line
+const HUMAN_PASS_PREFER_RANGE = 35; // prefer human teammates within this distance
+const OPPONENT_AVOID_RADIUS = 6;    // dribble-steering repulsion distance
 
 export class AIPlayer {
   constructor(scene, rapierWorld, { spawnX = 0, spawnZ = 35, targetGoalZ = -50, color = 0xff3322, name = 'Computer' } = {}) {
@@ -129,7 +133,7 @@ export class AIPlayer {
     }
   }
 
-  update(delta, soccerBall, { pursueBall = true, formationIndex = 0, formationCount = 1, chaserIndex = null, chaserPosition = null, teammates = [] } = {}) {
+  update(delta, soccerBall, { pursueBall = true, formationIndex = 0, formationCount = 1, chaserIndex = null, chaserPosition = null, teammates = [], opponents = [], humanTeammates = [] } = {}) {
     if (!this.body) return;
 
     const mixer = this.model.userData.mixer;
@@ -170,20 +174,36 @@ export class AIPlayer {
     }
 
     if (distToBall < KICK_RANGE && now - this.lastKickTime > KICK_COOLDOWN && !this.dribbling) {
-      // Find a teammate closer to the target goal to pass to
+      // Find a teammate to pass to — prefer nearby human teammates
       const myDistToGoal = Math.abs(myPos.z - this.targetGoalZ);
       let passTarget = null;
-      let bestDist = Infinity;
-      for (const tm of teammates) {
-        if (!tm.body || tm === this) continue;
-        const tmT = tm.body.translation();
-        const tmDistToGoal = Math.abs(tmT.z - this.targetGoalZ);
-        if (tmDistToGoal < myDistToGoal) {
-          const tmPos = new THREE.Vector3(tmT.x, tmT.y, tmT.z);
-          const d = myPos.distanceTo(tmPos);
-          if (d < bestDist) {
-            bestDist = d;
-            passTarget = tmPos;
+      let bestScore = Infinity;
+
+      // Score human teammates first (lower score = better)
+      for (const ht of humanTeammates) {
+        const htPos = ht instanceof THREE.Vector3 ? ht : new THREE.Vector3(ht.x, ht.y, ht.z);
+        const d = myPos.distanceTo(htPos);
+        if (d > HUMAN_PASS_PREFER_RANGE) continue; // too far, skip human preference
+        const score = d * 0.5; // slight bonus: prefer closer humans
+        if (score < bestScore) {
+          bestScore = score;
+          passTarget = htPos;
+        }
+      }
+
+      // Fall back to AI teammates advanced toward goal if no human found
+      if (!passTarget) {
+        for (const tm of teammates) {
+          if (!tm.body || tm === this) continue;
+          const tmT = tm.body.translation();
+          const tmDistToGoal = Math.abs(tmT.z - this.targetGoalZ);
+          if (tmDistToGoal < myDistToGoal) {
+            const tmPos = new THREE.Vector3(tmT.x, tmT.y, tmT.z);
+            const d = myPos.distanceTo(tmPos);
+            if (d < bestScore) {
+              bestScore = d;
+              passTarget = tmPos;
+            }
           }
         }
       }
@@ -228,16 +248,42 @@ export class AIPlayer {
       return;
     }
 
-    // Dribble: run into the ball to push it toward the goal
+    // Dribble: push ball toward goal while avoiding opponents and staying in bounds
     let targetPos;
     if (pursueBall && this.dribbling && distToBall < KICK_RANGE * 3) {
+      // Base direction: toward opposing goal
       const dribbleDir = new THREE.Vector3(
         -ballPos.x * 0.05,
         0,
         this.targetGoalZ < 0 ? -1 : 1
-      ).normalize();
-      // Aim to run through the ball from behind
-      targetPos = ballPos.clone().sub(dribbleDir.clone().multiplyScalar(0.4));
+      );
+
+      // Steer away from nearby opponents
+      const opponentPositions = opponents.map(op => {
+        if (op && op.x !== undefined) return new THREE.Vector3(op.x, op.y, op.z);
+        if (op?.body) { const ot = op.body.translation(); return new THREE.Vector3(ot.x, ot.y, ot.z); }
+        return null;
+      }).filter(Boolean);
+
+      for (const opPos of opponentPositions) {
+        const toOp = new THREE.Vector3().subVectors(ballPos, opPos);
+        toOp.y = 0;
+        const dist = toOp.length();
+        if (dist < OPPONENT_AVOID_RADIUS && dist > 0.01) {
+          // Push dribble direction away from opponent, weighted by proximity
+          dribbleDir.addScaledVector(toOp.normalize(), (OPPONENT_AVOID_RADIUS - dist) / OPPONENT_AVOID_RADIUS * 1.5);
+        }
+      }
+
+      dribbleDir.normalize();
+
+      // Clamp destination to keep ball in bounds
+      const nextBallX = THREE.MathUtils.clamp(ballPos.x + dribbleDir.x * 2, -FIELD_X_HALF, FIELD_X_HALF);
+      const nextBallZ = THREE.MathUtils.clamp(ballPos.z + dribbleDir.z * 2, -FIELD_Z_HALF, FIELD_Z_HALF);
+      const clampedDir = new THREE.Vector3(nextBallX - ballPos.x, 0, nextBallZ - ballPos.z).normalize();
+
+      // Aim to run through the ball from behind the clamped direction
+      targetPos = ballPos.clone().sub(clampedDir.clone().multiplyScalar(0.4));
     } else {
       targetPos = pursueBall
         ? this._getBallPressurePosition(ballPos)

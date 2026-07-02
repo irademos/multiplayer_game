@@ -2312,13 +2312,33 @@ async function main() {
           return;
         }
         if (multiplayer.isHost) {
+          const opposingTeam = team === 'home' ? 'away' : 'home';
+          const opponentAIs = (aiPlayers[opposingTeam] || []).map(op => op.body ? op.body.translation() : null).filter(Boolean);
+          const opponentHumans = Object.entries(otherPlayers)
+            .filter(([, p]) => p.team === opposingTeam && p.model)
+            .map(([, p]) => p.model.position);
+          if (localPlayerTeam === opposingTeam && playerControls?.body) {
+            opponentAIs.push(playerControls.body.translation());
+          }
+          const opponents = [...opponentAIs, ...opponentHumans];
+
+          const humanTeammates = Object.entries(otherPlayers)
+            .filter(([, p]) => p.team === team && p.model)
+            .map(([, p]) => p.model.position);
+          if (localPlayerTeam === team && playerControls?.body) {
+            const lt = playerControls.body.translation();
+            humanTeammates.push(new THREE.Vector3(lt.x, lt.y, lt.z));
+          }
+
           ai.update(frameDelta, soccerBall, {
             pursueBall: !ballChaser || ai === ballChaser,
             formationIndex: index,
             formationCount: players.length,
             chaserIndex: ballChaserIndex >= 0 ? ballChaserIndex : null,
             chaserPosition: ballChaserPosition,
-            teammates: players
+            teammates: players,
+            opponents,
+            humanTeammates
           });
         } else {
           ai.model.userData.mixer?.update(frameDelta);
