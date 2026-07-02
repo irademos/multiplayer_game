@@ -1984,6 +1984,13 @@ async function main() {
     }
   });
 
+  let followBallCamera = false;
+  const followBallBtn = document.getElementById('follow-ball-button');
+  followBallBtn.addEventListener('click', () => {
+    followBallCamera = !followBallCamera;
+    followBallBtn.classList.toggle('active', followBallCamera);
+  });
+
   const settingsBtn = document.getElementById('settings-button');
   const overlay = document.getElementById('settings-overlay');
   const nameInput = document.getElementById('name-input');
@@ -2191,6 +2198,21 @@ async function main() {
     }
 
 
+
+    if (followBallCamera && playerModel && soccerBall?.body) {
+      const ballRaw = soccerBall.getPosition();
+      const ballPos = new THREE.Vector3(ballRaw.x, ballRaw.y, ballRaw.z);
+      const playerPos = playerModel.position;
+      const toBall = new THREE.Vector3(ballPos.x - playerPos.x, 0, ballPos.z - playerPos.z);
+      const horizDist = toBall.length();
+      const fwd = horizDist > 0.1 ? toBall.clone().normalize() : new THREE.Vector3(0, 0, -1);
+      const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+      playerControls.followBallCameraForward = fwd;
+      playerControls.followBallCameraRight = right;
+    } else {
+      playerControls.followBallCameraForward = null;
+      playerControls.followBallCameraRight = null;
+    }
 
     playerControls.update();
 
@@ -2451,6 +2473,28 @@ async function main() {
 
     _updateConfetti();
     if (playerModel) updateRainbowTrail(playerModel, playerControls?.isMoving ?? false);
+
+    if (followBallCamera && playerModel && soccerBall?.body) {
+      const ballRaw = soccerBall.getPosition();
+      const ballPos = new THREE.Vector3(ballRaw.x, ballRaw.y, ballRaw.z);
+      const playerPos = playerModel.position;
+
+      const toBall = new THREE.Vector3(ballPos.x - playerPos.x, 0, ballPos.z - playerPos.z);
+      const horizDist = toBall.length();
+
+      const camHeight = 7;
+      const camBack = 5;
+      const behindDir = horizDist > 0.1
+        ? toBall.clone().normalize().negate()
+        : new THREE.Vector3(0, 0, 1);
+
+      const camPos = playerPos.clone()
+        .add(behindDir.multiplyScalar(camBack))
+        .add(new THREE.Vector3(0, camHeight, 0));
+      camera.position.copy(camPos);
+      camera.lookAt(ballPos);
+    }
+
     renderer.render(scene, camera);
   }
 

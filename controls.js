@@ -593,11 +593,12 @@ export class PlayerControls {
     if (!movementLocked) {
       if (this.isMobile) {
         if (this.joystickForce > 0.1) {
-          const cameraForward = new THREE.Vector3();
-          this.camera.getWorldDirection(cameraForward);
-          cameraForward.y = 0;
-          cameraForward.normalize();
-          const cameraRight = new THREE.Vector3().crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
+          const cameraForward = this.followBallCameraForward
+            ? this.followBallCameraForward.clone()
+            : (() => { const v = new THREE.Vector3(); this.camera.getWorldDirection(v); v.y = 0; v.normalize(); return v; })();
+          const cameraRight = this.followBallCameraRight
+            ? this.followBallCameraRight.clone()
+            : new THREE.Vector3().crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
           const dx = Math.cos(this.joystickAngle);
           const dz = Math.sin(this.joystickAngle);
           moveDirection.addScaledVector(cameraForward, dz * this.joystickForce);
@@ -611,12 +612,12 @@ export class PlayerControls {
       }
     }
     if (!this.isMobile && moveDirection.length() > 0) moveDirection.normalize();
-    const cameraDirection = new THREE.Vector3();
-    this.camera.getWorldDirection(cameraDirection);
-    cameraDirection.y = 0;
-    cameraDirection.normalize();
-    const rightVector = new THREE.Vector3();
-    rightVector.crossVectors(this.camera.up, cameraDirection).normalize();
+    const cameraDirection = this.followBallCameraForward
+      ? this.followBallCameraForward.clone()
+      : (() => { const v = new THREE.Vector3(); this.camera.getWorldDirection(v); v.y = 0; v.normalize(); return v; })();
+    const rightVector = this.followBallCameraRight
+      ? this.followBallCameraRight.clone()
+      : new THREE.Vector3().crossVectors(this.camera.up, cameraDirection).normalize();
     const movement = new THREE.Vector3();
     if (!this.isMobile) {
       if (moveDirection.z !== 0) movement.add(cameraDirection.clone().multiplyScalar(moveDirection.z));
