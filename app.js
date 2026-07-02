@@ -12,7 +12,7 @@ import { updateMeleeAttacks } from './melee.js';
 import { LevelLoader } from './levelLoader.js';
 import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
-import { recordGoal, getLeaderboard } from './leaderboard.js';
+import { recordGoal, recordGameResult, getPlayerStats, getLeaderboard } from './leaderboard.js';
 import { AudioManager } from './audioManager.js';
 import { AIPlayer } from './aiPlayer.js';
 import { SoccerBall } from './soccerBall.js';
@@ -76,6 +76,67 @@ async function main() {
       unsubCount();
       overlay.classList.add('hidden');
       resolve({ botsOnly: true, botsPerTeam: selectedBotsPerTeam });
+    });
+
+    // Stats button
+    document.getElementById('btn-stats').addEventListener('click', async () => {
+      const statsOverlay = document.getElementById('stats-overlay');
+      const statsContent = document.getElementById('stats-content');
+      statsContent.innerHTML = '<em>Loading...</em>';
+      statsOverlay.classList.remove('hidden');
+      try {
+        const stats = await getPlayerStats(playerName);
+        statsContent.innerHTML = `
+          <div class="stats-row"><span class="stats-label">COINS</span><span class="stats-value stats-coins">🪙 ${stats.coins || 0}</span></div>
+          <div class="stats-row"><span class="stats-label">GOALS</span><span class="stats-value">${stats.goals || 0}</span></div>
+          <div class="stats-row"><span class="stats-label">WINS</span><span class="stats-value stats-win">${stats.wins || 0}</span></div>
+          <div class="stats-row"><span class="stats-label">DRAWS</span><span class="stats-value stats-draw">${stats.draws || 0}</span></div>
+          <div class="stats-row"><span class="stats-label">LOSSES</span><span class="stats-value stats-loss">${stats.losses || 0}</span></div>
+        `;
+      } catch {
+        statsContent.innerHTML = '<em>Failed to load stats.</em>';
+      }
+    });
+
+    document.getElementById('stats-overlay-close').addEventListener('click', () => {
+      document.getElementById('stats-overlay').classList.add('hidden');
+    });
+
+    // Leaderboard button
+    document.getElementById('btn-leaderboard-dash').addEventListener('click', async () => {
+      const lbOverlay = document.getElementById('leaderboard-dash-overlay');
+      const lbContent = document.getElementById('leaderboard-dash-content');
+      lbContent.innerHTML = '<em>Loading...</em>';
+      lbOverlay.classList.remove('hidden');
+      try {
+        const rows = await getLeaderboard();
+        if (rows.length === 0) {
+          lbContent.innerHTML = '<em>No scores yet.</em>';
+        } else {
+          const table = document.createElement('table');
+          table.innerHTML = '<thead><tr><th>#</th><th>Player</th><th>Goals</th><th>W</th><th>D</th><th>L</th></tr></thead>';
+          const tbody = document.createElement('tbody');
+          rows.forEach((row, i) => {
+            const tr = document.createElement('tr');
+            if (i === 0) tr.classList.add('lb-top');
+            [i + 1, row.name, row.goals || 0, row.wins || 0, row.draws || 0, row.losses || 0].forEach(val => {
+              const td = document.createElement('td');
+              td.textContent = val;
+              tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+          });
+          table.appendChild(tbody);
+          lbContent.innerHTML = '';
+          lbContent.appendChild(table);
+        }
+      } catch {
+        lbContent.innerHTML = '<em>Failed to load leaderboard.</em>';
+      }
+    });
+
+    document.getElementById('leaderboard-dash-overlay-close').addEventListener('click', () => {
+      document.getElementById('leaderboard-dash-overlay').classList.add('hidden');
     });
   });
 
@@ -408,6 +469,7 @@ async function main() {
         ballState,
         gameTimeLeft,
         setPieceState,
+        score: { home: score.home, away: score.away },
       });
 
       broadcastTeamAssignments();
@@ -422,6 +484,14 @@ async function main() {
         gameTimeLeft = hostTimeLeft;
         lastTimerTick = performance.now();
         updateTimerUI();
+      }
+
+      // Sync the score from the host so late joiners have the correct state
+      if (data.score && typeof data.score.home === 'number') {
+        score.home = data.score.home;
+        score.away = data.score.away;
+        updateScoreUI();
+        scoreAuthoritative = true;
       }
 
       // Apply team assignment if not yet confirmed
@@ -615,6 +685,8 @@ async function main() {
   let receivedJoinResponse = false;
 
   const score = { home: 0, away: 0 };
+  // True when score reflects authoritative state (host always true; clients set after joinResponse)
+  let scoreAuthoritative = false;
   let goalCooldown = 0;
   let goalCelebrationActive = false;
 
@@ -850,6 +922,8 @@ async function main() {
   let gameTimeLeft = GAME_DURATION_S;
   let gameTimerActive = true;
   let lastTimerTick = performance.now();
+  // Host always has the authoritative score; clients get it synced via joinResponse
+  if (multiplayer.isHost) scoreAuthoritative = true;
 
   const timerEl = document.createElement('div');
   timerEl.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#fff;font-size:20px;font-weight:bold;padding:4px 18px;border-radius:8px;z-index:200;font-family:sans-serif;pointer-events:none;letter-spacing:2px;';
@@ -879,6 +953,16 @@ async function main() {
     const color = winningTeam === 'home' ? '#3399ff' : winningTeam === 'away' ? '#ff3322' : '#ffffff';
     const text = teamLabel ? `${teamLabel} Team Wins!` : "It's a Tie!";
     winMessage.textContent = text;
+
+    // Record game result only when we have the authoritative score (host always does;
+    // clients get it synced via joinResponse — late joiners without a sync are skipped).
+    if (scoreAuthoritative) {
+      let result;
+      if (winningTeam === null) result = 'draw';
+      else if (winningTeam === localPlayerTeam) result = 'win';
+      else result = 'loss';
+      recordGameResult(playerName, result).catch(() => {});
+    }
     winMessage.style.color = color;
     winOverlay.classList.remove('hidden');
 
@@ -1686,11 +1770,15 @@ async function main() {
         return;
       }
       const table = document.createElement('table');
-      table.innerHTML = '<thead><tr><th>#</th><th>Player</th><th>Goals</th></tr></thead>';
+      table.innerHTML = '<thead><tr><th>#</th><th>Player</th><th>Goals</th><th>W</th><th>D</th><th>L</th></tr></thead>';
       const tbody = document.createElement('tbody');
       rows.forEach((row, i) => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${i + 1}</td><td>${row.name}</td><td>${row.goals}</td>`;
+        [i + 1, row.name, row.goals || 0, row.wins || 0, row.draws || 0, row.losses || 0].forEach(val => {
+          const td = document.createElement('td');
+          td.textContent = val;
+          tr.appendChild(td);
+        });
         tbody.appendChild(tr);
       });
       table.appendChild(tbody);

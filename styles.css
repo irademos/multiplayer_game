@@ -1094,3 +1094,78 @@ body {
   padding: 4px 14px;
   line-height: 1;
 }
+
+.dashboard-secondary-btns {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.dashboard-secondary-btn {
+  flex: 1;
+  font-size: clamp(7px, 1.5vw, 9px) !important;
+  padding: 10px 8px !important;
+}
+
+/* ── Stats overlay ── */
+.stats-panel {
+  gap: 20px;
+  min-width: 280px;
+  max-width: 360px;
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  font-family: 'Press Start 2P', monospace;
+}
+
+.stats-label {
+  font-size: clamp(8px, 1.8vw, 10px);
+  color: rgba(255,255,255,0.6);
+  letter-spacing: 0.1em;
+}
+
+.stats-value {
+  font-size: clamp(10px, 2.2vw, 14px);
+  color: #fff;
+}
+
+.stats-coins { color: #ffdd00; }
+.stats-win   { color: #00ff88; }
+.stats-draw  { color: #aaaaaa; }
+.stats-loss  { color: #ff4444; }
+
+/* ── Dashboard Leaderboard overlay ── */
+.leaderboard-dash-panel {
+  gap: 16px;
+  min-width: 320px;
+  max-width: 480px;
+  width: 90vw;
+}
+
+#leaderboard-dash-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.5vw, 9px);
+}
+
+#leaderboard-dash-content th,
+#leaderboard-dash-content td {
+  padding: 6px 8px;
+  text-align: center;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  white-space: nowrap;
+}
+
+#leaderboard-dash-content th { color: rgba(255,220,0,0.8); }
+#leaderboard-dash-content td:nth-child(2) { text-align: left; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+
+#leaderboard-dash-content tr.lb-top td { color: #ffdd00; }
+
