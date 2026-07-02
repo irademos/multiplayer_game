@@ -213,6 +213,10 @@ async function main() {
       const dummyOverlay = document.createElement('div');
       showCharacterSelect(dummyOverlay, sessionUser, ({ character }) => {
         setCookie('characterModel', character, 365);
+        if (character !== characterModel) {
+          characterModel = character;
+          swapPlayerCharacter(characterModel);
+        }
         openProfileOverlay();
       });
     });
@@ -1967,6 +1971,8 @@ async function main() {
     if (selectedModel && selectedModel !== characterModel) {
       characterModel = selectedModel;
       swapPlayerCharacter(characterModel);
+      const sessionUser = getSession();
+      if (sessionUser) updateUserCharacter(sessionUser, characterModel);
     }
     setCookie("characterModel", characterModel);
 
