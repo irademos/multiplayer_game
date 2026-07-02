@@ -6,7 +6,7 @@ import { getTerrainHeight } from './water.js';
 import { Multiplayer, subscribeOnlineCount } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
-import { initLogin } from './login.js';
+import { initLogin, getSession, getUser, updateUserDisplayName, getUserUpgrades, purchaseUpgrade, showCharacterSelect, updateUserCharacter, CHARACTERS } from './login.js';
 import { spawnProjectile, updateProjectiles } from './projectiles.js';
 import { updateMeleeAttacks } from './melee.js';
 import { LevelLoader } from './levelLoader.js';
@@ -138,6 +138,186 @@ async function main() {
     document.getElementById('leaderboard-dash-overlay-close').addEventListener('click', () => {
       document.getElementById('leaderboard-dash-overlay').classList.add('hidden');
     });
+
+    // ── Profile button ──────────────────────────────────────────────────────────
+    let currentPlayerName = playerName;
+
+    function openProfileOverlay() {
+      const profileOverlay = document.getElementById('profile-overlay');
+      document.getElementById('profile-name-input').value = currentPlayerName;
+      document.getElementById('profile-name-error').classList.add('hidden');
+      document.getElementById('profile-name-ok').classList.add('hidden');
+      profileOverlay.classList.remove('hidden');
+    }
+
+    document.getElementById('btn-profile').addEventListener('click', openProfileOverlay);
+
+    document.getElementById('btn-profile-close').addEventListener('click', () => {
+      document.getElementById('profile-overlay').classList.add('hidden');
+    });
+
+    document.getElementById('btn-profile-name-save').addEventListener('click', async () => {
+      const input = document.getElementById('profile-name-input');
+      const errEl = document.getElementById('profile-name-error');
+      const okEl = document.getElementById('profile-name-ok');
+      const newName = input.value.trim();
+      errEl.classList.add('hidden');
+      okEl.classList.add('hidden');
+
+      if (!newName || newName.length < 2) {
+        errEl.textContent = 'NAME TOO SHORT (MIN 2)';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      if (!/^[a-zA-Z0-9_]+$/.test(newName)) {
+        errEl.textContent = 'LETTERS, NUMBERS & _ ONLY';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      if (newName.toLowerCase() === currentPlayerName.toLowerCase()) {
+        errEl.textContent = 'SAME AS CURRENT NAME';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      const btn = document.getElementById('btn-profile-name-save');
+      btn.textContent = 'SAVING...';
+      btn.disabled = true;
+      try {
+        const existing = await getUser(newName);
+        if (existing) {
+          errEl.textContent = 'NAME TAKEN — TRY ANOTHER';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        const sessionUser = getSession();
+        await updateUserDisplayName(sessionUser, newName);
+        currentPlayerName = newName;
+        setCookie('playerName', newName);
+        okEl.classList.remove('hidden');
+      } catch {
+        errEl.textContent = 'ERROR — CHECK CONNECTION';
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.textContent = 'SAVE';
+        btn.disabled = false;
+      }
+    });
+
+    // Change character from profile
+    document.getElementById('btn-profile-char').addEventListener('click', () => {
+      const profileOverlay = document.getElementById('profile-overlay');
+      const sessionUser = getSession();
+      profileOverlay.classList.add('hidden');
+      // Reuse the character select screen; pass a dummy overlay that won't be shown
+      const dummyOverlay = document.createElement('div');
+      showCharacterSelect(dummyOverlay, sessionUser, ({ character }) => {
+        setCookie('characterModel', character, 365);
+        openProfileOverlay();
+      });
+    });
+
+    // ── Shop ────────────────────────────────────────────────────────────────────
+    const SHOP_UPGRADES = [
+      {
+        key: 'rainbowTrail',
+        name: 'RAINBOW TRAIL',
+        desc: 'LEAVES A RAINBOW STREAK\nBEHIND YOU AS YOU RUN!',
+        emoji: '🌈',
+        cost: 100,
+      },
+    ];
+
+    let playerUpgrades = {};
+    let shopCoins = 0;
+
+    async function openShopOverlay() {
+      const shopOverlay = document.getElementById('shop-overlay');
+      shopOverlay.classList.remove('hidden');
+      const coinsEl = document.getElementById('shop-coins-display');
+      const listEl = document.getElementById('shop-items-list');
+      coinsEl.textContent = '🪙 ...';
+      listEl.innerHTML = '<em style="font-family:sans-serif;color:rgba(255,255,255,0.4);font-size:12px">Loading...</em>';
+
+      try {
+        const [stats, upgrades] = await Promise.all([
+          getPlayerStats(currentPlayerName),
+          getUserUpgrades(getSession()),
+        ]);
+        shopCoins = stats.coins || 0;
+        playerUpgrades = upgrades || {};
+        coinsEl.textContent = `🪙 ${shopCoins}`;
+        renderShopItems(listEl);
+      } catch {
+        listEl.innerHTML = '<em style="font-family:sans-serif;color:#ff4444;font-size:12px">Failed to load.</em>';
+      }
+    }
+
+    function renderShopItems(listEl) {
+      listEl.innerHTML = '';
+      SHOP_UPGRADES.forEach(upgrade => {
+        const owned = !!playerUpgrades[upgrade.key];
+        const item = document.createElement('div');
+        item.className = `shop-item${owned ? ' owned-item' : ''} ${upgrade.key === 'rainbowTrail' ? 'rainbow-item' : ''}`;
+        item.innerHTML = `
+          <div class="shop-item-icon">${upgrade.emoji}</div>
+          <div class="shop-item-info">
+            <div class="shop-item-name">${upgrade.name}</div>
+            <div class="shop-item-desc">${upgrade.desc.replace(/\n/g, '<br>')}</div>
+          </div>
+          <div class="shop-item-buy">
+            <button class="arcade-btn btn-shop-buy${owned ? ' owned' : ''}" data-key="${upgrade.key}" ${owned ? 'disabled' : ''}>
+              ${owned ? '✔ OWNED' : `🪙 ${upgrade.cost}`}
+            </button>
+          </div>
+        `;
+        if (!owned) {
+          item.querySelector('.btn-shop-buy').addEventListener('click', async (e) => {
+            const btn = e.currentTarget;
+            btn.textContent = 'BUYING...';
+            btn.disabled = true;
+            try {
+              await purchaseUpgrade(currentPlayerName, upgrade.key, upgrade.cost);
+              playerUpgrades[upgrade.key] = true;
+              shopCoins -= upgrade.cost;
+              document.getElementById('shop-coins-display').textContent = `🪙 ${shopCoins}`;
+              // If rainbow trail was just purchased, activate it
+              if (upgrade.key === 'rainbowTrail') {
+                window.hasRainbowTrail = true;
+              }
+              renderShopItems(listEl);
+            } catch (err) {
+              if (err.message === 'NOT_ENOUGH_COINS') {
+                btn.textContent = 'NOT ENOUGH 🪙';
+                setTimeout(() => { btn.textContent = `🪙 ${upgrade.cost}`; btn.disabled = false; }, 2000);
+              } else {
+                btn.textContent = 'ERROR!';
+                setTimeout(() => { btn.textContent = `🪙 ${upgrade.cost}`; btn.disabled = false; }, 2000);
+              }
+            }
+          });
+        }
+        listEl.appendChild(item);
+      });
+    }
+
+    document.getElementById('btn-open-shop').addEventListener('click', () => {
+      document.getElementById('profile-overlay').classList.add('hidden');
+      openShopOverlay();
+    });
+
+    document.getElementById('btn-shop-close').addEventListener('click', () => {
+      document.getElementById('shop-overlay').classList.add('hidden');
+      openProfileOverlay();
+    });
+
+    // Preload upgrade state so the trail activates on game start if already owned
+    (async () => {
+      try {
+        const upgrades = await getUserUpgrades(getSession());
+        if (upgrades?.rainbowTrail) window.hasRainbowTrail = true;
+      } catch { /* ignore */ }
+    })();
   });
 
   let multiplayer = null;
@@ -670,6 +850,58 @@ async function main() {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87CEEB);
+
+  // ── Rainbow trail system ───────────────────────────────────────────────────
+  const TRAIL_COLORS = [0xff0000, 0xff7700, 0xffee00, 0x00ee00, 0x0088ff, 0x8800ff];
+  const TRAIL_MAX = 24;
+  const TRAIL_INTERVAL = 3; // frames between trail points
+  let trailFrameCount = 0;
+  const trailMeshes = [];
+
+  function spawnTrailParticle(position) {
+    const color = TRAIL_COLORS[trailMeshes.length % TRAIL_COLORS.length];
+    const geo = new THREE.SphereGeometry(0.18, 6, 6);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(position);
+    mesh.position.y += 0.3;
+    mesh.userData.age = 0;
+    scene.add(mesh);
+    trailMeshes.push(mesh);
+    if (trailMeshes.length > TRAIL_MAX) {
+      const old = trailMeshes.shift();
+      scene.remove(old);
+      old.geometry.dispose();
+      old.material.dispose();
+    }
+  }
+
+  function updateRainbowTrail(playerModel, isMoving) {
+    if (!window.hasRainbowTrail) {
+      if (trailMeshes.length > 0) {
+        trailMeshes.forEach(m => { scene.remove(m); m.geometry.dispose(); m.material.dispose(); });
+        trailMeshes.length = 0;
+      }
+      return;
+    }
+    trailFrameCount++;
+    if (isMoving && trailFrameCount % TRAIL_INTERVAL === 0) {
+      spawnTrailParticle(playerModel.position);
+    }
+    for (let i = trailMeshes.length - 1; i >= 0; i--) {
+      const m = trailMeshes[i];
+      m.userData.age += 1;
+      const life = m.userData.age / TRAIL_MAX;
+      m.material.opacity = Math.max(0, 0.9 - life * 0.9);
+      m.scale.setScalar(Math.max(0.1, 1 - life * 0.7));
+      if (m.material.opacity <= 0.01) {
+        scene.remove(m);
+        m.geometry.dispose();
+        m.material.dispose();
+        trailMeshes.splice(i, 1);
+      }
+    }
+  }
 
   createClouds(scene);
 
@@ -2067,6 +2299,7 @@ async function main() {
     breakManager.update();
 
     _updateConfetti();
+    if (playerModel) updateRainbowTrail(playerModel, playerControls?.isMoving ?? false);
     renderer.render(scene, camera);
   }
 

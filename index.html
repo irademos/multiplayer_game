@@ -168,6 +168,7 @@
         <div class="dashboard-secondary-btns">
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-stats">📊 MY STATS</button>
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-leaderboard-dash">🏆 LEADERBOARD</button>
+          <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-profile">👤 PROFILE</button>
         </div>
       </div>
     </div>
@@ -188,6 +189,45 @@
       <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">🏆 LEADERBOARD</div>
       <div id="leaderboard-dash-content"><em>Loading...</em></div>
       <button class="arcade-btn arcade-btn-dim" id="leaderboard-dash-overlay-close">◀ BACK</button>
+    </div>
+  </div>
+
+  <!-- Profile Overlay -->
+  <div id="profile-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel profile-panel">
+      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">👤 PROFILE</div>
+      <div class="profile-section">
+        <div class="profile-label">DISPLAY NAME</div>
+        <div class="profile-name-row">
+          <input class="arcade-input" id="profile-name-input" type="text" maxlength="20" autocomplete="off" spellcheck="false" />
+          <button class="arcade-btn arcade-btn-green profile-name-save" id="btn-profile-name-save">SAVE</button>
+        </div>
+        <div class="arcade-error hidden" id="profile-name-error"></div>
+        <div class="profile-name-ok hidden" id="profile-name-ok">✔ NAME UPDATED!</div>
+      </div>
+      <div class="profile-section">
+        <div class="profile-label">CHARACTER</div>
+        <button class="arcade-btn arcade-btn-dim profile-char-btn" id="btn-profile-char">CHANGE CHARACTER</button>
+      </div>
+      <div class="profile-section">
+        <button class="arcade-btn arcade-btn-yellow profile-shop-btn" id="btn-open-shop">🛒 SHOP</button>
+      </div>
+      <button class="arcade-btn arcade-btn-dim" id="btn-profile-close">◀ BACK</button>
+    </div>
+  </div>
+
+  <!-- Shop Overlay -->
+  <div id="shop-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel shop-panel">
+      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">🛒 SHOP</div>
+      <div class="shop-coins-row">
+        <span class="shop-coins-label">YOUR COINS:</span>
+        <span class="shop-coins-val" id="shop-coins-display">🪙 ...</span>
+      </div>
+      <div class="shop-items" id="shop-items-list">
+        <!-- populated by JS -->
+      </div>
+      <button class="arcade-btn arcade-btn-dim" id="btn-shop-close">◀ BACK</button>
     </div>
   </div>
 

@@ -1169,3 +1169,186 @@ body {
 
 #leaderboard-dash-content tr.lb-top td { color: #ffdd00; }
 
+/* ════════════════════════════════════════════════════════
+   PROFILE OVERLAY
+   ════════════════════════════════════════════════════════ */
+
+.profile-panel {
+  gap: 16px;
+  min-width: 300px;
+  max-width: 380px;
+  width: 90vw;
+}
+
+.profile-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.profile-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 0.12em;
+  align-self: flex-start;
+}
+
+.profile-name-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.arcade-input {
+  flex: 1;
+  background: rgba(255,255,255,0.07);
+  border: 2px solid rgba(255,255,255,0.25);
+  border-radius: 4px;
+  color: #fff;
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(8px, 1.8vw, 11px);
+  padding: 8px 10px;
+  outline: none;
+  min-width: 0;
+}
+
+.arcade-input:focus {
+  border-color: rgba(0, 200, 255, 0.6);
+  box-shadow: 0 0 6px rgba(0, 200, 255, 0.3);
+}
+
+.profile-name-save {
+  font-size: clamp(7px, 1.5vw, 9px) !important;
+  padding: 8px 12px !important;
+  white-space: nowrap;
+}
+
+.profile-name-ok {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: #00ff88;
+  letter-spacing: 0.1em;
+}
+
+.profile-char-btn,
+.profile-shop-btn {
+  width: 100%;
+  font-size: clamp(9px, 2vw, 11px) !important;
+  padding: 12px 16px !important;
+}
+
+.profile-shop-btn {
+  background: linear-gradient(135deg, #ffaa00, #ff6600) !important;
+  border-color: #ffaa00 !important;
+  color: #000 !important;
+}
+
+/* ════════════════════════════════════════════════════════
+   SHOP OVERLAY
+   ════════════════════════════════════════════════════════ */
+
+.shop-panel {
+  gap: 16px;
+  min-width: 300px;
+  max-width: 400px;
+  width: 90vw;
+}
+
+.shop-coins-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-family: 'Press Start 2P', monospace;
+  padding: 8px 4px;
+  border-bottom: 2px solid rgba(255,220,0,0.3);
+}
+
+.shop-coins-label {
+  font-size: 8px;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 0.1em;
+}
+
+.shop-coins-val {
+  font-size: clamp(10px, 2.2vw, 13px);
+  color: #ffdd00;
+}
+
+.shop-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.shop-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255,255,255,0.05);
+  border: 2px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  padding: 12px 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.shop-item-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.shop-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shop-item-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(8px, 1.8vw, 10px);
+  color: #fff;
+  letter-spacing: 0.08em;
+}
+
+.shop-item-desc {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: rgba(255,255,255,0.45);
+  line-height: 1.5;
+}
+
+.shop-item-buy {
+  flex-shrink: 0;
+}
+
+.btn-shop-buy {
+  font-size: clamp(7px, 1.5vw, 9px) !important;
+  padding: 8px 12px !important;
+  white-space: nowrap;
+}
+
+.btn-shop-buy.owned {
+  background: rgba(0,255,136,0.15) !important;
+  border-color: #00ff88 !important;
+  color: #00ff88 !important;
+  cursor: default;
+}
+
+.shop-item.owned-item {
+  border-color: rgba(0,255,136,0.3);
+}
+
+/* Rainbow trail item special border */
+.shop-item.rainbow-item {
+  border-image: linear-gradient(90deg, #ff0000, #ff7700, #ffff00, #00ff00, #0000ff, #8b00ff) 1;
+  border-image-slice: 1;
+}
+
