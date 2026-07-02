@@ -212,7 +212,61 @@
       <div class="profile-section">
         <button class="arcade-btn arcade-btn-yellow profile-shop-btn" id="btn-open-shop">🛒 SHOP</button>
       </div>
+      <div class="profile-section">
+        <button class="arcade-btn arcade-btn-dim" id="btn-adv-settings-open">⚙ ADVANCED SETTINGS</button>
+      </div>
       <button class="arcade-btn arcade-btn-dim" id="btn-profile-close">◀ BACK</button>
+    </div>
+  </div>
+
+  <!-- Advanced Settings Overlay -->
+  <div id="advanced-settings-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel adv-settings-panel">
+      <div class="arcade-title" style="font-size: clamp(12px,2.5vw,18px)">⚙️ ADVANCED SETTINGS</div>
+
+      <!-- Change PIN -->
+      <div class="adv-settings-section">
+        <div class="profile-label">CHANGE PIN</div>
+        <div class="adv-pin-field">
+          <label class="adv-pin-label" for="adv-old-pin">CURRENT PIN</label>
+          <label for="adv-old-pin" class="pin-dot-display" id="adv-old-pin-display">○○○○○○</label>
+          <input class="pin-hidden-input" id="adv-old-pin" type="tel" maxlength="6" inputmode="numeric" autocomplete="off" />
+        </div>
+        <div class="adv-pin-field">
+          <label class="adv-pin-label" for="adv-new-pin">NEW PIN</label>
+          <label for="adv-new-pin" class="pin-dot-display" id="adv-new-pin-display">○○○○○○</label>
+          <input class="pin-hidden-input" id="adv-new-pin" type="tel" maxlength="6" inputmode="numeric" autocomplete="off" />
+        </div>
+        <div class="adv-pin-field">
+          <label class="adv-pin-label" for="adv-new-pin2">CONFIRM NEW PIN</label>
+          <label for="adv-new-pin2" class="pin-dot-display" id="adv-new-pin2-display">○○○○○○</label>
+          <input class="pin-hidden-input" id="adv-new-pin2" type="tel" maxlength="6" inputmode="numeric" autocomplete="off" />
+        </div>
+        <div class="arcade-error hidden" id="adv-pin-error"></div>
+        <div class="profile-name-ok hidden" id="adv-pin-ok">✔ PIN CHANGED!</div>
+        <button class="arcade-btn arcade-btn-green" id="btn-adv-save-pin">SAVE NEW PIN</button>
+      </div>
+
+      <!-- Delete Account -->
+      <div class="adv-settings-section adv-danger-section">
+        <div class="profile-label" style="color:#ff4444">DANGER ZONE</div>
+        <button class="arcade-btn arcade-btn-red" id="btn-adv-delete-account">🗑 DELETE ACCOUNT</button>
+      </div>
+
+      <button class="arcade-btn arcade-btn-dim" id="btn-adv-settings-close">◀ BACK</button>
+    </div>
+  </div>
+
+  <!-- Delete Account Confirm Popup -->
+  <div id="delete-confirm-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel delete-confirm-panel">
+      <div class="arcade-title" style="font-size:clamp(12px,2.5vw,16px);color:#ff4444">⚠ DELETE ACCOUNT?</div>
+      <div class="delete-confirm-msg">THIS WILL PERMANENTLY DELETE YOUR ACCOUNT, STATS, AND ALL DATA.<br><br>ARE YOU SURE?</div>
+      <div class="delete-confirm-btns">
+        <button class="arcade-btn arcade-btn-red" id="btn-delete-yes">YES, DELETE</button>
+        <button class="arcade-btn arcade-btn-green" id="btn-delete-no">NO, CANCEL</button>
+      </div>
+      <div class="arcade-error hidden" id="delete-error"></div>
     </div>
   </div>
 

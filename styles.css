@@ -1249,6 +1249,107 @@ body {
 }
 
 /* ════════════════════════════════════════════════════════
+   ADVANCED SETTINGS OVERLAY
+   ════════════════════════════════════════════════════════ */
+
+.adv-settings-panel {
+  gap: 16px;
+  min-width: 300px;
+  max-width: 400px;
+  width: 90vw;
+}
+
+.adv-settings-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.adv-danger-section {
+  border-bottom: 1px solid rgba(255, 60, 60, 0.2);
+}
+
+.adv-pin-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.adv-pin-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.1em;
+  align-self: flex-start;
+}
+
+.pin-dot-display {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 18px;
+  letter-spacing: 6px;
+  color: #00c8ff;
+  cursor: pointer;
+  padding: 8px 12px;
+  background: rgba(0,200,255,0.07);
+  border: 2px solid rgba(0,200,255,0.25);
+  border-radius: 6px;
+  width: 100%;
+  text-align: center;
+  position: relative;
+}
+
+.pin-hidden-input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  border: none;
+  padding: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+.adv-pin-field:has(input:focus) .pin-dot-display {
+  border-color: rgba(0,200,255,0.7);
+  box-shadow: 0 0 8px rgba(0,200,255,0.3);
+}
+
+/* Delete Confirm Popup */
+.delete-confirm-panel {
+  gap: 20px;
+  min-width: 280px;
+  max-width: 360px;
+  width: 90vw;
+}
+
+.delete-confirm-msg {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(7px, 1.6vw, 9px);
+  color: rgba(255,255,255,0.7);
+  line-height: 1.8;
+  text-align: center;
+}
+
+.delete-confirm-btns {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.delete-confirm-btns .arcade-btn {
+  flex: 1;
+  min-width: 100px;
+  font-size: clamp(8px, 1.8vw, 10px) !important;
+}
+
+/* ════════════════════════════════════════════════════════
    SHOP OVERLAY
    ════════════════════════════════════════════════════════ */
 
