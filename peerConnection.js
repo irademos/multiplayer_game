@@ -5,7 +5,8 @@ import {
   remove,
   onValue,
   get,
-  onDisconnect
+  onDisconnect,
+  serverTimestamp
 } from 'firebase/database';
 
 const MAX_ROOM_PLAYERS = 12;
@@ -40,8 +41,10 @@ export class Multiplayer {
     this.currentHostId = null;
     this.onHostChange = null;
     this.onPeerDisconnect = null;
+    this.onPeerConnected = null;
     this.onConnectionError = null;
     this.onPingUpdate = null;
+    this.onGameStartTime = null;
     this.lastPingMs = null;
     this.lastPingAt = null;
     this.lastError = null;
@@ -105,6 +108,8 @@ export class Multiplayer {
       let assignedRoom = null;
       let roomIndex = 0;
 
+      let isNewRoom = false;
+
       if (this.botsOnly) {
         // Private bots-only room: find a unique unused room name so no public players can join
         const existingRoomNames = snapshot.exists() ? Object.keys(snapshot.val()) : [];
@@ -113,6 +118,7 @@ export class Multiplayer {
           botRoomIndex++;
         }
         assignedRoom = `bot-room-${botRoomIndex}`;
+        isNewRoom = true;
       } else {
         if (snapshot.exists()) {
           const rooms = snapshot.val();
@@ -138,6 +144,7 @@ export class Multiplayer {
 
         if (!assignedRoom) {
           assignedRoom = `room-${roomIndex}`;
+          isNewRoom = true;
         }
       }
 
@@ -145,6 +152,18 @@ export class Multiplayer {
       this.roomId = assignedRoom;
       await remove(roomRef);
       await set(roomRef, true);
+
+      // Store server-authoritative game start time when creating a new room so
+      // late-joining players can sync their countdown timer correctly.
+      const startTimeRef = ref(db, `rooms/${assignedRoom}/startTime`);
+      if (isNewRoom) {
+        await set(startTimeRef, serverTimestamp());
+      }
+      const startTimeSnap = await get(startTimeRef);
+      const gameStartTime = startTimeSnap.val();
+      if (typeof this.onGameStartTime === 'function') {
+        this.onGameStartTime(gameStartTime);
+      }
 
       const peerRef = ref(db, `peers/${id}`);
       await remove(peerRef);
@@ -349,6 +368,10 @@ export class Multiplayer {
       conn.on('data', data => this.handlePeerData(conn, data));
       this.runOneShotConnectionDiagnostics(conn);
       this.startPingLoop(conn);
+
+      if (typeof this.onPeerConnected === 'function') {
+        this.onPeerConnected(conn.peer);
+      }
     });
   
     conn.on('close', () => {
