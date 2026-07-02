@@ -1,6 +1,6 @@
 // login.js — Arcade-style login/signup with Firebase PIN auth
 import { db } from './firebase-init.js';
-import { ref, get, set } from 'firebase/database';
+import { ref, get, set, runTransaction } from 'firebase/database';
 import { getCookie, setCookie } from './utils.js';
 
 const SESSION_COOKIE = 'arcadeSession';
@@ -29,6 +29,32 @@ async function saveUser(username, pinHash, character) {
 async function updateUserCharacter(username, character) {
   const userRef = ref(db, `users/${username.toLowerCase()}/character`);
   await set(userRef, character);
+}
+
+export async function updateUserDisplayName(username, newDisplayName) {
+  const userRef = ref(db, `users/${username.toLowerCase()}/displayName`);
+  await set(userRef, newDisplayName);
+}
+
+export async function getUserUpgrades(username) {
+  const snap = await get(ref(db, `users/${username.toLowerCase()}/upgrades`));
+  return snap.exists() ? snap.val() : {};
+}
+
+export async function purchaseUpgrade(playerName, upgradeKey, coinCost) {
+  const sanitize = name => name.replace(/[.#$[\]/]/g, '_').slice(0, 50);
+  const lbRef = ref(db, `leaderboard/${sanitize(playerName)}`);
+  let success = false;
+  await runTransaction(lbRef, (current) => {
+    if (!current) return current;
+    const coins = current.coins || 0;
+    if (coins < coinCost) { success = false; return current; }
+    success = true;
+    return { ...current, coins: coins - coinCost };
+  });
+  if (!success) throw new Error('NOT_ENOUGH_COINS');
+  const username = getSession();
+  await set(ref(db, `users/${username.toLowerCase()}/upgrades/${upgradeKey}`), true);
 }
 
 function saveSession(username) {
@@ -269,4 +295,4 @@ function showCharacterSelect(overlay, username, onSuccess) {
   });
 }
 
-export { getSession, clearSession, getUser, updateUserCharacter };
+export { getSession, clearSession, getUser, updateUserCharacter, showCharacterSelect, CHARACTERS };
