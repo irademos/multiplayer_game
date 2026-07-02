@@ -253,6 +253,7 @@ export function createPlayerModel(
             mutantPunch: 'Mutant Punch.fbx',
             mmaKick: 'Mma Kick.fbx',
             runningKick: 'Stand To Roll.fbx',
+            slide: 'Female Laying Pose.fbx',
             hurricaneKick: 'Hurricane Kick.fbx',
             projectile: 'Projectile.fbx',
             die: 'Dying.fbx',

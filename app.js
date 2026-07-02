@@ -344,7 +344,7 @@ async function main() {
         actions[current]?.fadeOut(0.2);
         actions[data.action]?.reset().fadeIn(0.2).play();
         player.model.userData.currentAction = data.action;
-        if (['mutantPunch','hurricaneKick','mmaKick'].includes(data.action)) {
+        if (['mutantPunch','hurricaneKick','mmaKick','slide'].includes(data.action)) {
           player.model.userData.attack = {
             name: data.action,
             start: Date.now(),
@@ -1614,7 +1614,7 @@ async function main() {
   if (rollButton) {
     const doRoll = (e) => {
       e.preventDefault();
-      if (!playerControls.enabled || playerControls.isInWater) return;
+      if (!playerControls.enabled || playerControls.isInWater || playerControls.currentSpecialAction) return;
       playerControls.slideMomentum.copy(playerControls.lastMoveDirection).multiplyScalar(1.4);
       playerControls.playAction('runningKick');
       playerControls.audioManager?.playAttack();

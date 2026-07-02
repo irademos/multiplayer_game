@@ -32,6 +32,7 @@ export class PlayerControls {
     this.isKnocked = false;
     this.knockbackRestYaw = 0;
     this.slideMomentum = new THREE.Vector3();
+    this.slideMomentumDecay = 0.99;
     this.lastMoveDirection = new THREE.Vector3();
     this.grabbedTarget = null;
     this.isGrabbed = false;
@@ -309,6 +310,27 @@ export class PlayerControls {
         event.preventDefault();
       });
     }
+
+    // Slide button
+    if (!document.getElementById('slide-button')) {
+      const slideButton = document.createElement('button');
+      slideButton.id = 'slide-button';
+      slideButton.className = 'action-button mobile-action';
+      slideButton.innerText = 'SLIDE';
+      actionContainer.appendChild(slideButton);
+      slideButton.addEventListener('touchstart', (event) => {
+        if (!this.enabled || this.isInWater || this.currentSpecialAction) return;
+        const vel = this.body?.linvel();
+        const hSpeed = vel ? Math.hypot(vel.x, vel.z) : 0;
+        const speedRatio = Math.min(hSpeed / SPEED, 1);
+        const magnitude = 0.8 + speedRatio * 1.8;
+        this.slideMomentumDecay = 0.880 + speedRatio * 0.060;
+        this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(magnitude);
+        this.playAction('slide');
+        this.audioManager?.playAttack();
+        event.preventDefault();
+      });
+    }
   }
   
   setupEventListeners() {
@@ -367,6 +389,16 @@ export class PlayerControls {
         this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(1.4);
         this.playAction('runningKick');
         this.audioManager?.playAttack();
+      } else if (key === 'z') {
+        if (this.isInWater || this.currentSpecialAction) return;
+        const vel = this.body?.linvel();
+        const hSpeed = vel ? Math.hypot(vel.x, vel.z) : 0;
+        const speedRatio = Math.min(hSpeed / SPEED, 1);
+        const magnitude = 0.8 + speedRatio * 1.8;
+        this.slideMomentumDecay = 0.880 + speedRatio * 0.060;
+        this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(magnitude);
+        this.playAction('slide');
+        this.audioManager?.playAttack();
       } else if (key === 'g') {
         if (this.grabbedTarget) {
           this.releaseGrab();
@@ -418,6 +450,7 @@ export class PlayerControls {
     if (!this.playerModel) return;
     const actions = this.playerModel.userData.actions;
     if (!actions || !actions[actionName]) return;
+    if (this.currentSpecialAction === 'slide' && actionName !== 'slide') return;
 
     if (this.runningKickTimer) {
       clearTimeout(this.runningKickTimer);
@@ -436,7 +469,7 @@ export class PlayerControls {
     this.playerModel.userData.currentAction = actionName;
     this.currentSpecialAction = actionName;
 
-    if (["mutantPunch", "hurricaneKick", "mmaKick", "runningKick"].includes(actionName)) {
+    if (["mutantPunch", "hurricaneKick", "mmaKick", "runningKick", "slide"].includes(actionName)) {
       this.playerModel.userData.attack = {
         name: actionName,
         start: Date.now(),
@@ -444,14 +477,16 @@ export class PlayerControls {
       };
     }
 
-    const mixer = this.playerModel.userData.mixer;
-    const onFinished = (e) => {
-      if (e.action === action) {
-        mixer.removeEventListener("finished", onFinished);
-        this.currentSpecialAction = null;
-      }
-    };
-    mixer.addEventListener("finished", onFinished);
+    if (actionName !== 'slide') {
+      const mixer = this.playerModel.userData.mixer;
+      const onFinished = (e) => {
+        if (e.action === action) {
+          mixer.removeEventListener("finished", onFinished);
+          this.currentSpecialAction = null;
+        }
+      };
+      mixer.addEventListener("finished", onFinished);
+    }
   }
 
   applyKnockback(impulse) {
@@ -554,7 +589,7 @@ export class PlayerControls {
       t.y = groundExpectedY;
     }
     const moveDirection = new THREE.Vector3(0, 0, 0);
-    const movementLocked = ['mutantPunch', 'mmaKick', 'runningKick'].includes(this.currentSpecialAction);
+    const movementLocked = ['mutantPunch', 'mmaKick', 'runningKick', 'slide'].includes(this.currentSpecialAction);
     if (!movementLocked) {
       if (this.isMobile) {
         if (this.joystickForce > 0.1) {
@@ -592,8 +627,20 @@ export class PlayerControls {
     }
     if (movementLocked) {
       movement.copy(this.slideMomentum);
-      this.slideMomentum.multiplyScalar(0.99);
-      if (this.slideMomentum.length() < 0.01) this.slideMomentum.set(0, 0, 0);
+      const decay = this.currentSpecialAction === 'slide' ? this.slideMomentumDecay : 0.99;
+      this.slideMomentum.multiplyScalar(decay);
+      if (this.slideMomentum.length() < 0.01) {
+        this.slideMomentum.set(0, 0, 0);
+        if (this.currentSpecialAction === 'slide') {
+          this.currentSpecialAction = null;
+          const actions = this.playerModel?.userData?.actions;
+          if (actions) {
+            actions.slide?.fadeOut(0.2);
+            actions.idle?.reset().fadeIn(0.2).play();
+            if (this.playerModel) this.playerModel.userData.currentAction = 'idle';
+          }
+        }
+      }
     } else if (movement.length() > 0) {
       this.lastMoveDirection.copy(movement);
     }
@@ -628,6 +675,7 @@ export class PlayerControls {
       let yawAngle = this.playerModel.rotation.y;
       if (movement.length() > 0) {
         yawAngle = Math.atan2(movement.x, movement.z);
+        if (this.currentSpecialAction === 'slide') yawAngle -= Math.PI / 2;
         // this.playerModel.rotation.y = yawAngle;
       }
 
