@@ -13,7 +13,7 @@ const PADDLE_COOLDOWN = 0.25;
 const MOUNT_LOCAL_POSITION = new THREE.Vector3(0, 0.15, 0);
 const MOUNT_LOCAL_ROTATION = new THREE.Euler(-Math.PI/2, Math.PI / 2, 0, 'YXZ');
 const UNIT_SCALE = new THREE.Vector3(1, 1, 1);
-const IDLE_ACTION = 'swim';
+const IDLE_ACTION = 'sit';
 const LEFT_PADDLE_ACTION = 'paddleLeft';
 const RIGHT_PADDLE_ACTION = 'paddleRight';
 
@@ -26,11 +26,6 @@ const TEMP_FORWARD = new THREE.Vector3();
 const TEMP_RIGHT = new THREE.Vector3();
 const TEMP_EULER = new THREE.Euler();
 
-// Extra rotation you want the mesh to have relative to the player (in radians)
-      // const HOLDING_ROT_OFFSET_EULER = new THREE.Euler(Math.PI, Math.PI/2, Math.PI/2, 'YXZ');         // adjust if you need a tilt when holding
-      // const SWIM_ROT_OFFSET_EULER    = new THREE.Euler(-Math.PI / 2, Math.PI, 0, 'YXZ'); // e.g., lay flat when swimming
-// const HOLDING_OFFSET = new THREE.Vector3(0.1, -0.5, -1.2); // right/forward/up relative to player
-//       const SWIM_OFFSET    = new THREE.Vector3(-0.55, -0.1, -1.1); // under/forward while swimming
 export class Surfboard {
   constructor(scene) {
     this.scene = scene;
