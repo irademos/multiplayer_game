@@ -46,8 +46,9 @@ async function main() {
   });
 
   // ── Dashboard — choose Play Online vs Play Bots ─────────────────────────────
-  const { botsOnly, botsPerTeam } = await new Promise(resolve => {
+  const { botsOnly, botsPerTeam, ballSizeMultiplier, gravityMultiplier } = await new Promise(resolve => {
     const overlay = document.getElementById('dashboard-overlay');
+    const settingsOverlay = document.getElementById('bots-settings-overlay');
     const onlineNumEl = document.getElementById('dashboard-online-num');
     overlay.classList.remove('hidden');
 
@@ -55,27 +56,64 @@ async function main() {
       if (onlineNumEl) onlineNumEl.textContent = count;
     });
 
-    // Bot team size picker (1–5 bots per team)
-    let selectedBotsPerTeam = 3;
-    const sizeDisplay = document.getElementById('bots-size-display');
-    const updateSizeDisplay = () => { sizeDisplay.textContent = selectedBotsPerTeam; };
+    // Bot settings — load from cookies
+    let selectedBotsPerTeam = parseInt(getCookie('botsPerTeam') || '3', 10);
+    let selectedBallSize = parseFloat(getCookie('ballSizeMultiplier') || '1.0');
+    let selectedGravity = parseFloat(getCookie('gravityMultiplier') || '1.0');
+
+    const botsDisplay = document.getElementById('bots-size-display');
+    const ballDisplay = document.getElementById('ball-size-display');
+    const gravDisplay = document.getElementById('gravity-display');
+
+    const refreshDisplays = () => {
+      botsDisplay.textContent = selectedBotsPerTeam;
+      ballDisplay.textContent = selectedBallSize.toFixed(1);
+      gravDisplay.textContent = selectedGravity.toFixed(1);
+    };
+    refreshDisplays();
+
     document.getElementById('bots-size-dec').addEventListener('click', () => {
-      if (selectedBotsPerTeam > 1) { selectedBotsPerTeam--; updateSizeDisplay(); }
+      if (selectedBotsPerTeam > 1) { selectedBotsPerTeam--; refreshDisplays(); }
     });
     document.getElementById('bots-size-inc').addEventListener('click', () => {
-      if (selectedBotsPerTeam < 5) { selectedBotsPerTeam++; updateSizeDisplay(); }
+      if (selectedBotsPerTeam < 5) { selectedBotsPerTeam++; refreshDisplays(); }
+    });
+    document.getElementById('ball-size-dec').addEventListener('click', () => {
+      if (selectedBallSize > 0.5) { selectedBallSize = Math.round((selectedBallSize - 0.1) * 10) / 10; refreshDisplays(); }
+    });
+    document.getElementById('ball-size-inc').addEventListener('click', () => {
+      if (selectedBallSize < 3.0) { selectedBallSize = Math.round((selectedBallSize + 0.1) * 10) / 10; refreshDisplays(); }
+    });
+    document.getElementById('gravity-dec').addEventListener('click', () => {
+      if (selectedGravity > 0.1) { selectedGravity = Math.round((selectedGravity - 0.1) * 10) / 10; refreshDisplays(); }
+    });
+    document.getElementById('gravity-inc').addEventListener('click', () => {
+      if (selectedGravity < 2.0) { selectedGravity = Math.round((selectedGravity + 0.1) * 10) / 10; refreshDisplays(); }
     });
 
     document.getElementById('btn-play-online').addEventListener('click', () => {
       unsubCount();
       overlay.classList.add('hidden');
-      resolve({ botsOnly: false, botsPerTeam: selectedBotsPerTeam });
+      resolve({ botsOnly: false, botsPerTeam: selectedBotsPerTeam, ballSizeMultiplier: 1.0, gravityMultiplier: 1.0 });
     });
 
     document.getElementById('btn-play-bots').addEventListener('click', () => {
-      unsubCount();
       overlay.classList.add('hidden');
-      resolve({ botsOnly: true, botsPerTeam: selectedBotsPerTeam });
+      settingsOverlay.classList.remove('hidden');
+    });
+
+    document.getElementById('bots-settings-back').addEventListener('click', () => {
+      settingsOverlay.classList.add('hidden');
+      overlay.classList.remove('hidden');
+    });
+
+    document.getElementById('bots-settings-start').addEventListener('click', () => {
+      setCookie('botsPerTeam', String(selectedBotsPerTeam));
+      setCookie('ballSizeMultiplier', selectedBallSize.toFixed(1));
+      setCookie('gravityMultiplier', selectedGravity.toFixed(1));
+      unsubCount();
+      settingsOverlay.classList.add('hidden');
+      resolve({ botsOnly: true, botsPerTeam: selectedBotsPerTeam, ballSizeMultiplier: selectedBallSize, gravityMultiplier: selectedGravity });
     });
 
     // Stats button
@@ -1528,7 +1566,7 @@ async function main() {
 
   // --- RAPIER INIT ---
   await RAPIER.init();
-  rapierWorld = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+  rapierWorld = new RAPIER.World({ x: 0, y: -9.81 * gravityMultiplier, z: 0 });
   window.rapierWorld = rapierWorld;
   window.rbToMesh = rbToMesh;
   breakManager.setWorld(rapierWorld);
@@ -1550,7 +1588,7 @@ async function main() {
   setPieceManager = new SetPieceManager(scene);
 
   soccerBall = new SoccerBall(scene, rapierWorld, rbToMesh);
-  soccerBall.create(0, 1, 0);
+  soccerBall.create(0, 1, 0, ballSizeMultiplier);
   registerNetworkedEntity('soccerball', {
     getState: () => {
       if (!soccerBall?.body) return null;

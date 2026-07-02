@@ -13,7 +13,8 @@ export class SoccerBall {
     this.lastTouchedTeam = null; // 'home' | 'away' | null
   }
 
-  create(x = 0, y = 1, z = 0) {
+  create(x = 0, y = 1, z = 0, sizeMultiplier = 1.0) {
+    const ballRadius = BALL_RADIUS * sizeMultiplier;
     // Build a simple black-and-white soccer ball using canvas texture
     const canvas = document.createElement('canvas');
     canvas.width = 256;
@@ -41,12 +42,14 @@ export class SoccerBall {
     }
     const texture = new THREE.CanvasTexture(canvas);
 
-    const geo = new THREE.SphereGeometry(BALL_RADIUS, 16, 16);
+    const geo = new THREE.SphereGeometry(ballRadius, 16, 16);
     const mat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6 });
     this.mesh = new THREE.Mesh(geo, mat);
     this.mesh.castShadow = true;
     this.mesh.position.set(x, y, z);
     this.scene.add(this.mesh);
+
+    this.ballRadius = ballRadius;
 
     // Dynamic physics body
     const rbDesc = RAPIER.RigidBodyDesc.dynamic()
@@ -56,7 +59,7 @@ export class SoccerBall {
       .setCcdEnabled(true);
     this.body = this.rapierWorld.createRigidBody(rbDesc);
 
-    const colDesc = RAPIER.ColliderDesc.ball(BALL_RADIUS)
+    const colDesc = RAPIER.ColliderDesc.ball(ballRadius)
       .setRestitution(0.7)
       .setFriction(0.4)
       .setDensity(0.5);
@@ -101,7 +104,7 @@ export class SoccerBall {
     const dy = t.y - closestY;
     const dz = t.z - playerPos.z;
     const distSq = dx * dx + dy * dy + dz * dz;
-    const minDist = BALL_RADIUS + playerRadius;
+    const minDist = (this.ballRadius ?? BALL_RADIUS) + playerRadius;
     const dist = Math.sqrt(distSq);
     if (dist >= minDist || dist < 1e-4) return;
 

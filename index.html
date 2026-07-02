@@ -160,20 +160,52 @@
           ▶ PLAY VS BOTS
         </button>
         <div class="dashboard-btn-desc">PRIVATE — NO RANDOMS</div>
-        <div class="bots-team-size-row" id="bots-team-size-row">
-          <span class="bots-team-size-label">BOTS PER TEAM</span>
-          <div class="bots-team-size-controls">
-            <button class="arcade-btn bots-size-btn" id="bots-size-dec">−</button>
-            <span id="bots-size-display">3</span>
-            <button class="arcade-btn bots-size-btn" id="bots-size-inc">+</button>
-          </div>
-        </div>
         <div class="dashboard-secondary-btns">
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-stats">📊 MY STATS</button>
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-leaderboard-dash">🏆 LEADERBOARD</button>
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-profile">👤 PROFILE</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Bots Settings Overlay -->
+  <div id="bots-settings-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel bots-settings-panel">
+      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">BOT GAME SETTINGS</div>
+
+      <div class="bots-setting-row">
+        <span class="bots-setting-label">BOTS PER TEAM</span>
+        <div class="bots-setting-controls">
+          <button class="arcade-btn bots-size-btn" id="bots-size-dec">−</button>
+          <span id="bots-size-display">3</span>
+          <button class="arcade-btn bots-size-btn" id="bots-size-inc">+</button>
+        </div>
+      </div>
+
+      <div class="bots-setting-row">
+        <span class="bots-setting-label">BALL SIZE</span>
+        <div class="bots-setting-controls">
+          <button class="arcade-btn bots-size-btn" id="ball-size-dec">−</button>
+          <span id="ball-size-display">1.0</span>
+          <button class="arcade-btn bots-size-btn" id="ball-size-inc">+</button>
+        </div>
+      </div>
+
+      <div class="bots-setting-row">
+        <span class="bots-setting-label">GRAVITY</span>
+        <div class="bots-setting-controls">
+          <button class="arcade-btn bots-size-btn" id="gravity-dec">−</button>
+          <span id="gravity-display">1.0</span>
+          <button class="arcade-btn bots-size-btn" id="gravity-inc">+</button>
+        </div>
+        <div class="bots-setting-hint">LOWER = MORE FLOATY</div>
+      </div>
+
+      <button class="arcade-btn arcade-btn-yellow bots-settings-start-btn" id="bots-settings-start">
+        ▶ START GAME
+      </button>
+      <button class="arcade-btn arcade-btn-dim bots-settings-back-btn" id="bots-settings-back">◀ BACK</button>
     </div>
   </div>
 
