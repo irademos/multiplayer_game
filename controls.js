@@ -324,7 +324,7 @@ export class PlayerControls {
         const hSpeed = vel ? Math.hypot(vel.x, vel.z) : 0;
         const speedRatio = Math.min(hSpeed / SPEED, 1);
         const magnitude = 0.8 + speedRatio * 1.8;
-        this.slideMomentumDecay = 0.970 + speedRatio * 0.025;
+        this.slideMomentumDecay = 0.880 + speedRatio * 0.060;
         this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(magnitude);
         this.playAction('slide');
         this.audioManager?.playAttack();
@@ -395,7 +395,7 @@ export class PlayerControls {
         const hSpeed = vel ? Math.hypot(vel.x, vel.z) : 0;
         const speedRatio = Math.min(hSpeed / SPEED, 1);
         const magnitude = 0.8 + speedRatio * 1.8;
-        this.slideMomentumDecay = 0.970 + speedRatio * 0.025;
+        this.slideMomentumDecay = 0.880 + speedRatio * 0.060;
         this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(magnitude);
         this.playAction('slide');
         this.audioManager?.playAttack();
@@ -675,6 +675,7 @@ export class PlayerControls {
       let yawAngle = this.playerModel.rotation.y;
       if (movement.length() > 0) {
         yawAngle = Math.atan2(movement.x, movement.z);
+        if (this.currentSpecialAction === 'slide') yawAngle += Math.PI / 2;
         // this.playerModel.rotation.y = yawAngle;
       }
 
