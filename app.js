@@ -2269,12 +2269,27 @@ async function main() {
       p.model.userData.mixer?.update(mixerDelta);
     });
 
-    Object.values(aiPlayers).forEach((players) => {
+    Object.entries(aiPlayers).forEach(([team, players]) => {
       let ballChaser = null;
       let ballChaserIndex = -1;
       let ballChaserPosition = null;
       const ballPos = soccerBall?.getPosition?.();
-      if (ballPos) {
+
+      // During a set piece, force the designated taker (if on this team) to be
+      // the ball chaser so they always approach and kick rather than standing in
+      // formation while a different bot chases.
+      const sp = setPieceManager?.isActive() ? setPieceManager.active : null;
+      if (sp && sp.teamTaking === team) {
+        const takerAi = players.find(ai => ai.networkId === sp.takerNetworkId);
+        if (takerAi?.body) {
+          const aiPos = takerAi.body.translation();
+          ballChaser = takerAi;
+          ballChaserIndex = players.indexOf(takerAi);
+          ballChaserPosition = { x: aiPos.x, y: aiPos.y, z: aiPos.z };
+        }
+      }
+
+      if (!ballChaser && ballPos) {
         let closestDistSq = Infinity;
         players.forEach((ai, index) => {
           if (!ai.body) return;
