@@ -379,13 +379,24 @@ async function main() {
         ballState = { position: [t.x, t.y, t.z], rotation: [r.x, r.y, r.z, r.w], linvel: [v.x, v.y, v.z] };
       }
 
+      // Include active set piece state so the joining client can sync up
+      const activeSP = setPieceManager?.active ?? null;
+      const setPieceState = activeSP ? {
+        spType: activeSP.type,
+        teamTaking: activeSP.teamTaking,
+        ballFixedPos: activeSP.ballFixedPos,
+        zone: activeSP.zone,
+        takerNetworkId: activeSP.takerNetworkId,
+      } : null;
+
       multiplayer.sendTo(requesterId, {
         type: 'joinResponse',
         team: assignedTeam,
         spawnPosition,
         aiStates,
         ballState,
-        gameTimeLeft
+        gameTimeLeft,
+        setPieceState,
       });
 
       broadcastTeamAssignments();
@@ -441,6 +452,31 @@ async function main() {
         Object.entries(aiStates).forEach(([id, state]) => {
           if (state) applyNetworkedState(id, state);
         });
+      }
+      // Restore active set piece if there is one
+      if (data.setPieceState) {
+        applySetPiece(data.setPieceState);
+      }
+      return;
+    }
+
+    if (data.type === 'setPiece') {
+      // Only clients apply; host already applied it in triggerSetPiece
+      if (!multiplayer.isHost) {
+        applySetPiece({
+          spType: data.spType,
+          teamTaking: data.teamTaking,
+          ballFixedPos: data.ballFixedPos,
+          zone: data.zone,
+          takerNetworkId: data.takerNetworkId ?? null,
+        });
+      }
+      return;
+    }
+
+    if (data.type === 'setPieceClear') {
+      if (!multiplayer.isHost) {
+        setPieceManager?.clear();
       }
       return;
     }
@@ -934,8 +970,8 @@ async function main() {
       return;
     }
 
-    // Not a goal — trigger the appropriate set piece
-    triggerSetPiece(pos);
+    // Not a goal — only the host triggers set pieces and broadcasts to clients
+    if (multiplayer.isHost) triggerSetPiece(pos);
   }
 
   function triggerSetPiece(ballOutPos) {
@@ -950,45 +986,90 @@ async function main() {
 
     const { type, teamTaking, ballFixedPos, zone } = params;
 
-    // Place ball at set piece spot
-    soccerBall.body.setTranslation(ballFixedPos, true);
-    soccerBall.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    // Determine the designated taker: prefer local player if on the taking team,
+    // otherwise fall back to the first AI on that team.
+    let takerNetworkId = null;
+    if (localPlayerTeam === teamTaking) {
+      takerNetworkId = multiplayer.getId();
+    } else {
+      takerNetworkId = aiPlayers[teamTaking]?.[0]?.networkId ?? null;
+    }
 
-    // Teleport the taking player into the zone, offset from the ball so they
-    // don't start overlapping it (which would corrupt lastTouchedTeam tracking).
-    const spBody = getBodyForTeam(teamTaking);
-    if (spBody) {
-      const sy = 1.5; // drops onto ground via physics; ground collider top is Y=0
+    applySetPiece({ spType: type, teamTaking, ballFixedPos, zone, takerNetworkId });
+
+    // Broadcast the set piece to all connected clients
+    multiplayer.send({ type: 'setPiece', spType: type, teamTaking, ballFixedPos, zone, takerNetworkId });
+  }
+
+  // Apply a set piece locally (runs on host via triggerSetPiece and on clients via network message).
+  function applySetPiece({ spType, teamTaking, ballFixedPos, zone, takerNetworkId }) {
+    if (!setPieceManager) return;
+
+    // Place ball at set piece spot
+    if (soccerBall?.body) {
+      soccerBall.body.setTranslation(ballFixedPos, true);
+      soccerBall.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    }
+
+    const myId = multiplayer.getId();
+    const iAmTaker = takerNetworkId !== null && takerNetworkId === myId;
+
+    if (iAmTaker && playerControls?.body) {
+      // Teleport the local player (the designated taker) into the zone
+      const sy = 1.5;
       let spawnX = ballFixedPos.x;
       let spawnZ = ballFixedPos.z;
       const OFFSET = 1.5;
-      if (type === 'throwIn') {
-        // Player stands just outside the sideline, offset in X away from field
+      if (spType === 'throwIn') {
         spawnX = ballFixedPos.x + Math.sign(ballFixedPos.x) * OFFSET;
-      } else if (type === 'cornerKick') {
-        // Player stands outside the field in the corner zone
+      } else if (spType === 'cornerKick') {
         spawnX = ballFixedPos.x + Math.sign(ballFixedPos.x) * OFFSET;
         spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * OFFSET;
-      } else if (type === 'goalKick') {
-        // Player stands behind the ball (toward their own goal line)
+      } else if (spType === 'goalKick') {
         spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * OFFSET;
       }
-      spBody.setTranslation({ x: spawnX, y: sy, z: spawnZ }, true);
-      spBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-      spBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-
-      // Sync the Three.js model and PlayerControls state for the local player
-      if (teamTaking === 'home' && playerModel && playerControls) {
+      playerControls.body.setTranslation({ x: spawnX, y: sy, z: spawnZ }, true);
+      playerControls.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      playerControls.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      if (playerModel) {
         playerModel.position.set(spawnX, sy, spawnZ);
         playerControls.playerX = spawnX;
         playerControls.playerY = sy;
         playerControls.playerZ = spawnZ;
         playerControls.lastPosition.set(spawnX, sy, spawnZ);
       }
+    } else if (multiplayer.isHost) {
+      // Host is not the taker — teleport the AI taker body
+      let takerAIBody = null;
+      outer: for (const team of ['home', 'away']) {
+        for (const ai of (aiPlayers[team] ?? [])) {
+          if (ai.networkId === takerNetworkId) {
+            takerAIBody = ai.body ?? null;
+            break outer;
+          }
+        }
+      }
+      if (takerAIBody) {
+        const sy = 1.5;
+        let spawnX = ballFixedPos.x;
+        let spawnZ = ballFixedPos.z;
+        const OFFSET = 1.5;
+        if (spType === 'throwIn') {
+          spawnX = ballFixedPos.x + Math.sign(ballFixedPos.x) * OFFSET;
+        } else if (spType === 'cornerKick') {
+          spawnX = ballFixedPos.x + Math.sign(ballFixedPos.x) * OFFSET;
+          spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * OFFSET;
+        } else if (spType === 'goalKick') {
+          spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * OFFSET;
+        }
+        takerAIBody.setTranslation({ x: spawnX, y: sy, z: spawnZ }, true);
+        takerAIBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        takerAIBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
     }
 
-    setPieceManager.trigger(type, teamTaking, ballFixedPos, zone);
+    setPieceManager.trigger(spType, teamTaking, ballFixedPos, zone, takerNetworkId);
   }
 
   // Load additional level data (destructible props, etc.)
@@ -1796,10 +1877,38 @@ async function main() {
     // walk back into the exclusion zone in the same frame it was pushed out)
     if (setPieceManager?.isActive() && soccerBall) {
       const sp = setPieceManager.active;
-      const otherTeam = sp.teamTaking === 'home' ? 'away' : 'home';
-      const setPieceBody = getBodyForTeam(sp.teamTaking);
-      const otherBody    = getBodyForTeam(otherTeam);
-      setPieceManager.update(soccerBall, setPieceBody, otherBody);
+      const myId = multiplayer.getId();
+
+      // Resolve the designated taker's physics body
+      let takerBody = null;
+      if (sp.takerNetworkId === myId) {
+        takerBody = playerControls?.body ?? null;
+      } else {
+        outer: for (const team of ['home', 'away']) {
+          for (const ai of (aiPlayers[team] ?? [])) {
+            if (ai.networkId === sp.takerNetworkId) {
+              takerBody = ai.body ?? null;
+              break outer;
+            }
+          }
+        }
+      }
+
+      // All other locally-simulated bodies must be pushed out of the zone
+      const otherBodies = [];
+      if (playerControls?.body && playerControls.body !== takerBody) {
+        otherBodies.push(playerControls.body);
+      }
+      for (const team of ['home', 'away']) {
+        for (const ai of (aiPlayers[team] ?? [])) {
+          if (ai.body && ai.body !== takerBody) otherBodies.push(ai.body);
+        }
+      }
+
+      const ended = setPieceManager.update(soccerBall, takerBody, otherBodies);
+      if (ended && multiplayer.isHost) {
+        multiplayer.send({ type: 'setPieceClear' });
+      }
     }
 
     multiplayer.send({
