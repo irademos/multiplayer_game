@@ -2199,6 +2199,21 @@ async function main() {
 
 
 
+    if (followBallCamera && playerModel && soccerBall?.body) {
+      const ballRaw = soccerBall.getPosition();
+      const ballPos = new THREE.Vector3(ballRaw.x, ballRaw.y, ballRaw.z);
+      const playerPos = playerModel.position;
+      const toBall = new THREE.Vector3(ballPos.x - playerPos.x, 0, ballPos.z - playerPos.z);
+      const horizDist = toBall.length();
+      const fwd = horizDist > 0.1 ? toBall.clone().normalize() : new THREE.Vector3(0, 0, -1);
+      const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+      playerControls.followBallCameraForward = fwd;
+      playerControls.followBallCameraRight = right;
+    } else {
+      playerControls.followBallCameraForward = null;
+      playerControls.followBallCameraRight = null;
+    }
+
     playerControls.update();
 
     soccerBall?.update();
@@ -2464,13 +2479,11 @@ async function main() {
       const ballPos = new THREE.Vector3(ballRaw.x, ballRaw.y, ballRaw.z);
       const playerPos = playerModel.position;
 
-      // Direction from player to ball (horizontal only)
       const toBall = new THREE.Vector3(ballPos.x - playerPos.x, 0, ballPos.z - playerPos.z);
       const horizDist = toBall.length();
 
-      // Camera sits behind the player (opposite the ball direction), elevated
-      const camHeight = 14;
-      const camBack = 7;
+      const camHeight = 7;
+      const camBack = 5;
       const behindDir = horizDist > 0.1
         ? toBall.clone().normalize().negate()
         : new THREE.Vector3(0, 0, 1);
