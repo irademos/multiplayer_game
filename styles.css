@@ -1112,6 +1112,67 @@ body {
   line-height: 1;
 }
 
+/* Bots settings overlay */
+.bots-settings-panel {
+  gap: 20px;
+  min-width: 320px;
+  max-width: 400px;
+  width: 90%;
+}
+
+.bots-setting-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border: 2px solid rgba(255, 220, 0, 0.35);
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+.bots-setting-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: rgba(255, 220, 0, 0.85);
+  letter-spacing: 0.1em;
+}
+
+.bots-setting-hint {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.05em;
+}
+
+.bots-setting-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.bots-setting-controls span {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 20px;
+  color: #fff;
+  min-width: 40px;
+  text-align: center;
+}
+
+.bots-settings-start-btn {
+  width: 100%;
+  font-size: 16px;
+  padding: 16px 24px;
+  letter-spacing: 0.08em;
+  margin-top: 4px;
+}
+
+.bots-settings-back-btn {
+  font-size: 10px;
+  padding: 8px 16px;
+}
+
 .dashboard-secondary-btns {
   display: flex;
   gap: 10px;
