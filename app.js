@@ -305,7 +305,10 @@ async function main() {
             localTeamConfirmed = true;
             const newColor = team === 'home' ? 0x3399ff : 0xff3322;
             swapPlayerCharacter(characterModel, newColor);
-            moveLocalPlayerToSpawn(team);
+            // Only move to spawn if we haven't already been placed by joinResponse
+            if (!receivedJoinResponse) {
+              moveLocalPlayerToSpawn(team);
+            }
           } else {
             localTeamConfirmed = true;
           }
@@ -321,9 +324,123 @@ async function main() {
 
       if (data.aiCounts) {
         setAITeamCounts(data.aiCounts);
+        // Apply AI positions immediately so they don't flash to default spawn positions
+        if (data.aiStates) {
+          Object.entries(data.aiStates).forEach(([id, state]) => {
+            if (state) applyNetworkedState(id, state);
+          });
+        }
       } else if ('aiTeam' in data) {
         // Backward compatibility with older hosts that only supported one computer player.
         setAITeamCounts({ home: data.aiTeam === 'home' ? 1 : 0, away: data.aiTeam === 'away' ? 1 : 0 });
+      }
+      return;
+    }
+
+    if (data.type === 'joinRequest' && multiplayer?.isHost) {
+      const requesterId = data.requesterId || peerId;
+
+      // Assign team if not already done (may already be set if presence arrived first)
+      if (!playerTeams[requesterId]) {
+        playerTeams[requesterId] = assignTeamToNewPlayer();
+      }
+      const assignedTeam = playerTeams[requesterId];
+
+      // Capture the last AI on that team's position before removing it
+      let spawnPosition = null;
+      const teamAIs = aiPlayers[assignedTeam];
+      if (teamAIs && teamAIs.length > 0) {
+        const replacedAI = teamAIs[teamAIs.length - 1];
+        if (replacedAI?.body) {
+          const t = replacedAI.body.translation();
+          spawnPosition = { x: t.x, y: t.y, z: t.z };
+        }
+      }
+
+      // Update AI balance now that the new player's team is assigned
+      updateAIForBalance();
+
+      // Collect current AI states so the new player positions them correctly
+      const aiStates = {};
+      ['home', 'away'].forEach(team => {
+        aiPlayers[team].forEach(ai => {
+          if (ai.networkId) {
+            aiStates[ai.networkId] = ai.getState?.() ?? null;
+          }
+        });
+      });
+
+      // Collect current ball state
+      let ballState = null;
+      if (soccerBall?.body) {
+        const t = soccerBall.body.translation();
+        const r = soccerBall.body.rotation();
+        const v = soccerBall.body.linvel();
+        ballState = { position: [t.x, t.y, t.z], rotation: [r.x, r.y, r.z, r.w], linvel: [v.x, v.y, v.z] };
+      }
+
+      multiplayer.sendTo(requesterId, {
+        type: 'joinResponse',
+        team: assignedTeam,
+        spawnPosition,
+        aiStates,
+        ballState,
+        gameTimeLeft
+      });
+
+      broadcastTeamAssignments();
+      return;
+    }
+
+    if (data.type === 'joinResponse') {
+      const { team, spawnPosition, aiStates, ballState, gameTimeLeft: hostTimeLeft } = data;
+
+      // Sync the countdown to the host's current time so all players match
+      if (typeof hostTimeLeft === 'number') {
+        gameTimeLeft = hostTimeLeft;
+        lastTimerTick = performance.now();
+        updateTimerUI();
+      }
+
+      // Apply team assignment if not yet confirmed
+      if (!localTeamConfirmed) {
+        const changed = team !== localPlayerTeam;
+        localPlayerTeam = team;
+        localTeamConfirmed = true;
+        receivedJoinResponse = true;
+        if (changed) {
+          const newColor = team === 'home' ? 0x3399ff : 0xff3322;
+          swapPlayerCharacter(characterModel, newColor);
+        }
+      } else {
+        receivedJoinResponse = true;
+      }
+
+      // Place player at the AI's position for a seamless handoff
+      if (spawnPosition) {
+        playerModel.position.set(spawnPosition.x, spawnPosition.y, spawnPosition.z);
+        if (playerControls) {
+          playerControls.playerX = spawnPosition.x;
+          playerControls.playerY = spawnPosition.y;
+          playerControls.playerZ = spawnPosition.z;
+          playerControls.lastPosition.set(spawnPosition.x, spawnPosition.y, spawnPosition.z);
+          playerControls.velocity?.set?.(0, 0, 0);
+          if (playerControls.body) {
+            playerControls.body.setTranslation(spawnPosition, true);
+            playerControls.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+            playerControls.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+          }
+        }
+      } else {
+        moveLocalPlayerToSpawn(team);
+      }
+
+      // Apply ball and AI positions immediately
+      if (ballState) applyNetworkedState('soccerball', ballState);
+      if (aiStates) {
+        Object.entries(aiStates).forEach(([id, state]) => {
+          if (state) applyNetworkedState(id, state);
+        });
       }
       return;
     }
@@ -422,6 +539,16 @@ async function main() {
       broadcastTeamAssignments();
     }
   };
+
+  // When we connect to the host, send a join request so the host can relay
+  // current game state (AI positions, ball, team assignment) back to us.
+  multiplayer.onPeerConnected = (peerId) => {
+    if (multiplayer.isHost) return;
+    if (peerId === multiplayer.getHostId()) {
+      multiplayer.sendTo(peerId, { type: 'joinRequest', requesterId: multiplayer.getId() });
+    }
+  };
+
   const audioManager = new AudioManager();
 
   const scene = new THREE.Scene();
@@ -438,6 +565,7 @@ async function main() {
   const playerTeams = {};
   let localPlayerTeam = 'home';
   let localTeamConfirmed = false;
+  let receivedJoinResponse = false;
 
   const score = { home: 0, away: 0 };
   let goalCooldown = 0;
@@ -1071,7 +1199,16 @@ async function main() {
     const myId = multiplayer?.getId?.();
     const assignments = { ...playerTeams };
     if (myId) assignments[myId] = localPlayerTeam;
-    multiplayer.send({ type: 'teamAssignments', assignments, aiCounts: countNeededAIByTeam() });
+
+    // Include current AI positions so clients can apply them right after setAITeamCounts
+    const aiStates = {};
+    ['home', 'away'].forEach(team => {
+      aiPlayers[team].forEach(ai => {
+        if (ai.networkId) aiStates[ai.networkId] = ai.getState?.() ?? null;
+      });
+    });
+
+    multiplayer.send({ type: 'teamAssignments', assignments, aiCounts: countNeededAIByTeam(), aiStates });
   }
 
   function getBodyForTeam(team) {

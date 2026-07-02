@@ -5,7 +5,8 @@ import {
   remove,
   onValue,
   get,
-  onDisconnect
+  onDisconnect,
+  serverTimestamp
 } from 'firebase/database';
 
 const MAX_ROOM_PLAYERS = 12;
@@ -40,6 +41,7 @@ export class Multiplayer {
     this.currentHostId = null;
     this.onHostChange = null;
     this.onPeerDisconnect = null;
+    this.onPeerConnected = null;
     this.onConnectionError = null;
     this.onPingUpdate = null;
     this.lastPingMs = null;
@@ -105,6 +107,8 @@ export class Multiplayer {
       let assignedRoom = null;
       let roomIndex = 0;
 
+      let isNewRoom = false;
+
       if (this.botsOnly) {
         // Private bots-only room: find a unique unused room name so no public players can join
         const existingRoomNames = snapshot.exists() ? Object.keys(snapshot.val()) : [];
@@ -113,6 +117,7 @@ export class Multiplayer {
           botRoomIndex++;
         }
         assignedRoom = `bot-room-${botRoomIndex}`;
+        isNewRoom = true;
       } else {
         if (snapshot.exists()) {
           const rooms = snapshot.val();
@@ -138,6 +143,7 @@ export class Multiplayer {
 
         if (!assignedRoom) {
           assignedRoom = `room-${roomIndex}`;
+          isNewRoom = true;
         }
       }
 
@@ -145,6 +151,18 @@ export class Multiplayer {
       this.roomId = assignedRoom;
       await remove(roomRef);
       await set(roomRef, true);
+
+      // Store server-authoritative game start time when we are the first active
+      // peer in a room (new room OR re-entering an empty room after a previous
+      // session), so the timestamp is always fresh for a new game.
+      const isFirstActiveInRoom = isNewRoom ||
+        (Object.keys(activePeers).filter(pid => {
+          const p = activePeers[pid];
+          return p?.roomId === assignedRoom && pid !== id;
+        }).length === 0);
+      if (isFirstActiveInRoom) {
+        await set(ref(db, `rooms/${assignedRoom}/startTime`), serverTimestamp());
+      }
 
       const peerRef = ref(db, `peers/${id}`);
       await remove(peerRef);
@@ -349,6 +367,10 @@ export class Multiplayer {
       conn.on('data', data => this.handlePeerData(conn, data));
       this.runOneShotConnectionDiagnostics(conn);
       this.startPingLoop(conn);
+
+      if (typeof this.onPeerConnected === 'function') {
+        this.onPeerConnected(conn.peer);
+      }
     });
   
     conn.on('close', () => {
