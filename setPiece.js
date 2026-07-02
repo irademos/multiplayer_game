@@ -23,13 +23,15 @@ export class SetPieceManager {
   }
 
   // zone: { minX, maxX, minZ, maxZ }
+  // exclusionZone: { minX, maxX, minZ, maxZ } – opposing team must stay outside this
   // ballFixedPos: { x, y, z }
   // teamTaking: 'home' | 'away'
   // takerNetworkId: network ID of the designated taker (player or AI)
-  trigger(type, teamTaking, ballFixedPos, zone, takerNetworkId) {
+  trigger(type, teamTaking, ballFixedPos, zone, takerNetworkId, exclusionZone) {
     this.clear();
 
     this._buildZoneVisual(zone);
+    if (exclusionZone) this._buildExclusionZoneVisual(exclusionZone);
     this._showLabel(type, teamTaking);
 
     this.active = {
@@ -37,6 +39,7 @@ export class SetPieceManager {
       teamTaking,
       ballFixedPos: { ...ballFixedPos },
       zone: { ...zone },
+      exclusionZone: exclusionZone ? { ...exclusionZone } : null,
       takerNetworkId: takerNetworkId ?? null,
       ballLocked: true,
       startTime: performance.now(),
@@ -44,11 +47,12 @@ export class SetPieceManager {
   }
 
   // Call each frame while a set piece is active.
-  // setPieceBody: Rapier body of the designated taker (constrained inside zone)
-  // otherBodies:  Array of all other Rapier bodies (pushed out of zone)
-  // soccerBall:   SoccerBall instance
+  // setPieceBody:   Rapier body of the designated taker (constrained inside zone)
+  // otherBodies:    Array of all other Rapier bodies (pushed out of taker zone)
+  // opposingBodies: Array of opposing team Rapier bodies (pushed out of exclusion zone)
+  // soccerBall:     SoccerBall instance
   // Returns true if the set piece just ended.
-  update(soccerBall, setPieceBody, otherBodies = []) {
+  update(soccerBall, setPieceBody, otherBodies = [], opposingBodies = []) {
     if (!this.active) return false;
     const a = this.active;
 
@@ -98,9 +102,16 @@ export class SetPieceManager {
       }
     }
 
-    // Push every non-taker body out of zone
+    // Push every non-taker body out of taker zone
     for (const body of otherBodies) {
       if (body) this._pushOutOfZone(body, a.zone);
+    }
+
+    // Push opposing team bodies out of the larger exclusion zone
+    if (a.exclusionZone) {
+      for (const body of opposingBodies) {
+        if (body) this._pushOutOfZone(body, a.exclusionZone);
+      }
     }
 
     // Constrain set piece player within zone
@@ -155,6 +166,39 @@ export class SetPieceManager {
     // Wireframe walls
     const edgesGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(w, boxH, d));
     const edgesMat = new THREE.LineBasicMaterial({ color: 0xffff00 });
+    const edges = new THREE.LineSegments(edgesGeo, edgesMat);
+    edges.position.set(cx, y + boxH / 2, cz);
+    this.scene.add(edges);
+    this._zoneMeshes.push(edges);
+  }
+
+  _buildExclusionZoneVisual(zone) {
+    const { minX, maxX, minZ, maxZ } = zone;
+    const cx = (minX + maxX) / 2;
+    const cz = (minZ + maxZ) / 2;
+    const w = maxX - minX;
+    const d = maxZ - minZ;
+    const y = 0.015;
+    const boxH = 2.5;
+
+    // Translucent red floor
+    const floorGeo = new THREE.PlaneGeometry(w, d);
+    const floorMat = new THREE.MeshBasicMaterial({
+      color: 0xff2200,
+      transparent: true,
+      opacity: 0.12,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(cx, y, cz);
+    this.scene.add(floor);
+    this._zoneMeshes.push(floor);
+
+    // Red wireframe walls
+    const edgesGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(w, boxH, d));
+    const edgesMat = new THREE.LineBasicMaterial({ color: 0xff2200 });
     const edges = new THREE.LineSegments(edgesGeo, edgesMat);
     edges.position.set(cx, y + boxH / 2, cz);
     this.scene.add(edges);
@@ -280,7 +324,15 @@ export function buildSetPieceParams(ballOutPos, lastTouchedTeam) {
       minZ: clampedZ - hw,
       maxZ: clampedZ + hw,
     };
-    return { type: 'throwIn', teamTaking, ballFixedPos, zone };
+    // Opposing team must stay 9 units away from the throw-in spot (field side only)
+    const exHW = 9;
+    const exclusionZone = {
+      minX: xSign > 0 ? sideX - exHW : sideX,
+      maxX: xSign > 0 ? sideX : sideX + exHW,
+      minZ: clampedZ - exHW,
+      maxZ: clampedZ + exHW,
+    };
+    return { type: 'throwIn', teamTaking, ballFixedPos, zone, exclusionZone };
   }
 
   if (outZ) {
@@ -308,7 +360,15 @@ export function buildSetPieceParams(ballOutPos, lastTouchedTeam) {
         minZ: zSign > 0 ? cornerZ : cornerZ - extent,
         maxZ: zSign > 0 ? cornerZ + extent : cornerZ,
       };
-      return { type: 'cornerKick', teamTaking, ballFixedPos, zone };
+      // Opposing team must stay 9 units from the corner (on the field side)
+      const exExtent = 9;
+      const exclusionZone = {
+        minX: xSign > 0 ? cornerX - exExtent : cornerX,
+        maxX: xSign > 0 ? cornerX : cornerX + exExtent,
+        minZ: zSign > 0 ? cornerZ - exExtent : cornerZ,
+        maxZ: zSign > 0 ? cornerZ : cornerZ + exExtent,
+      };
+      return { type: 'cornerKick', teamTaking, ballFixedPos, zone, exclusionZone };
     } else {
       // ── GOAL KICK ───────────────────────────────────────────────────────
       // Attacker kicked it out → goal kick for defenders
@@ -326,7 +386,16 @@ export function buildSetPieceParams(ballOutPos, lastTouchedTeam) {
         minZ: zSign > 0 ? FIELD_HALF_Z - zoneDepth : -FIELD_HALF_Z,
         maxZ: zSign > 0 ? FIELD_HALF_Z             : -FIELD_HALF_Z + zoneDepth,
       };
-      return { type: 'goalKick', teamTaking, ballFixedPos, zone };
+      // Opposing team must stay outside the penalty area (16 wide × 18 deep from goal line)
+      const exHalfW = 13;
+      const exDepth = 18;
+      const exclusionZone = {
+        minX: -exHalfW,
+        maxX:  exHalfW,
+        minZ: zSign > 0 ? FIELD_HALF_Z - exDepth : -FIELD_HALF_Z,
+        maxZ: zSign > 0 ? FIELD_HALF_Z           : -FIELD_HALF_Z + exDepth,
+      };
+      return { type: 'goalKick', teamTaking, ballFixedPos, zone, exclusionZone };
     }
   }
 
