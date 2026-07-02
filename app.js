@@ -37,7 +37,7 @@ async function main() {
   document.body.addEventListener('touchstart', () => {}, { once: true });
 
   // ── Arcade login gate — resolves when player authenticates ──────────────────
-  const { username: playerName, character: characterModel } = await new Promise(resolve => {
+  let { username: playerName, character: characterModel } = await new Promise(resolve => {
     initLogin(({ username, character }) => {
       setCookie('playerName', username);
       setCookie('characterModel', character || DEFAULT_CHARACTER_MODEL);
