@@ -165,7 +165,29 @@
             <button class="arcade-btn bots-size-btn" id="bots-size-inc">+</button>
           </div>
         </div>
+        <div class="dashboard-secondary-btns">
+          <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-stats">📊 MY STATS</button>
+          <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-leaderboard-dash">🏆 LEADERBOARD</button>
+        </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Stats Overlay -->
+  <div id="stats-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel stats-panel">
+      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">MY STATS</div>
+      <div id="stats-content"><em>Loading...</em></div>
+      <button class="arcade-btn arcade-btn-dim" id="stats-overlay-close">◀ BACK</button>
+    </div>
+  </div>
+
+  <!-- Dashboard Leaderboard Overlay -->
+  <div id="leaderboard-dash-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel leaderboard-dash-panel">
+      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">🏆 LEADERBOARD</div>
+      <div id="leaderboard-dash-content"><em>Loading...</em></div>
+      <button class="arcade-btn arcade-btn-dim" id="leaderboard-dash-overlay-close">◀ BACK</button>
     </div>
   </div>
 
