@@ -25,7 +25,8 @@ export class SetPieceManager {
   // zone: { minX, maxX, minZ, maxZ }
   // ballFixedPos: { x, y, z }
   // teamTaking: 'home' | 'away'
-  trigger(type, teamTaking, ballFixedPos, zone) {
+  // takerNetworkId: network ID of the designated taker (player or AI)
+  trigger(type, teamTaking, ballFixedPos, zone, takerNetworkId) {
     this.clear();
 
     this._buildZoneVisual(zone);
@@ -36,17 +37,18 @@ export class SetPieceManager {
       teamTaking,
       ballFixedPos: { ...ballFixedPos },
       zone: { ...zone },
+      takerNetworkId: takerNetworkId ?? null,
       ballLocked: true,
       startTime: performance.now(),
     };
   }
 
   // Call each frame while a set piece is active.
-  // setPieceBody: Rapier body of the player taking the set piece
-  // otherBody:    Rapier body of the other player (kept out of zone)
+  // setPieceBody: Rapier body of the designated taker (constrained inside zone)
+  // otherBodies:  Array of all other Rapier bodies (pushed out of zone)
   // soccerBall:   SoccerBall instance
   // Returns true if the set piece just ended.
-  update(soccerBall, setPieceBody, otherBody) {
+  update(soccerBall, setPieceBody, otherBodies = []) {
     if (!this.active) return false;
     const a = this.active;
 
@@ -96,9 +98,9 @@ export class SetPieceManager {
       }
     }
 
-    // Keep non-set-piece player out of zone
-    if (otherBody) {
-      this._pushOutOfZone(otherBody, a.zone);
+    // Push every non-taker body out of zone
+    for (const body of otherBodies) {
+      if (body) this._pushOutOfZone(body, a.zone);
     }
 
     // Constrain set piece player within zone
