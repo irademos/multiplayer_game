@@ -274,7 +274,7 @@ export function createPlayerModel(
                   // const action = mixer.clipAction(clean);
                   const action = mixer.clipAction(clip);
                   if (
-                    ['jump', 'hit', 'mutantPunch', 'mmaKick', 'runningKick', 'hurricaneKick', 'projectile', 'die', 'slide'].includes(name)
+                    ['jump', 'hit', 'mutantPunch', 'mmaKick', 'runningKick', 'hurricaneKick', 'projectile', 'die'].includes(name)
                   ) {
                     action.loop = THREE.LoopOnce;
                     action.clampWhenFinished = true;

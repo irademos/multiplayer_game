@@ -477,14 +477,16 @@ export class PlayerControls {
       };
     }
 
-    const mixer = this.playerModel.userData.mixer;
-    const onFinished = (e) => {
-      if (e.action === action) {
-        mixer.removeEventListener("finished", onFinished);
-        this.currentSpecialAction = null;
-      }
-    };
-    mixer.addEventListener("finished", onFinished);
+    if (actionName !== 'slide') {
+      const mixer = this.playerModel.userData.mixer;
+      const onFinished = (e) => {
+        if (e.action === action) {
+          mixer.removeEventListener("finished", onFinished);
+          this.currentSpecialAction = null;
+        }
+      };
+      mixer.addEventListener("finished", onFinished);
+    }
   }
 
   applyKnockback(impulse) {
@@ -627,7 +629,18 @@ export class PlayerControls {
       movement.copy(this.slideMomentum);
       const decay = this.currentSpecialAction === 'slide' ? this.slideMomentumDecay : 0.99;
       this.slideMomentum.multiplyScalar(decay);
-      if (this.slideMomentum.length() < 0.01) this.slideMomentum.set(0, 0, 0);
+      if (this.slideMomentum.length() < 0.01) {
+        this.slideMomentum.set(0, 0, 0);
+        if (this.currentSpecialAction === 'slide') {
+          this.currentSpecialAction = null;
+          const actions = this.playerModel?.userData?.actions;
+          if (actions) {
+            actions.slide?.fadeOut(0.2);
+            actions.idle?.reset().fadeIn(0.2).play();
+            if (this.playerModel) this.playerModel.userData.currentAction = 'idle';
+          }
+        }
+      }
     } else if (movement.length() > 0) {
       this.lastMoveDirection.copy(movement);
     }
