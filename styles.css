@@ -1054,3 +1054,43 @@ body {
   letter-spacing: 0.1em;
   margin-bottom: 8px;
 }
+
+.bots-team-size-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 10px 16px;
+  border: 2px solid rgba(255, 220, 0, 0.35);
+  border-radius: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.bots-team-size-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: rgba(255, 220, 0, 0.75);
+  letter-spacing: 0.1em;
+}
+
+.bots-team-size-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.bots-team-size-controls #bots-size-display {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 20px;
+  color: #fff;
+  min-width: 28px;
+  text-align: center;
+}
+
+.bots-size-btn {
+  font-size: 18px;
+  padding: 4px 14px;
+  line-height: 1;
+}

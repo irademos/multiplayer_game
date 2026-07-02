@@ -46,7 +46,7 @@ async function main() {
   });
 
   // ── Dashboard — choose Play Online vs Play Bots ─────────────────────────────
-  const botsOnly = await new Promise(resolve => {
+  const { botsOnly, botsPerTeam } = await new Promise(resolve => {
     const overlay = document.getElementById('dashboard-overlay');
     const onlineNumEl = document.getElementById('dashboard-online-num');
     overlay.classList.remove('hidden');
@@ -55,16 +55,27 @@ async function main() {
       if (onlineNumEl) onlineNumEl.textContent = count;
     });
 
+    // Bot team size picker (1–5 bots per team)
+    let selectedBotsPerTeam = 3;
+    const sizeDisplay = document.getElementById('bots-size-display');
+    const updateSizeDisplay = () => { sizeDisplay.textContent = selectedBotsPerTeam; };
+    document.getElementById('bots-size-dec').addEventListener('click', () => {
+      if (selectedBotsPerTeam > 1) { selectedBotsPerTeam--; updateSizeDisplay(); }
+    });
+    document.getElementById('bots-size-inc').addEventListener('click', () => {
+      if (selectedBotsPerTeam < 5) { selectedBotsPerTeam++; updateSizeDisplay(); }
+    });
+
     document.getElementById('btn-play-online').addEventListener('click', () => {
       unsubCount();
       overlay.classList.add('hidden');
-      resolve(false);
+      resolve({ botsOnly: false, botsPerTeam: selectedBotsPerTeam });
     });
 
     document.getElementById('btn-play-bots').addEventListener('click', () => {
       unsubCount();
       overlay.classList.add('hidden');
-      resolve(true);
+      resolve({ botsOnly: true, botsPerTeam: selectedBotsPerTeam });
     });
   });
 
@@ -557,7 +568,7 @@ async function main() {
   createClouds(scene);
 
   let soccerBall;
-  const MIN_PLAYERS_PER_TEAM = 3;
+  const MIN_PLAYERS_PER_TEAM = botsOnly ? botsPerTeam : 3;
   const aiPlayers = { home: [], away: [] };
   let setPieceManager;
 
