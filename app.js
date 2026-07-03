@@ -944,6 +944,7 @@ async function main() {
     }
 
     if (isCurrentHost) {
+      scoreAuthoritative = true;
       lastEntityBroadcast = 0;
       if (previousHostId && previousHostId !== multiplayer.getId()) {
         multiplayer.sendTo(previousHostId, {
