@@ -999,15 +999,17 @@ async function main() {
   const TRAIL_MAX = 24;
   const TRAIL_INTERVAL = 3; // frames between trail points
   let trailFrameCount = 0;
+  let trailColorIndex = 0;
   const trailMeshes = [];
 
   function spawnTrailParticle(position) {
-    const color = TRAIL_COLORS[trailMeshes.length % TRAIL_COLORS.length];
+    const color = TRAIL_COLORS[trailColorIndex % TRAIL_COLORS.length];
+    trailColorIndex++;
     const geo = new THREE.SphereGeometry(0.18, 6, 6);
     const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.copy(position);
-    mesh.position.y += 0.3;
+    mesh.position.y -= 0.1;
     mesh.userData.age = 0;
     scene.add(mesh);
     trailMeshes.push(mesh);
