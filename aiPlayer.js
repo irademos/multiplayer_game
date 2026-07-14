@@ -41,6 +41,8 @@ export class AIPlayer {
     this.kickAnimating = false;
     this.dribbling = false;
     this.dribbleDecideTime = 0;
+    this.dribbleDir = null;       // cached dribble direction vector
+    this.dribbleAdjustTime = 0;   // last time dribble direction was re-evaluated
 
     const spawnY = getTerrainHeight(spawnX, spawnZ) + GROUND_OFFSET + 0.5;
     this.model.position.set(spawnX, spawnY + PLAYER_MODEL_HEIGHT_OFFSET, spawnZ);
@@ -171,6 +173,7 @@ export class AIPlayer {
     if (pursueBall && distToBall < KICK_RANGE * 2.5 && now - this.dribbleDecideTime > DRIBBLE_DURATION) {
       this.dribbling = Math.random() < 0.5;
       this.dribbleDecideTime = now;
+      this.dribbleDir = null; // force direction re-evaluation at start of each dribble
     }
 
     if (distToBall < KICK_RANGE && now - this.lastKickTime > KICK_COOLDOWN && !this.dribbling) {
@@ -251,35 +254,72 @@ export class AIPlayer {
     // Dribble: push ball toward goal while avoiding opponents and staying in bounds
     let targetPos;
     if (pursueBall && this.dribbling && distToBall < KICK_RANGE * 3) {
-      // Base direction: toward opposing goal
-      const dribbleDir = new THREE.Vector3(
-        -ballPos.x * 0.05,
-        0,
-        this.targetGoalZ < 0 ? -1 : 1
-      );
+      const DRIBBLE_ADJUST_INTERVAL = 500; // re-evaluate direction every 500 ms
 
-      // Steer away from nearby opponents
-      const opponentPositions = opponents.map(op => {
-        if (op && op.x !== undefined) return new THREE.Vector3(op.x, op.y, op.z);
-        if (op?.body) { const ot = op.body.translation(); return new THREE.Vector3(ot.x, ot.y, ot.z); }
-        return null;
-      }).filter(Boolean);
+      if (!this.dribbleDir || now - this.dribbleAdjustTime > DRIBBLE_ADJUST_INTERVAL) {
+        // Collect opponent positions
+        const opponentPositions = opponents.map(op => {
+          if (op && op.x !== undefined) return new THREE.Vector3(op.x, op.y, op.z);
+          if (op?.body) { const ot = op.body.translation(); return new THREE.Vector3(ot.x, ot.y, ot.z); }
+          return null;
+        }).filter(Boolean);
 
-      for (const opPos of opponentPositions) {
-        const toOp = new THREE.Vector3().subVectors(ballPos, opPos);
-        toOp.y = 0;
-        const dist = toOp.length();
-        if (dist < OPPONENT_AVOID_RADIUS && dist > 0.01) {
-          // Push dribble direction away from opponent, weighted by proximity
-          dribbleDir.addScaledVector(toOp.normalize(), (OPPONENT_AVOID_RADIUS - dist) / OPPONENT_AVOID_RADIUS * 1.5);
+        // Score candidate directions: 8 evenly-spread angles
+        // Lower score = better. Score = opponent_penalty + bounds_penalty - goal_progress_bonus
+        const goalZ = this.targetGoalZ;
+        const GOAL_WEIGHT = 3.0;      // strong preference toward goal
+        const OPPONENT_WEIGHT = 2.0;
+        const BOUNDS_WEIGHT = 5.0;
+        const LOOK_AHEAD = 4;         // units ahead to evaluate
+
+        let bestScore = Infinity;
+        let bestDir = null;
+
+        const candidateCount = 16;
+        for (let i = 0; i < candidateCount; i++) {
+          const angle = (i / candidateCount) * Math.PI * 2;
+          const dx = Math.sin(angle);
+          const dz = Math.cos(angle);
+
+          const futureX = ballPos.x + dx * LOOK_AHEAD;
+          const futureZ = ballPos.z + dz * LOOK_AHEAD;
+
+          // Penalty for going out of bounds
+          const boundsOverX = Math.max(0, Math.abs(futureX) - FIELD_X_HALF);
+          const boundsOverZ = Math.max(0, Math.abs(futureZ) - FIELD_Z_HALF);
+          const boundsPenalty = (boundsOverX + boundsOverZ) * BOUNDS_WEIGHT;
+
+          // Penalty for moving toward opponents
+          let opPenalty = 0;
+          for (const opPos of opponentPositions) {
+            const futureToOp = new THREE.Vector3(futureX - opPos.x, 0, futureZ - opPos.z);
+            const d = futureToOp.length();
+            if (d < OPPONENT_AVOID_RADIUS) {
+              opPenalty += (OPPONENT_AVOID_RADIUS - d) / OPPONENT_AVOID_RADIUS * OPPONENT_WEIGHT;
+            }
+          }
+
+          // Reward for moving closer to goal (goal progress bonus)
+          const currentDistToGoal = Math.abs(ballPos.z - goalZ);
+          const futureDistToGoal = Math.abs(futureZ - goalZ);
+          const goalProgress = (currentDistToGoal - futureDistToGoal) / LOOK_AHEAD; // -1..1 range
+          const goalBonus = goalProgress * GOAL_WEIGHT;
+
+          const score = boundsPenalty + opPenalty - goalBonus;
+
+          if (score < bestScore) {
+            bestScore = score;
+            bestDir = new THREE.Vector3(dx, 0, dz);
+          }
         }
+
+        this.dribbleDir = bestDir || new THREE.Vector3(0, 0, this.targetGoalZ < 0 ? -1 : 1);
+        this.dribbleAdjustTime = now;
       }
 
-      dribbleDir.normalize();
-
       // Clamp destination to keep ball in bounds
-      const nextBallX = THREE.MathUtils.clamp(ballPos.x + dribbleDir.x * 2, -FIELD_X_HALF, FIELD_X_HALF);
-      const nextBallZ = THREE.MathUtils.clamp(ballPos.z + dribbleDir.z * 2, -FIELD_Z_HALF, FIELD_Z_HALF);
+      const nextBallX = THREE.MathUtils.clamp(ballPos.x + this.dribbleDir.x * 2, -FIELD_X_HALF, FIELD_X_HALF);
+      const nextBallZ = THREE.MathUtils.clamp(ballPos.z + this.dribbleDir.z * 2, -FIELD_Z_HALF, FIELD_Z_HALF);
       const clampedDir = new THREE.Vector3(nextBallX - ballPos.x, 0, nextBallZ - ballPos.z).normalize();
 
       // Aim to run through the ball from behind the clamped direction
