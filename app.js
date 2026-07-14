@@ -1653,7 +1653,8 @@ async function main() {
   scene.add(playerModel);
   document.body.appendChild(player.nameLabel);
   window.playerModel = playerModel;
-  audioManager.playBGS('Forest Day/Forest Day.ogg');
+  window.audioManager = audioManager;
+  audioManager.playBGS('Beach/Beach.ogg');
 
   window.localHealth = 100;
 
