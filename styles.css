@@ -1674,3 +1674,54 @@ body {
   letter-spacing: 0.05em;
   margin-top: -4px;
 }
+
+/* Audio settings sliders — in-game settings panel */
+.audio-settings-section {
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.audio-settings-label {
+  font-size: 11px;
+  color: #ccc;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.audio-settings-section input[type="range"] {
+  width: 100%;
+  accent-color: #4af;
+  cursor: pointer;
+}
+
+/* Audio settings sliders — dashboard panel */
+.dashboard-audio-section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dashboard-audio-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-audio-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(7px, 1.5vw, 9px);
+  color: rgba(255,255,255,0.7);
+  min-width: 60px;
+  white-space: nowrap;
+}
+
+.dashboard-audio-slider {
+  flex: 1;
+  accent-color: #4af;
+  cursor: pointer;
+}

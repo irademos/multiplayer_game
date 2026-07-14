@@ -36,6 +36,8 @@ const FIXED_DT = 1 / 60;
 async function main() {
   document.body.addEventListener('touchstart', () => {}, { once: true });
 
+  const audioManager = new AudioManager();
+
   // ── Arcade login gate — resolves when player authenticates ──────────────────
   let { username: playerName, character: characterModel } = await new Promise(resolve => {
     initLogin(({ username, character }) => {
@@ -51,6 +53,18 @@ async function main() {
     const settingsOverlay = document.getElementById('bots-settings-overlay');
     const onlineNumEl = document.getElementById('dashboard-online-num');
     overlay.classList.remove('hidden');
+
+    // Dashboard audio sliders
+    const dashMusicSlider = document.getElementById('dash-music-volume');
+    const dashSfxSlider = document.getElementById('dash-sfx-volume');
+    if (dashMusicSlider) {
+      dashMusicSlider.value = audioManager.musicVolume;
+      dashMusicSlider.addEventListener('input', () => audioManager.setMusicVolume(parseFloat(dashMusicSlider.value)));
+    }
+    if (dashSfxSlider) {
+      dashSfxSlider.value = audioManager.sfxVolume;
+      dashSfxSlider.addEventListener('input', () => audioManager.setSfxVolume(parseFloat(dashSfxSlider.value)));
+    }
 
     const unsubCount = subscribeOnlineCount(count => {
       if (onlineNumEl) onlineNumEl.textContent = count;
@@ -1097,8 +1111,6 @@ async function main() {
     }
   };
 
-  const audioManager = new AudioManager();
-
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87CEEB);
 
@@ -1776,7 +1788,11 @@ async function main() {
   document.body.appendChild(player.nameLabel);
   window.playerModel = playerModel;
   window.audioManager = audioManager;
-  audioManager.playBGS('Beach/Beach.ogg');
+  // Music starts on first user interaction so the browser allows it
+  const _startMusic = () => { audioManager.startMusic(); };
+  document.addEventListener('keydown', _startMusic, { once: true });
+  document.addEventListener('mousedown', _startMusic, { once: true });
+  document.addEventListener('touchstart', _startMusic, { once: true });
 
   window.localHealth = 100;
 
@@ -2278,6 +2294,22 @@ async function main() {
 
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) overlay.style.display = 'none';
+  });
+
+  // In-game audio sliders
+  const musicSlider = document.getElementById('music-volume-slider');
+  const sfxSlider = document.getElementById('sfx-volume-slider');
+  if (musicSlider) {
+    musicSlider.value = audioManager.musicVolume;
+    musicSlider.addEventListener('input', () => audioManager.setMusicVolume(parseFloat(musicSlider.value)));
+  }
+  if (sfxSlider) {
+    sfxSlider.value = audioManager.sfxVolume;
+    sfxSlider.addEventListener('input', () => audioManager.setSfxVolume(parseFloat(sfxSlider.value)));
+  }
+  settingsBtn.addEventListener('click', () => {
+    if (musicSlider) musicSlider.value = audioManager.musicVolume;
+    if (sfxSlider) sfxSlider.value = audioManager.sfxVolume;
   });
 
   // Tab switching

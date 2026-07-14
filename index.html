@@ -38,6 +38,13 @@
       <select id="character-select"></select>
       <button id="save-settings">Save</button>
 
+      <div class="audio-settings-section">
+        <label class="audio-settings-label" for="music-volume-slider">🎵 Music Volume</label>
+        <input type="range" id="music-volume-slider" min="0" max="1" step="0.05" />
+        <label class="audio-settings-label" for="sfx-volume-slider">🔊 SFX Volume</label>
+        <input type="range" id="sfx-volume-slider" min="0" max="1" step="0.05" />
+      </div>
+
       <button id="toggle-console">Show Console</button>
 
       <div id="console-log" style="display: none; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.7); color: #0f0; padding: 10px; font-family: monospace; font-size: 12px; margin-top: 10px;"></div>
@@ -168,6 +175,16 @@
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-stats">📊 MY STATS</button>
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-leaderboard-dash">🏆 LEADERBOARD</button>
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-profile">👤 PROFILE</button>
+        </div>
+      </div>
+      <div class="dashboard-audio-section">
+        <div class="dashboard-audio-row">
+          <span class="dashboard-audio-label">🎵 MUSIC</span>
+          <input type="range" id="dash-music-volume" min="0" max="1" step="0.05" class="dashboard-audio-slider" />
+        </div>
+        <div class="dashboard-audio-row">
+          <span class="dashboard-audio-label">🔊 SFX</span>
+          <input type="range" id="dash-sfx-volume" min="0" max="1" step="0.05" class="dashboard-audio-slider" />
         </div>
       </div>
     </div>
