@@ -276,6 +276,7 @@ export class SetPieceManager {
   _pushOutOfZone(body, zone) {
     const t = body.translation();
     const pad = 0.5;
+    const margin = 0.1;
     const expanded = {
       minX: zone.minX - pad,
       maxX: zone.maxX + pad,
@@ -288,27 +289,38 @@ export class SetPieceManager {
       t.z < expanded.minZ || t.z > expanded.maxZ
     ) return; // already outside
 
-    // Find nearest face to escape through
+    // Candidate escape positions ordered by distance to nearest face.
+    // We prefer faces whose exit position lands inside the field.
     const dLeft  = t.x - expanded.minX;
     const dRight = expanded.maxX - t.x;
     const dFront = t.z - expanded.minZ;
     const dBack  = expanded.maxZ - t.z;
-    const minD = Math.min(dLeft, dRight, dFront, dBack);
-    const v = body.linvel();
 
-    if (minD === dLeft) {
-      body.setTranslation({ x: expanded.minX - 0.1, y: t.y, z: t.z }, true);
-      if (v.x > 0) body.setLinvel({ x: 0, y: v.y, z: v.z }, true);
-    } else if (minD === dRight) {
-      body.setTranslation({ x: expanded.maxX + 0.1, y: t.y, z: t.z }, true);
-      if (v.x < 0) body.setLinvel({ x: 0, y: v.y, z: v.z }, true);
-    } else if (minD === dFront) {
-      body.setTranslation({ x: t.x, y: t.y, z: expanded.minZ - 0.1 }, true);
-      if (v.z > 0) body.setLinvel({ x: v.x, y: v.y, z: 0 }, true);
-    } else {
-      body.setTranslation({ x: t.x, y: t.y, z: expanded.maxZ + 0.1 }, true);
-      if (v.z < 0) body.setLinvel({ x: v.x, y: v.y, z: 0 }, true);
-    }
+    const candidates = [
+      { d: dLeft,  nx: expanded.minX - margin, nz: t.z,               vMask: { x: 0, z: null } },
+      { d: dRight, nx: expanded.maxX + margin, nz: t.z,               vMask: { x: 0, z: null } },
+      { d: dFront, nx: t.x,                   nz: expanded.minZ - margin, vMask: { x: null, z: 0 } },
+      { d: dBack,  nx: t.x,                   nz: expanded.maxZ + margin, vMask: { x: null, z: 0 } },
+    ].sort((a, b) => a.d - b.d);
+
+    const inField = (x, z) =>
+      Math.abs(x) < FIELD_HALF_X - margin && Math.abs(z) < FIELD_HALF_Z - margin;
+
+    // Pick the nearest face that keeps the player on the field; fall back to
+    // nearest face overall (clamped to field bounds) if none is fully in-bounds.
+    let chosen = candidates.find(c => inField(c.nx, c.nz)) ?? candidates[0];
+
+    // Clamp to field so the player is never ejected out of bounds.
+    const safeX = Math.max(-(FIELD_HALF_X - margin), Math.min(FIELD_HALF_X - margin, chosen.nx));
+    const safeZ = Math.max(-(FIELD_HALF_Z - margin), Math.min(FIELD_HALF_Z - margin, chosen.nz));
+
+    body.setTranslation({ x: safeX, y: t.y, z: safeZ }, true);
+    const v = body.linvel();
+    body.setLinvel({
+      x: chosen.vMask.x === 0 ? 0 : v.x,
+      y: v.y,
+      z: chosen.vMask.z === 0 ? 0 : v.z,
+    }, true);
   }
 }
 
