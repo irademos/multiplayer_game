@@ -14,6 +14,8 @@ const MAX_PENDING_PAYLOADS = 75;
 const COALESCED_PAYLOAD_TYPES = new Set(['entitySnapshot', 'entityStates']);
 const PEER_RETRY_COOLDOWN_MS = 5000;
 const PEER_LOG_THROTTLE_MS = 30000;
+const PEER_HEARTBEAT_INTERVAL_MS = 5000;
+const PEER_STALE_TIMEOUT_MS = 20000;
 
 const isVerboseNetDebugEnabled = () => {
   if (typeof window === 'undefined') return false;
@@ -57,6 +59,7 @@ export class Multiplayer {
     this.unsubscribePeersListener = null;
     this.unsubscribeRoomListener = null;
     this.hostRecalcTimer = null;
+    this.heartbeatTimer = null;
     
     this.initPeer(); // Start async setup
   }
@@ -103,6 +106,7 @@ export class Multiplayer {
       const snapshot = await get(roomsRef);
       const peersSnapshot = await get(ref(db, 'peers'));
       const activePeers = peersSnapshot.exists() ? peersSnapshot.val() : {};
+      const nowMs = Date.now();
 
       let assignedRoom = null;
       let roomIndex = 0;
@@ -127,7 +131,7 @@ export class Multiplayer {
             // Skip private bot rooms
             if (roomName.startsWith('bot-room-')) continue;
             const peersInRoom = Object.keys(rooms[roomName] || {})
-              .filter(peerId => activePeers[peerId]);
+              .filter(peerId => this.isPeerFresh(activePeers[peerId], nowMs));
 
             if (peersInRoom.length < MAX_ROOM_PLAYERS) {
               assignedRoom = roomName;
@@ -158,7 +162,7 @@ export class Multiplayer {
       const isFirstActiveInRoom = isNewRoom ||
         (Object.keys(activePeers).filter(pid => {
           const p = activePeers[pid];
-          return p?.roomId === assignedRoom && pid !== id;
+          return p?.roomId === assignedRoom && pid !== id && this.isPeerFresh(p, nowMs);
         }).length === 0);
       if (isFirstActiveInRoom) {
         await set(ref(db, `rooms/${assignedRoom}/startTime`), serverTimestamp());
@@ -169,8 +173,10 @@ export class Multiplayer {
       await set(peerRef, {
         name: this.playerName,
         roomId: assignedRoom,
-        timestamp: Date.now()
+        joinedAt: nowMs,
+        timestamp: nowMs
       });
+      this.startHeartbeat();
 
       onDisconnect(roomRef).remove();
       onDisconnect(peerRef).remove();
@@ -254,7 +260,10 @@ export class Multiplayer {
 
   recalculateHostAndPeers() {
     const activePeers = this.peersCache || {};
-    const validPeerIds = (this.roomPeerIds || []).filter(pid => activePeers[pid]);
+    const nowMs = Date.now();
+    const validPeerIds = (this.roomPeerIds || []).filter(pid => (
+      pid === this.id || this.isPeerFresh(activePeers[pid], nowMs)
+    ));
     const validPeerSetKey = validPeerIds.slice().sort().join(',');
     const previousHostId = this.currentHostId;
     const hostStillValid = previousHostId && validPeerIds.includes(previousHostId);
@@ -263,25 +272,24 @@ export class Multiplayer {
     const hasPeerSetChanged = validPeerSetKey !== this.lastValidPeerSetKey;
     if (hasPeerSetChanged || !hostStillValid) {
       orderedPeerIds = [...validPeerIds].sort((a, b) => {
-        const timestampA = activePeers[a]?.timestamp ?? 0;
-        const timestampB = activePeers[b]?.timestamp ?? 0;
-        if (timestampA !== timestampB) return timestampA - timestampB;
+        const joinedA = activePeers[a]?.joinedAt ?? activePeers[a]?.timestamp ?? 0;
+        const joinedB = activePeers[b]?.joinedAt ?? activePeers[b]?.timestamp ?? 0;
+        if (joinedA !== joinedB) return joinedB - joinedA;
         return a.localeCompare(b);
       });
       this.lastOrderedPeerIds = orderedPeerIds;
       this.lastValidPeerSetKey = validPeerSetKey;
     }
 
-    const nowMs = Date.now();
     const peerLogKey = `${this.id}|${orderedPeerIds.join(',')}`;
     if (isVerboseNetDebugEnabled() && (peerLogKey !== this.lastPeerLogKey || nowMs - this.lastPeerLogAt > PEER_LOG_THROTTLE_MS)) {
       debugNetLog('My ID:', this.id);
-      debugNetLog('Valid Peers (oldest first):', orderedPeerIds);
+      debugNetLog('Valid Peers (newest first):', orderedPeerIds);
       this.lastPeerLogKey = peerLogKey;
       this.lastPeerLogAt = nowMs;
     }
 
-    const hostPeerId = hostStillValid ? previousHostId : orderedPeerIds[0];
+    const hostPeerId = orderedPeerIds[0];
     this.currentHostId = hostPeerId;
     this.isHost = (hostPeerId === this.id);
 
@@ -322,6 +330,31 @@ export class Multiplayer {
     if (this.hostRecalcTimer) {
       clearTimeout(this.hostRecalcTimer);
       this.hostRecalcTimer = null;
+    }
+    this.stopHeartbeat();
+  }
+
+  isPeerFresh(peerData, nowMs = Date.now()) {
+    if (!peerData) return false;
+    const lastSeenAt = peerData.timestamp ?? peerData.joinedAt ?? 0;
+    return nowMs - lastSeenAt <= PEER_STALE_TIMEOUT_MS;
+  }
+
+  startHeartbeat() {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      if (!this.id) return;
+      set(ref(db, `peers/${this.id}/timestamp`), Date.now()).catch(err => {
+        console.warn('Failed to update peer heartbeat:', err);
+        this.recordError(err);
+      });
+    }, PEER_HEARTBEAT_INTERVAL_MS);
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
     }
   }
 
