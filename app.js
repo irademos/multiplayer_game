@@ -22,6 +22,41 @@ import { applyGlobalGravity } from "./gravity.js";
 import { getSpawnPosition } from './spawnUtils.js';
 
 const DEFAULT_CHARACTER_MODEL = "/models/old_man.fbx";
+const ADVENTURE_PROGRESS_KEY = 'adventureProgressRound';
+const ADVENTURE_IN_PROGRESS_KEY = 'adventureRoundInProgress';
+const ADVENTURE_ROUND_CONFIGS = [
+  { enemyBots: 1, playerTeamSize: 1 },
+  { enemyBots: 2, playerTeamSize: 2 },
+  { enemyBots: 2, playerTeamSize: 1 },
+  { enemyBots: 3, playerTeamSize: 2 },
+  { enemyBots: 4, playerTeamSize: 2 },
+  { enemyBots: 3, playerTeamSize: 1 },
+  { enemyBots: 4, playerTeamSize: 1 },
+];
+
+function clampAdventureRound(round) {
+  const parsed = Number.parseInt(round, 10);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.min(Math.max(parsed, 0), ADVENTURE_ROUND_CONFIGS.length - 1);
+}
+
+function getAdventureRoundConfig(roundIdx) {
+  return ADVENTURE_ROUND_CONFIGS[clampAdventureRound(roundIdx)] || ADVENTURE_ROUND_CONFIGS[0];
+}
+
+function getSavedAdventureRound() {
+  const savedRound = clampAdventureRound(localStorage.getItem(ADVENTURE_PROGRESS_KEY) || '0');
+  if (localStorage.getItem(ADVENTURE_IN_PROGRESS_KEY) !== '1') return savedRound;
+  const penaltyRound = clampAdventureRound(savedRound - 1);
+  localStorage.setItem(ADVENTURE_PROGRESS_KEY, String(penaltyRound));
+  localStorage.removeItem(ADVENTURE_IN_PROGRESS_KEY);
+  return penaltyRound;
+}
+
+function saveAdventureRound(roundIdx) {
+  localStorage.setItem(ADVENTURE_PROGRESS_KEY, String(clampAdventureRound(roundIdx)));
+}
+
 
 const clock = new THREE.Clock();
 const mixerClock = new THREE.Clock();
@@ -48,7 +83,7 @@ async function main() {
   });
 
   // ── Dashboard — choose Play Online vs Play Bots ─────────────────────────────
-  const { botsOnly, botsPerTeam, ballSizeMultiplier, gravityMultiplier, adventureMode, adventureCharModel } = await new Promise(resolve => {
+  const { botsOnly, botsPerTeam, ballSizeMultiplier, gravityMultiplier, adventureMode, adventureCharModel, adventureRoundConfig } = await new Promise(resolve => {
     const overlay = document.getElementById('dashboard-overlay');
     const settingsOverlay = document.getElementById('bots-settings-overlay');
     const onlineNumEl = document.getElementById('dashboard-online-num');
@@ -487,26 +522,34 @@ async function main() {
     }
 
     function showAdventureRound(roundIdx) {
-      const char = ADVENTURE_ORDER[roundIdx];
+      const safeRoundIdx = clampAdventureRound(roundIdx);
+      const char = ADVENTURE_ORDER[safeRoundIdx];
       if (!char) return;
       overlay.classList.add('hidden');
-      document.getElementById('adv-round-label').textContent = `ROUND ${roundIdx + 1} / ${ADVENTURE_ORDER.length}`;
+      document.getElementById('adv-round-label').textContent = `ROUND ${safeRoundIdx + 1} / ${ADVENTURE_ORDER.length}`;
       document.getElementById('adv-enemy-emoji').textContent = char.emoji;
       document.getElementById('adv-enemy-name').textContent = char.label;
+      const config = getAdventureRoundConfig(safeRoundIdx);
+      setAdventureState({ active: true, round: safeRoundIdx, charKey: char.key, charModel: char.model, charEmoji: char.emoji, charLabel: char.label, config });
+      document.querySelector('#adventure-round-overlay .adventure-vs-desc').textContent = `BOTS (${config.enemyBots}) VS YOU (${config.playerTeamSize})`;
       adventureRoundOverlay.classList.remove('hidden');
     }
 
     function startAdventureRound(roundIdx) {
-      const char = ADVENTURE_ORDER[roundIdx];
-      setAdventureState({ active: true, round: roundIdx, charKey: char.key, charModel: char.model, charEmoji: char.emoji, charLabel: char.label });
+      const safeRoundIdx = clampAdventureRound(roundIdx);
+      const char = ADVENTURE_ORDER[safeRoundIdx];
+      const config = getAdventureRoundConfig(safeRoundIdx);
+      saveAdventureRound(safeRoundIdx);
+      localStorage.setItem(ADVENTURE_IN_PROGRESS_KEY, '1');
+      setAdventureState({ active: true, round: safeRoundIdx, charKey: char.key, charModel: char.model, charEmoji: char.emoji, charLabel: char.label, config });
       sessionStorage.setItem('skipToGame', '1');
       unsubCount();
       adventureRoundOverlay.classList.add('hidden');
-      resolve({ botsOnly: true, botsPerTeam: 3, ballSizeMultiplier: 1.0, gravityMultiplier: 1.0, adventureMode: true, adventureCharModel: char.model });
+      resolve({ botsOnly: true, botsPerTeam: 3, ballSizeMultiplier: 1.0, gravityMultiplier: 1.0, adventureMode: true, adventureCharModel: char.model, adventureRoundConfig: config });
     }
 
     document.getElementById('btn-adventure-mode').addEventListener('click', () => {
-      showAdventureRound(0);
+      showAdventureRound(getSavedAdventureRound());
     });
 
     document.getElementById('adv-start-round').addEventListener('click', () => {
@@ -527,12 +570,15 @@ async function main() {
       const nextRound = (state?.round ?? 0) + 1;
       if (nextRound >= ADVENTURE_ORDER.length) {
         // All rounds complete
+        saveAdventureRound(ADVENTURE_ORDER.length - 1);
+        localStorage.removeItem(ADVENTURE_IN_PROGRESS_KEY);
         setAdventureState(null);
         adventureWinOverlay.classList.add('hidden');
         overlay.classList.remove('hidden');
       } else {
         const nextChar = ADVENTURE_ORDER[nextRound];
-        setAdventureState({ active: true, round: nextRound, charKey: nextChar.key, charModel: nextChar.model, charEmoji: nextChar.emoji, charLabel: nextChar.label });
+        saveAdventureRound(nextRound);
+        setAdventureState({ active: true, round: nextRound, charKey: nextChar.key, charModel: nextChar.model, charEmoji: nextChar.emoji, charLabel: nextChar.label, config: getAdventureRoundConfig(nextRound) });
         adventureWinOverlay.classList.add('hidden');
         showAdventureRound(nextRound);
       }
@@ -546,9 +592,10 @@ async function main() {
 
     // Adventure lose overlay buttons
     document.getElementById('adv-try-again').addEventListener('click', () => {
-      setAdventureState({ active: true, round: 0 });
+      const state = getAdventureState();
+      const retryRound = clampAdventureRound(state?.round ?? getSavedAdventureRound());
       adventureLoseOverlay.classList.add('hidden');
-      showAdventureRound(0);
+      showAdventureRound(retryRound);
     });
 
     document.getElementById('adv-lose-quit').addEventListener('click', () => {
@@ -562,12 +609,14 @@ async function main() {
     if (returningAdventureState?.active && sessionStorage.getItem('adventureResult')) {
       const result = sessionStorage.getItem('adventureResult');
       sessionStorage.removeItem('adventureResult');
-      const roundIdx = returningAdventureState.round;
+      const roundIdx = clampAdventureRound(returningAdventureState.round);
       const char = ADVENTURE_ORDER[roundIdx];
 
       overlay.classList.add('hidden');
 
+      localStorage.removeItem(ADVENTURE_IN_PROGRESS_KEY);
       if (result === 'win') {
+        saveAdventureRound(Math.min(roundIdx + 1, ADVENTURE_ORDER.length - 1));
         document.getElementById('adv-win-text').textContent = `YOU DEFEATED THE ${char?.label || ''}!`;
         document.getElementById('adv-unlocked-emoji').textContent = char?.emoji || '';
         const isLastRound = roundIdx >= ADVENTURE_ORDER.length - 1;
@@ -576,7 +625,14 @@ async function main() {
           document.getElementById('adv-win-text').textContent = 'YOU BEAT ADVENTURE MODE!';
         }
         adventureWinOverlay.classList.remove('hidden');
+      } else if (result === 'draw') {
+        saveAdventureRound(roundIdx);
+        showAdventureRound(roundIdx);
       } else {
+        const previousRound = clampAdventureRound(roundIdx - 1);
+        saveAdventureRound(previousRound);
+        setAdventureState({ active: true, round: previousRound, config: getAdventureRoundConfig(previousRound) });
+        document.querySelector('#adventure-lose-overlay .adventure-result-text').innerHTML = 'YOU LOST — TRY AGAIN FROM<br>THE PREVIOUS ROUND.';
         adventureLoseOverlay.classList.remove('hidden');
       }
     }
@@ -1504,7 +1560,7 @@ async function main() {
       if (adventureMode) {
         const advState = (() => { try { return JSON.parse(sessionStorage.getItem('adventureState') || 'null'); } catch { return null; } })();
         const playerWon = winningTeam === localPlayerTeam;
-        const result = playerWon ? 'win' : 'loss';
+        const result = winningTeam === null ? 'draw' : playerWon ? 'win' : 'loss';
 
         if (playerWon && advState?.charKey) {
           try { await unlockCharacterFree(`char_${advState.charKey}`); } catch { /* best-effort */ }
@@ -1895,8 +1951,11 @@ async function main() {
   function countNeededAIByTeam() {
     const realCounts = countRealPlayersByTeam();
     if (adventureMode) {
-      // Adventure: player alone on home, 3 bots on away
-      return { home: 0, away: Math.max(0, 3 - realCounts.away) };
+      const config = adventureRoundConfig || getAdventureRoundConfig(0);
+      return {
+        home: Math.max(0, config.playerTeamSize - realCounts.home),
+        away: Math.max(0, config.enemyBots - realCounts.away)
+      };
     }
     return {
       home: Math.max(0, MIN_PLAYERS_PER_TEAM - realCounts.home),
