@@ -383,4 +383,4 @@ export async function deleteAccount(username) {
   await remove(ref(db, `leaderboard/${sanitizeName(username)}`));
 }
 
-export { getSession, clearSession, getUser, updateUserCharacter, showCharacterSelect, CHARACTERS };
+export { getSession, clearSession, getUser, updateUserCharacter, showCharacterSelect, CHARACTERS, ADVENTURE_ORDER };
