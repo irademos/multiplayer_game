@@ -22,12 +22,14 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) 
     const elapsed = now - info.start;
     if (elapsed >= cfg.hitTime && elapsed <= cfg.hitTime + cfg.hitWindow && !info.hasHit) {
       let hit = false;
+      let playerHit = false;
       if (cfg.damage > 0) {
         for (const target of players) {
           if (target === attacker) continue;
           const dist = attacker.model.position.distanceTo(target.model.position);
           if (dist <= cfg.range) {
             hit = true;
+            playerHit = true;
             if (target.id === 'local') {
               window.localHealth = Math.max(0, window.localHealth - cfg.damage);
               if (window.playerControls) {
@@ -61,6 +63,7 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) 
             dir.normalize();
             const force = cfg.ballForce ?? 0.3;
             window.soccerBall.applyImpulse({ x: dir.x * force, y: dir.y * force, z: dir.z * force });
+            audioManager?.playBallKick();
           }
         }
       }
@@ -83,8 +86,10 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) 
         }
       }
 
-      if (hit) {
+      if (playerHit) {
         audioManager?.playSFX('SFX/Attacks/Sword Attacks Hits and Blocks/Sword Impact Hit 1.ogg', 0.6);
+      }
+      if (hit) {
         info.hasHit = true;
       }
     }

@@ -245,6 +245,7 @@ export class AIPlayer {
           { x: goalDir.x * KICK_IMPULSE, y: goalDir.y * KICK_IMPULSE, z: goalDir.z * KICK_IMPULSE },
           true
         );
+        window.audioManager?.playBallKick();
       }, KICK_REGISTER_DELAY);
 
       setTimeout(() => { this.kickAnimating = false; }, 900);

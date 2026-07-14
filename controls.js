@@ -293,6 +293,7 @@ export class PlayerControls {
         if (!this.enabled || this.isInWater) return;
         this.slideMomentum.set(0, 0, 0);
         this.playAction('mmaKick');
+        this.audioManager?.playAttack();
         event.preventDefault();
       });
     }
@@ -307,6 +308,7 @@ export class PlayerControls {
       punchButton.addEventListener('touchstart', (event) => {
         if (!this.enabled || this.isInWater) return;
         this.playAction('mutantPunch');
+        this.audioManager?.playPunch();
         event.preventDefault();
       });
     }
@@ -327,7 +329,7 @@ export class PlayerControls {
         this.slideMomentumDecay = 0.880 + speedRatio * 0.060;
         this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(magnitude);
         this.playAction('slide');
-        this.audioManager?.playAttack();
+        this.audioManager?.playSlide();
         event.preventDefault();
       });
     }
@@ -378,7 +380,7 @@ export class PlayerControls {
           this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
         }
         this.playAction('mutantPunch');
-        this.audioManager?.playAttack();
+        this.audioManager?.playPunch();
       } else if (key === 'e') {
         if (this.isInWater) return;
         this.slideMomentum.set(0, 0, 0);
@@ -388,7 +390,7 @@ export class PlayerControls {
         if (this.isInWater) return;
         this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(1.4);
         this.playAction('runningKick');
-        this.audioManager?.playAttack();
+        this.audioManager?.playRoll();
       } else if (key === 'z') {
         if (this.isInWater || this.currentSpecialAction) return;
         const vel = this.body?.linvel();
@@ -398,7 +400,7 @@ export class PlayerControls {
         this.slideMomentumDecay = 0.880 + speedRatio * 0.060;
         this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(magnitude);
         this.playAction('slide');
-        this.audioManager?.playAttack();
+        this.audioManager?.playSlide();
       } else if (key === 'g') {
         if (this.grabbedTarget) {
           this.releaseGrab();
