@@ -530,6 +530,7 @@ async function main() {
       document.getElementById('adv-enemy-emoji').textContent = char.emoji;
       document.getElementById('adv-enemy-name').textContent = char.label;
       const config = getAdventureRoundConfig(safeRoundIdx);
+      setAdventureState({ active: true, round: safeRoundIdx, charKey: char.key, charModel: char.model, charEmoji: char.emoji, charLabel: char.label, config });
       document.querySelector('#adventure-round-overlay .adventure-vs-desc').textContent = `BOTS (${config.enemyBots}) VS YOU (${config.playerTeamSize})`;
       adventureRoundOverlay.classList.remove('hidden');
     }
