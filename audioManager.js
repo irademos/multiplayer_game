@@ -22,9 +22,9 @@ export class AudioManager {
       'SFX/Footsteps/Dirt/Dirt Walk 5.ogg'
     ];
     this.attacks = [
-      'SFX/Attacks/Sword Attacks Hits and Blocks/Sword Attack 1.ogg',
-      'SFX/Attacks/Sword Attacks Hits and Blocks/Sword Attack 2.ogg',
-      'SFX/Attacks/Sword Attacks Hits and Blocks/Sword Attack 3.ogg'
+      'SFX/Attacks/Bow Attacks Hits and Blocks/Bow Impact Hit 1.ogg',
+      'SFX/Attacks/Bow Attacks Hits and Blocks/Bow Impact Hit 2.ogg',
+      'SFX/Attacks/Bow Attacks Hits and Blocks/Bow Impact Hit 3.ogg'
     ];
     this.ballKickSounds = [
       'SFX/Attacks/Bow Attacks Hits and Blocks/Bow Impact Hit 1.ogg',
@@ -32,8 +32,7 @@ export class AudioManager {
       'SFX/Attacks/Bow Attacks Hits and Blocks/Bow Impact Hit 3.ogg'
     ];
     this.punchSounds = [
-      'SFX/Torch/Torch Attack Strike 1.ogg',
-      'SFX/Torch/Torch Attack Strike 2.ogg'
+      'SFX/Footsteps/Dirt/Dirt Run 1.ogg'
     ];
     this.slideSounds = [
       'SFX/Spells/Firebuff 1.ogg',

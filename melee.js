@@ -87,7 +87,7 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) 
       }
 
       if (playerHit) {
-        audioManager?.playSFX('SFX/Attacks/Sword Attacks Hits and Blocks/Sword Impact Hit 1.ogg', 0.6);
+        audioManager?.playSFX('SFX/Footsteps/Dirt/Dirt Run 1.ogg', 0.6);
       }
       if (hit) {
         info.hasHit = true;
