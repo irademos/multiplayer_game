@@ -38,13 +38,6 @@
       <select id="character-select"></select>
       <button id="save-settings">Save</button>
 
-      <div class="audio-settings-section">
-        <label class="audio-settings-label" for="music-volume-slider">🎵 Music Volume</label>
-        <input type="range" id="music-volume-slider" min="0" max="1" step="0.05" />
-        <label class="audio-settings-label" for="sfx-volume-slider">🔊 SFX Volume</label>
-        <input type="range" id="sfx-volume-slider" min="0" max="1" step="0.05" />
-      </div>
-
       <button id="toggle-console">Show Console</button>
 
       <div id="console-log" style="display: none; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.7); color: #0f0; padding: 10px; font-family: monospace; font-size: 12px; margin-top: 10px;"></div>
@@ -175,16 +168,6 @@
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-stats">📊 MY STATS</button>
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-leaderboard-dash">🏆 LEADERBOARD</button>
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-profile">👤 PROFILE</button>
-        </div>
-      </div>
-      <div class="dashboard-audio-section">
-        <div class="dashboard-audio-row">
-          <span class="dashboard-audio-label">🎵 MUSIC</span>
-          <input type="range" id="dash-music-volume" min="0" max="1" step="0.05" class="dashboard-audio-slider" />
-        </div>
-        <div class="dashboard-audio-row">
-          <span class="dashboard-audio-label">🔊 SFX</span>
-          <input type="range" id="dash-sfx-volume" min="0" max="1" step="0.05" class="dashboard-audio-slider" />
         </div>
       </div>
     </div>
@@ -371,7 +354,7 @@
       <div class="adventure-vs-block">
         <div class="adventure-vs-emoji" id="adv-enemy-emoji"></div>
         <div class="adventure-vs-name" id="adv-enemy-name"></div>
-        <div class="adventure-vs-desc">YOU (1) VS BOTS (3)</div>
+        <div class="adventure-vs-desc" id="adv-vs-desc">YOU (1) VS BOTS (1)</div>
         <div class="adventure-vs-hint">WIN TO UNLOCK THIS CHARACTER!</div>
       </div>
       <button class="arcade-btn arcade-btn-green" id="adv-start-round">▶ START ROUND</button>
@@ -399,10 +382,22 @@
   <div id="adventure-lose-overlay" class="arcade-overlay hidden">
     <div class="arcade-panel adventure-panel">
       <div class="arcade-title" style="font-size:clamp(12px,2.5vw,16px);color:#ff4444">💀 DEFEATED!</div>
-      <div class="adventure-result-text">YOU LOST — TRY AGAIN FROM<br>THE BEGINNING?</div>
+      <div class="adventure-result-text" id="adv-lose-text">YOU LOST — GOING BACK TO PREVIOUS ROUND.</div>
       <div class="adventure-result-buttons">
         <button class="arcade-btn arcade-btn-yellow" id="adv-try-again">↺ TRY AGAIN</button>
         <button class="arcade-btn arcade-btn-dim" id="adv-lose-quit">🏠 DASHBOARD</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Adventure Mode Result Overlay (Tie) -->
+  <div id="adventure-tie-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel adventure-panel">
+      <div class="arcade-title" style="font-size:clamp(12px,2.5vw,16px);color:#ffcc00">🤝 TIE!</div>
+      <div class="adventure-result-text">IT'S A DRAW — PLAY THIS ROUND AGAIN!</div>
+      <div class="adventure-result-buttons">
+        <button class="arcade-btn arcade-btn-yellow" id="adv-tie-play-again">↺ PLAY AGAIN</button>
+        <button class="arcade-btn arcade-btn-dim" id="adv-tie-quit">🏠 DASHBOARD</button>
       </div>
     </div>
   </div>
