@@ -107,7 +107,7 @@ export class SetPieceManager {
       if (body) this._pushOutOfZone(body, a.zone);
     }
 
-    // Push opposing team bodies out of the larger exclusion zone
+    // Push non-taker bodies (both teams' bots + opposing human) out of the larger exclusion zone
     if (a.exclusionZone) {
       for (const body of opposingBodies) {
         if (body) this._pushOutOfZone(body, a.exclusionZone);
@@ -256,6 +256,20 @@ export class SetPieceManager {
     if (changed) {
       body.setTranslation({ x: nx, y: t.y, z: nz }, true);
       body.setLinvel({ x: vx, y: v.y, z: vz }, true);
+    }
+  }
+
+  // Immediately eject all bodies from their respective zones (call once on set piece creation).
+  ejectBodiesNow(otherBodies = [], opposingBodies = []) {
+    if (!this.active) return;
+    const a = this.active;
+    for (const body of otherBodies) {
+      if (body) this._pushOutOfZone(body, a.zone);
+    }
+    if (a.exclusionZone) {
+      for (const body of opposingBodies) {
+        if (body) this._pushOutOfZone(body, a.exclusionZone);
+      }
     }
   }
 
