@@ -274,7 +274,7 @@ export class Multiplayer {
       orderedPeerIds = [...validPeerIds].sort((a, b) => {
         const joinedA = activePeers[a]?.joinedAt ?? activePeers[a]?.timestamp ?? 0;
         const joinedB = activePeers[b]?.joinedAt ?? activePeers[b]?.timestamp ?? 0;
-        if (joinedA !== joinedB) return joinedB - joinedA;
+        if (joinedA !== joinedB) return joinedA - joinedB;
         return a.localeCompare(b);
       });
       this.lastOrderedPeerIds = orderedPeerIds;
@@ -284,7 +284,7 @@ export class Multiplayer {
     const peerLogKey = `${this.id}|${orderedPeerIds.join(',')}`;
     if (isVerboseNetDebugEnabled() && (peerLogKey !== this.lastPeerLogKey || nowMs - this.lastPeerLogAt > PEER_LOG_THROTTLE_MS)) {
       debugNetLog('My ID:', this.id);
-      debugNetLog('Valid Peers (newest first):', orderedPeerIds);
+      debugNetLog('Valid Peers (oldest fresh first):', orderedPeerIds);
       this.lastPeerLogKey = peerLogKey;
       this.lastPeerLogAt = nowMs;
     }
@@ -344,7 +344,18 @@ export class Multiplayer {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
       if (!this.id) return;
-      set(ref(db, `peers/${this.id}/timestamp`), Date.now()).catch(err => {
+      const nowMs = Date.now();
+      const myPeerData = this.peersCache?.[this.id];
+      const updates = { timestamp: nowMs };
+      if (myPeerData && !this.isPeerFresh(myPeerData, nowMs)) {
+        updates.joinedAt = nowMs;
+      }
+      set(ref(db, `peers/${this.id}`), {
+        ...myPeerData,
+        name: this.playerName,
+        roomId: this.roomId,
+        ...updates
+      }).catch(err => {
         console.warn('Failed to update peer heartbeat:', err);
         this.recordError(err);
       });
