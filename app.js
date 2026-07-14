@@ -1542,6 +1542,26 @@ async function main() {
     }
 
     setPieceManager.trigger(spType, teamTaking, ballFixedPos, zone, takerNetworkId, exclusionZone);
+
+    // Immediately eject any player already inside the zones at set piece creation.
+    if (multiplayer.isHost) {
+      const takerTeam = teamTaking;
+      const ejOtherBodies = [];
+      const ejOpposingBodies = [];
+      if (playerControls?.body) {
+        ejOtherBodies.push(playerControls.body);
+        if (localPlayerTeam !== takerTeam) ejOpposingBodies.push(playerControls.body);
+      }
+      for (const team of ['home', 'away']) {
+        for (const ai of (aiPlayers[team] ?? [])) {
+          if (ai.body && ai.networkId !== takerNetworkId) {
+            ejOtherBodies.push(ai.body);
+            ejOpposingBodies.push(ai.body);
+          }
+        }
+      }
+      setPieceManager.ejectBodiesNow(ejOtherBodies, ejOpposingBodies);
+    }
   }
 
   // Load additional level data (destructible props, etc.)
@@ -2432,7 +2452,8 @@ async function main() {
 
       // Split locally-simulated bodies into two groups:
       // - otherBodies: all non-taker bodies pushed out of the small taker zone
-      // - opposingBodies: only opposing team bodies pushed out of the larger exclusion zone
+      // - opposingBodies: non-taker bodies pushed out of the larger exclusion zone
+      //   (opposing team human player + all non-taker AI bots from both teams)
       const opposingTeam = sp.teamTaking === 'home' ? 'away' : 'home';
       const otherBodies = [];
       const opposingBodies = [];
@@ -2446,7 +2467,8 @@ async function main() {
         for (const ai of (aiPlayers[team] ?? [])) {
           if (ai.body && ai.body !== takerBody) {
             otherBodies.push(ai.body);
-            if (team === opposingTeam) opposingBodies.push(ai.body);
+            // All AI bots (both teams) stay out of the exclusion zone
+            opposingBodies.push(ai.body);
           }
         }
       }
