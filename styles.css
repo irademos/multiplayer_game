@@ -1531,3 +1531,146 @@ body {
   border-image-slice: 1;
 }
 
+
+/* ════════════════════════════════════════════════════════
+   ADVENTURE MODE STYLES
+   ════════════════════════════════════════════════════════ */
+
+.arcade-btn-purple {
+  color: #cc44ff;
+  border-color: #cc44ff;
+  box-shadow: 3px 3px 0 #660099, 0 0 15px rgba(204, 68, 255, 0.3);
+}
+.arcade-btn-purple:hover:not(:disabled) {
+  background: rgba(204, 68, 255, 0.1);
+  box-shadow: 4px 4px 0 #660099, 0 0 20px rgba(204, 68, 255, 0.5);
+}
+
+.adventure-panel {
+  gap: 20px;
+  min-width: 300px;
+  max-width: 420px;
+  width: 90vw;
+}
+
+.adventure-round-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(8px, 1.8vw, 11px);
+  color: rgba(204, 68, 255, 0.9);
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.adventure-vs-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  border: 2px solid rgba(204, 68, 255, 0.4);
+  border-radius: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.adventure-vs-emoji {
+  font-size: 56px;
+  line-height: 1;
+}
+
+.adventure-vs-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(10px, 2.5vw, 14px);
+  color: #fff;
+  letter-spacing: 0.1em;
+}
+
+.adventure-vs-desc {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(7px, 1.5vw, 9px);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.adventure-vs-hint {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.3vw, 8px);
+  color: #ffdd00;
+  letter-spacing: 0.05em;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.adventure-result-text {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(7px, 1.6vw, 9px);
+  color: rgba(255,255,255,0.75);
+  text-align: center;
+  line-height: 1.8;
+}
+
+.adventure-unlocked-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 2px solid rgba(0, 255, 136, 0.5);
+  border-radius: 8px;
+}
+
+.adventure-unlocked-emoji {
+  font-size: 48px;
+}
+
+.adventure-unlocked-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(8px, 2vw, 11px);
+  color: #44ff88;
+  letter-spacing: 0.1em;
+}
+
+.adventure-result-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.adventure-result-buttons .arcade-btn {
+  width: 100%;
+  font-size: clamp(8px, 2vw, 11px) !important;
+  padding: 12px 16px !important;
+}
+
+/* Character select locked state */
+.char-lock-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.char-lock-icon {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(9px, 2vw, 12px);
+  color: #ff4444;
+  letter-spacing: 0.05em;
+}
+
+.char-lock-hint {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.3vw, 8px);
+  color: rgba(255,255,255,0.45);
+  text-align: center;
+  line-height: 1.8;
+}
+
+.char-buy-note {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.3vw, 7px);
+  color: rgba(255, 221, 0, 0.5);
+  text-align: center;
+  letter-spacing: 0.05em;
+  margin-top: -4px;
+}

@@ -6,7 +6,7 @@ import { getTerrainHeight } from './water.js';
 import { Multiplayer, subscribeOnlineCount } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
-import { initLogin, getSession, clearSession, getUser, updateUserDisplayName, getUserUpgrades, purchaseUpgrade, showCharacterSelect, updateUserCharacter, CHARACTERS, changePin, deleteAccount } from './login.js';
+import { initLogin, getSession, clearSession, getUser, updateUserDisplayName, getUserUpgrades, purchaseUpgrade, unlockCharacterFree, showCharacterSelect, updateUserCharacter, CHARACTERS, ADVENTURE_ORDER, changePin, deleteAccount } from './login.js';
 import { spawnProjectile, updateProjectiles } from './projectiles.js';
 import { updateMeleeAttacks } from './melee.js';
 import { LevelLoader } from './levelLoader.js';
@@ -46,7 +46,7 @@ async function main() {
   });
 
   // ── Dashboard — choose Play Online vs Play Bots ─────────────────────────────
-  const { botsOnly, botsPerTeam, ballSizeMultiplier, gravityMultiplier } = await new Promise(resolve => {
+  const { botsOnly, botsPerTeam, ballSizeMultiplier, gravityMultiplier, adventureMode, adventureCharModel } = await new Promise(resolve => {
     const overlay = document.getElementById('dashboard-overlay');
     const settingsOverlay = document.getElementById('bots-settings-overlay');
     const onlineNumEl = document.getElementById('dashboard-online-num');
@@ -458,6 +458,114 @@ async function main() {
         if (upgrades?.rainbowTrail) window.hasRainbowTrail = true;
       } catch { /* ignore */ }
     })();
+
+    // ── Adventure Mode ──────────────────────────────────────────────────────────
+    const adventureRoundOverlay = document.getElementById('adventure-round-overlay');
+    const adventureWinOverlay = document.getElementById('adventure-win-overlay');
+    const adventureLoseOverlay = document.getElementById('adventure-lose-overlay');
+
+    function getAdventureState() {
+      try { return JSON.parse(sessionStorage.getItem('adventureState') || 'null'); } catch { return null; }
+    }
+    function setAdventureState(state) {
+      if (state) sessionStorage.setItem('adventureState', JSON.stringify(state));
+      else sessionStorage.removeItem('adventureState');
+    }
+
+    function showAdventureRound(roundIdx) {
+      const char = ADVENTURE_ORDER[roundIdx];
+      if (!char) return;
+      overlay.classList.add('hidden');
+      document.getElementById('adv-round-label').textContent = `ROUND ${roundIdx + 1} / ${ADVENTURE_ORDER.length}`;
+      document.getElementById('adv-enemy-emoji').textContent = char.emoji;
+      document.getElementById('adv-enemy-name').textContent = char.label;
+      adventureRoundOverlay.classList.remove('hidden');
+    }
+
+    function startAdventureRound(roundIdx) {
+      const char = ADVENTURE_ORDER[roundIdx];
+      setAdventureState({ active: true, round: roundIdx, charKey: char.key, charModel: char.model, charEmoji: char.emoji, charLabel: char.label });
+      sessionStorage.setItem('skipToGame', '1');
+      unsubCount();
+      adventureRoundOverlay.classList.add('hidden');
+      resolve({ botsOnly: true, botsPerTeam: 3, ballSizeMultiplier: 1.0, gravityMultiplier: 1.0, adventureMode: true, adventureCharModel: char.model });
+    }
+
+    document.getElementById('btn-adventure-mode').addEventListener('click', () => {
+      showAdventureRound(0);
+    });
+
+    document.getElementById('adv-start-round').addEventListener('click', () => {
+      const state = getAdventureState();
+      const roundIdx = state?.round ?? 0;
+      startAdventureRound(roundIdx);
+    });
+
+    document.getElementById('adv-quit-pre').addEventListener('click', () => {
+      setAdventureState(null);
+      adventureRoundOverlay.classList.add('hidden');
+      overlay.classList.remove('hidden');
+    });
+
+    // Adventure win overlay buttons
+    document.getElementById('adv-next-round').addEventListener('click', () => {
+      const state = getAdventureState();
+      const nextRound = (state?.round ?? 0) + 1;
+      if (nextRound >= ADVENTURE_ORDER.length) {
+        // All rounds complete
+        setAdventureState(null);
+        adventureWinOverlay.classList.add('hidden');
+        overlay.classList.remove('hidden');
+      } else {
+        const nextChar = ADVENTURE_ORDER[nextRound];
+        setAdventureState({ active: true, round: nextRound, charKey: nextChar.key, charModel: nextChar.model, charEmoji: nextChar.emoji, charLabel: nextChar.label });
+        adventureWinOverlay.classList.add('hidden');
+        showAdventureRound(nextRound);
+      }
+    });
+
+    document.getElementById('adv-win-quit').addEventListener('click', () => {
+      setAdventureState(null);
+      adventureWinOverlay.classList.add('hidden');
+      overlay.classList.remove('hidden');
+    });
+
+    // Adventure lose overlay buttons
+    document.getElementById('adv-try-again').addEventListener('click', () => {
+      setAdventureState({ active: true, round: 0 });
+      adventureLoseOverlay.classList.add('hidden');
+      showAdventureRound(0);
+    });
+
+    document.getElementById('adv-lose-quit').addEventListener('click', () => {
+      setAdventureState(null);
+      adventureLoseOverlay.classList.add('hidden');
+      overlay.classList.remove('hidden');
+    });
+
+    // Check if returning from an adventure round game
+    const returningAdventureState = getAdventureState();
+    if (returningAdventureState?.active && sessionStorage.getItem('adventureResult')) {
+      const result = sessionStorage.getItem('adventureResult');
+      sessionStorage.removeItem('adventureResult');
+      const roundIdx = returningAdventureState.round;
+      const char = ADVENTURE_ORDER[roundIdx];
+
+      overlay.classList.add('hidden');
+
+      if (result === 'win') {
+        document.getElementById('adv-win-text').textContent = `YOU DEFEATED THE ${char?.label || ''}!`;
+        document.getElementById('adv-unlocked-emoji').textContent = char?.emoji || '';
+        const isLastRound = roundIdx >= ADVENTURE_ORDER.length - 1;
+        document.getElementById('adv-next-round').classList.toggle('hidden', isLastRound);
+        if (isLastRound) {
+          document.getElementById('adv-win-text').textContent = 'YOU BEAT ADVENTURE MODE!';
+        }
+        adventureWinOverlay.classList.remove('hidden');
+      } else {
+        adventureLoseOverlay.classList.remove('hidden');
+      }
+    }
   });
 
   let multiplayer = null;
@@ -1379,9 +1487,23 @@ async function main() {
       });
     }
 
-    // After 4 seconds reveal the Play Again button
-    setTimeout(() => {
-      playAgainBtn.classList.remove('hidden');
+    // After 4 seconds reveal the Play Again button (or adventure result)
+    setTimeout(async () => {
+      if (adventureMode) {
+        const advState = (() => { try { return JSON.parse(sessionStorage.getItem('adventureState') || 'null'); } catch { return null; } })();
+        const playerWon = winningTeam === localPlayerTeam;
+        const result = playerWon ? 'win' : 'loss';
+
+        if (playerWon && advState?.charKey) {
+          try { await unlockCharacterFree(`char_${advState.charKey}`); } catch { /* best-effort */ }
+        }
+
+        sessionStorage.setItem('adventureResult', result);
+        sessionStorage.setItem('skipToGame', '1');
+        location.reload();
+      } else {
+        playAgainBtn.classList.remove('hidden');
+      }
     }, 4000);
   }
 
@@ -1715,12 +1837,14 @@ async function main() {
     const color = team === 'home' ? 0x3399ff : 0xff3322;
     const spacing = 4;
     const spawnX = (index - (MIN_PLAYERS_PER_TEAM - 1) / 2) * spacing;
+    const botModel = (adventureMode && adventureCharModel && team === 'away') ? adventureCharModel : '/models/old_man.fbx';
     const ai = new AIPlayer(scene, rapierWorld, {
       spawnX,
       spawnZ,
       targetGoalZ,
       color,
-      name: `Computer ${team === 'home' ? 'Home' : 'Away'} ${index + 1}`
+      name: `Computer ${team === 'home' ? 'Home' : 'Away'} ${index + 1}`,
+      model: botModel,
     });
     ai.team = team;
     ai.networkId = `ai-${team}-${index}`;
@@ -1754,6 +1878,10 @@ async function main() {
 
   function countNeededAIByTeam() {
     const realCounts = countRealPlayersByTeam();
+    if (adventureMode) {
+      // Adventure: player alone on home, 3 bots on away
+      return { home: 0, away: Math.max(0, 3 - realCounts.away) };
+    }
     return {
       home: Math.max(0, MIN_PLAYERS_PER_TEAM - realCounts.home),
       away: Math.max(0, MIN_PLAYERS_PER_TEAM - realCounts.away)

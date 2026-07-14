@@ -26,13 +26,13 @@ const HUMAN_PASS_PREFER_RANGE = 35; // prefer human teammates within this distan
 const OPPONENT_AVOID_RADIUS = 6;    // dribble-steering repulsion distance
 
 export class AIPlayer {
-  constructor(scene, rapierWorld, { spawnX = 0, spawnZ = 35, targetGoalZ = -50, color = 0xff3322, name = 'Computer' } = {}) {
+  constructor(scene, rapierWorld, { spawnX = 0, spawnZ = 35, targetGoalZ = -50, color = 0xff3322, name = 'Computer', model = '/models/old_man.fbx' } = {}) {
     this.scene = scene;
     this.rapierWorld = rapierWorld;
     this.targetGoalZ = targetGoalZ;
     this.ownGoalZ = -targetGoalZ;
 
-    this.character = new PlayerCharacter(name, '/models/old_man.fbx', color);
+    this.character = new PlayerCharacter(name, model, color);
     this.model = this.character.model;
     scene.add(this.model);
     document.body.appendChild(this.character.nameLabel);
@@ -85,9 +85,6 @@ export class AIPlayer {
     const minZ = Math.min(this.ownGoalZ + attackDir * FORMATION_BACK_MARGIN, this.targetGoalZ - attackDir * FORMATION_FRONT_MARGIN);
     const maxZ = Math.max(this.ownGoalZ + attackDir * FORMATION_BACK_MARGIN, this.targetGoalZ - attackDir * FORMATION_FRONT_MARGIN);
 
-    // Support players move with the play instead of parking on static field
-    // thirds. Use the ball/chaser as the moving anchor, then keep each role a
-    // few yards ahead or behind that anchor along the attacking direction.
     const anchorX = chaserPosition
       ? THREE.MathUtils.lerp(chaserPosition.x, ballPos.x, FORMATION_ANCHOR_BALL_BLEND)
       : ballPos.x;
@@ -265,13 +262,11 @@ export class AIPlayer {
           return null;
         }).filter(Boolean);
 
-        // Score candidate directions: 8 evenly-spread angles
-        // Lower score = better. Score = opponent_penalty + bounds_penalty - goal_progress_bonus
         const goalZ = this.targetGoalZ;
-        const GOAL_WEIGHT = 3.0;      // strong preference toward goal
+        const GOAL_WEIGHT = 3.0;
         const OPPONENT_WEIGHT = 2.0;
         const BOUNDS_WEIGHT = 5.0;
-        const LOOK_AHEAD = 4;         // units ahead to evaluate
+        const LOOK_AHEAD = 4;
 
         let bestScore = Infinity;
         let bestDir = null;
@@ -285,12 +280,10 @@ export class AIPlayer {
           const futureX = ballPos.x + dx * LOOK_AHEAD;
           const futureZ = ballPos.z + dz * LOOK_AHEAD;
 
-          // Penalty for going out of bounds
           const boundsOverX = Math.max(0, Math.abs(futureX) - FIELD_X_HALF);
           const boundsOverZ = Math.max(0, Math.abs(futureZ) - FIELD_Z_HALF);
           const boundsPenalty = (boundsOverX + boundsOverZ) * BOUNDS_WEIGHT;
 
-          // Penalty for moving toward opponents
           let opPenalty = 0;
           for (const opPos of opponentPositions) {
             const futureToOp = new THREE.Vector3(futureX - opPos.x, 0, futureZ - opPos.z);
@@ -300,10 +293,9 @@ export class AIPlayer {
             }
           }
 
-          // Reward for moving closer to goal (goal progress bonus)
           const currentDistToGoal = Math.abs(ballPos.z - goalZ);
           const futureDistToGoal = Math.abs(futureZ - goalZ);
-          const goalProgress = (currentDistToGoal - futureDistToGoal) / LOOK_AHEAD; // -1..1 range
+          const goalProgress = (currentDistToGoal - futureDistToGoal) / LOOK_AHEAD;
           const goalBonus = goalProgress * GOAL_WEIGHT;
 
           const score = boundsPenalty + opPenalty - goalBonus;
@@ -318,12 +310,10 @@ export class AIPlayer {
         this.dribbleAdjustTime = now;
       }
 
-      // Clamp destination to keep ball in bounds
       const nextBallX = THREE.MathUtils.clamp(ballPos.x + this.dribbleDir.x * 2, -FIELD_X_HALF, FIELD_X_HALF);
       const nextBallZ = THREE.MathUtils.clamp(ballPos.z + this.dribbleDir.z * 2, -FIELD_Z_HALF, FIELD_Z_HALF);
       const clampedDir = new THREE.Vector3(nextBallX - ballPos.x, 0, nextBallZ - ballPos.z).normalize();
 
-      // Aim to run through the ball from behind the clamped direction
       targetPos = ballPos.clone().sub(clampedDir.clone().multiplyScalar(0.4));
     } else {
       targetPos = pursueBall

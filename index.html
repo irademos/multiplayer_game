@@ -67,9 +67,9 @@
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════
+  <!-- ══════════════════════════════
        ARCADE LOGIN OVERLAY
-  ════════════════════════════════════════════════ -->
+  ════════════════════════════════ -->
   <div id="login-overlay" class="arcade-overlay">
 
     <!-- ── Welcome Back screen ── -->
@@ -141,9 +141,9 @@
 
   </div>
 
-  <!-- ══════════════════════════════════════════════
+  <!-- ══════════════════════════════
        DASHBOARD OVERLAY
-  ════════════════════════════════════════════════ -->
+  ════════════════════════════════ -->
   <div id="dashboard-overlay" class="arcade-overlay hidden">
     <div class="arcade-panel dashboard-panel">
       <div class="arcade-title">GOAL QUEST</div>
@@ -160,6 +160,10 @@
           ▶ PLAY VS BOTS
         </button>
         <div class="dashboard-btn-desc">PRIVATE — NO RANDOMS</div>
+        <button class="arcade-btn arcade-btn-purple dashboard-big-btn" id="btn-adventure-mode">
+          ⚔️ ADVENTURE MODE
+        </button>
+        <div class="dashboard-btn-desc">UNLOCK NEW CHARACTERS</div>
         <div class="dashboard-secondary-btns">
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-stats">📊 MY STATS</button>
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-leaderboard-dash">🏆 LEADERBOARD</button>
@@ -245,7 +249,7 @@
         <button class="arcade-btn arcade-btn-dim profile-char-btn" id="btn-profile-char">CHANGE CHARACTER</button>
       </div>
       <div class="profile-section">
-        <button class="arcade-btn arcade-btn-yellow profile-shop-btn" id="btn-open-shop">🛒 SHOP</button>
+        <button class="arcade-btn arcade-btn-yellow profile-shop-btn" id="btn-open-shop">🛍 SHOP</button>
       </div>
       <div class="profile-section">
         <button class="arcade-btn arcade-btn-dim" id="btn-adv-settings-open">⚙ ADVANCED SETTINGS</button>
@@ -308,7 +312,7 @@
   <!-- Shop Overlay -->
   <div id="shop-overlay" class="arcade-overlay hidden">
     <div class="arcade-panel shop-panel">
-      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">🛒 SHOP</div>
+      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">🛍 SHOP</div>
       <div class="shop-coins-row">
         <span class="shop-coins-label">YOUR COINS:</span>
         <span class="shop-coins-val" id="shop-coins-display">🪙 ...</span>
@@ -320,9 +324,9 @@
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════
+  <!-- ══════════════════════════════
        GAME OVER OVERLAY
-  ════════════════════════════════════════════════ -->
+  ════════════════════════════════ -->
   <!-- Game Over Overlay -->
   <div id="game-over-overlay" class="hidden">
     <div id="game-over-message">GAME OVER</div>
@@ -340,6 +344,50 @@
   <div id="win-overlay" class="hidden">
     <div id="win-message"></div>
     <button id="play-again-btn" class="hidden">BACK TO MENU</button>
+  </div>
+
+  <!-- Adventure Mode Pre-Round Overlay -->
+  <div id="adventure-round-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel adventure-panel">
+      <div class="arcade-title" style="font-size:clamp(12px,2.5vw,16px);color:#cc44ff">⚔️ ADVENTURE MODE</div>
+      <div class="adventure-round-label" id="adv-round-label">ROUND 1 / 7</div>
+      <div class="adventure-vs-block">
+        <div class="adventure-vs-emoji" id="adv-enemy-emoji"></div>
+        <div class="adventure-vs-name" id="adv-enemy-name"></div>
+        <div class="adventure-vs-desc">YOU (1) VS BOTS (3)</div>
+        <div class="adventure-vs-hint">WIN TO UNLOCK THIS CHARACTER!</div>
+      </div>
+      <button class="arcade-btn arcade-btn-green" id="adv-start-round">▶ START ROUND</button>
+      <button class="arcade-btn arcade-btn-dim" id="adv-quit-pre">◀ BACK TO MENU</button>
+    </div>
+  </div>
+
+  <!-- Adventure Mode Result Overlay (Win) -->
+  <div id="adventure-win-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel adventure-panel">
+      <div class="arcade-title" style="font-size:clamp(12px,2.5vw,16px);color:#44ff88">🏆 VICTORY!</div>
+      <div class="adventure-result-text" id="adv-win-text"></div>
+      <div class="adventure-unlocked-block" id="adv-unlocked-block">
+        <div class="adventure-unlocked-emoji" id="adv-unlocked-emoji"></div>
+        <div class="adventure-unlocked-label">UNLOCKED!</div>
+      </div>
+      <div class="adventure-result-buttons">
+        <button class="arcade-btn arcade-btn-green" id="adv-next-round">▶ NEXT ROUND</button>
+        <button class="arcade-btn arcade-btn-dim" id="adv-win-quit">🏠 DASHBOARD</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Adventure Mode Result Overlay (Lose) -->
+  <div id="adventure-lose-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel adventure-panel">
+      <div class="arcade-title" style="font-size:clamp(12px,2.5vw,16px);color:#ff4444">💀 DEFEATED!</div>
+      <div class="adventure-result-text">YOU LOST — TRY AGAIN FROM<br>THE BEGINNING?</div>
+      <div class="adventure-result-buttons">
+        <button class="arcade-btn arcade-btn-yellow" id="adv-try-again">↺ TRY AGAIN</button>
+        <button class="arcade-btn arcade-btn-dim" id="adv-lose-quit">🏠 DASHBOARD</button>
+      </div>
+    </div>
   </div>
 
   <script src="app.js" type="module"></script>
