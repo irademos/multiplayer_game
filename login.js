@@ -41,6 +41,11 @@ export async function getUserUpgrades(username) {
   return snap.exists() ? snap.val() : {};
 }
 
+export async function unlockCharacterFree(upgradeKey) {
+  const username = getSession();
+  await set(ref(db, `users/${username.toLowerCase()}/upgrades/${upgradeKey}`), true);
+}
+
 export async function purchaseUpgrade(playerName, upgradeKey, coinCost) {
   const sanitize = name => name.replace(/[.#$[\]/]/g, '_').slice(0, 50);
   const lbRef = ref(db, `leaderboard/${sanitize(playerName)}`);
@@ -229,22 +234,42 @@ export async function initLogin(onSuccess) {
 
 // ─── Character Select ──────────────────────────────────────────────────────────
 
-const CHARACTERS = [
-  { label: 'OLD MAN',     model: '/models/old_man.fbx',      emoji: '🧓' },
-  { label: 'COWBOY',      model: '/models/cowboy.fbx',        emoji: '🤠' },
-  { label: 'GOLEM',       model: '/models/golem.fbx',         emoji: '🪨' },
-  { label: 'ZOMBIE',      model: '/models/zombie.fbx',        emoji: '🧟' },
-  { label: 'ZOMBIE BOY',  model: '/models/zombie_boy.fbx',    emoji: '🧟' },
-  { label: 'ZOMBIE GRN',  model: '/models/zombie_green.fbx',  emoji: '🟢' },
-  { label: 'CHIMP',       model: '/models/Chimpanzee.fbx',    emoji: '🐒' },
-  { label: 'SEAGULL',     model: '/models/seagull.fbx',       emoji: '🐦' },
+// Characters available to unlock via Adventure Mode (in round order)
+export const ADVENTURE_ORDER = [
+  { label: 'COWBOY',      model: '/models/cowboy.fbx',        emoji: '🤠', key: 'cowboy' },
+  { label: 'GOLEM',       model: '/models/golem.fbx',         emoji: '🪨', key: 'golem' },
+  { label: 'ZOMBIE',      model: '/models/zombie.fbx',        emoji: '🧟', key: 'zombie' },
+  { label: 'ZOMBIE BOY',  model: '/models/zombie_boy.fbx',    emoji: '🧟', key: 'zombie_boy' },
+  { label: 'ZOMBIE GRN',  model: '/models/zombie_green.fbx',  emoji: '🟢', key: 'zombie_green' },
+  { label: 'CHIMP',       model: '/models/Chimpanzee.fbx',    emoji: '🐒', key: 'chimpanzee' },
+  { label: 'SEAGULL',     model: '/models/seagull.fbx',       emoji: '🐦', key: 'seagull' },
 ];
 
-function showCharacterSelect(overlay, username, onSuccess) {
+const CHARACTERS = [
+  { label: 'OLD MAN', model: '/models/old_man.fbx', emoji: '🧓', key: 'old_man', free: true },
+  ...ADVENTURE_ORDER,
+];
+
+async function showCharacterSelect(overlay, username, onSuccess) {
   const existing = el('char-select-overlay');
   if (existing) existing.remove();
 
   let idx = 0;
+  let unlockedKeys = {};
+  let playerCoins = 0;
+
+  // Load unlock state and coins in background; UI renders optimistically as locked
+  (async () => {
+    try {
+      const [upgrades, stats] = await Promise.all([
+        getUserUpgrades(username),
+        import('./leaderboard.js').then(m => m.getPlayerStats(username)).catch(() => ({ coins: 0 })),
+      ]);
+      unlockedKeys = upgrades || {};
+      playerCoins = stats?.coins || 0;
+      render();
+    } catch { /* show locked state if offline */ }
+  })();
 
   const charOverlay = document.createElement('div');
   charOverlay.id = 'char-select-overlay';
@@ -258,20 +283,39 @@ function showCharacterSelect(overlay, username, onSuccess) {
           <div class="char-emoji" id="char-emoji"></div>
           <div class="char-name" id="char-label"></div>
           <div class="char-counter" id="char-counter"></div>
+          <div class="char-lock-info hidden" id="char-lock-info">
+            <div class="char-lock-icon">🔒 LOCKED</div>
+            <div class="char-lock-hint">Beat this character in<br>ADVENTURE MODE to unlock!</div>
+          </div>
         </div>
         <button class="char-arrow" id="char-right">▶</button>
       </div>
       <button class="arcade-btn arcade-btn-green" id="char-ok">OK!</button>
+      <button class="arcade-btn arcade-btn-yellow hidden" id="char-buy">🪙 100 — UNLOCK</button>
+      <div class="char-buy-note hidden" id="char-buy-note">OR BEAT THEM IN ADVENTURE MODE</div>
     </div>
   `;
   document.body.appendChild(charOverlay);
   overlay.classList.add('hidden');
 
+  function isUnlocked(c) {
+    return c.free || !!unlockedKeys[`char_${c.key}`];
+  }
+
   function render() {
     const c = CHARACTERS[idx];
+    const locked = !isUnlocked(c);
     el('char-emoji').textContent = c.emoji;
     el('char-label').textContent = c.label;
     el('char-counter').textContent = `${idx + 1} / ${CHARACTERS.length}`;
+    el('char-lock-info').classList.toggle('hidden', !locked);
+    el('char-ok').classList.toggle('hidden', locked);
+    el('char-buy').classList.toggle('hidden', !locked);
+    el('char-buy-note').classList.toggle('hidden', !locked);
+    if (locked) {
+      el('char-buy').textContent = `🪙 100 — UNLOCK`;
+      el('char-buy').disabled = false;
+    }
   }
 
   render();
@@ -281,6 +325,7 @@ function showCharacterSelect(overlay, username, onSuccess) {
 
   el('char-ok').addEventListener('click', async () => {
     const chosen = CHARACTERS[idx];
+    if (!isUnlocked(chosen)) return;
     el('char-ok').textContent = 'SAVING...';
     el('char-ok').disabled = true;
     try {
@@ -291,6 +336,31 @@ function showCharacterSelect(overlay, username, onSuccess) {
     } catch (e) {
       el('char-ok').textContent = 'ERROR! RETRY';
       el('char-ok').disabled = false;
+    }
+  });
+
+  el('char-buy').addEventListener('click', async () => {
+    const chosen = CHARACTERS[idx];
+    const btn = el('char-buy');
+    if (playerCoins < 100) {
+      btn.textContent = 'NOT ENOUGH 🪙';
+      setTimeout(() => { btn.textContent = '🪙 100 — UNLOCK'; btn.disabled = false; }, 2000);
+      return;
+    }
+    btn.textContent = 'BUYING...';
+    btn.disabled = true;
+    try {
+      await purchaseUpgrade(username, `char_${chosen.key}`, 100);
+      unlockedKeys[`char_${chosen.key}`] = true;
+      playerCoins -= 100;
+      render();
+    } catch (err) {
+      if (err.message === 'NOT_ENOUGH_COINS') {
+        btn.textContent = 'NOT ENOUGH 🪙';
+      } else {
+        btn.textContent = 'ERROR!';
+      }
+      setTimeout(() => { btn.textContent = '🪙 100 — UNLOCK'; btn.disabled = false; }, 2000);
     }
   });
 }
@@ -313,4 +383,4 @@ export async function deleteAccount(username) {
   await remove(ref(db, `leaderboard/${sanitizeName(username)}`));
 }
 
-export { getSession, clearSession, getUser, updateUserCharacter, showCharacterSelect, CHARACTERS };
+export { getSession, clearSession, getUser, updateUserCharacter, showCharacterSelect, CHARACTERS, ADVENTURE_ORDER };
