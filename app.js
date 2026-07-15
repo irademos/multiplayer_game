@@ -1240,6 +1240,15 @@ async function main() {
     thrown: false,      // animation triggered, waiting for release
   };
 
+  // Bot throw-in state (an AI player is the taker)
+  const botThrowInState = {
+    active: false,      // bot throw-in sequence is running
+    ai: null,           // the AIPlayer doing the throw-in
+    handBone: null,     // THREE.Bone on the bot's model
+    holding: false,     // ball is pinned to the bot's hand this frame
+    thrown: false,      // throw has been executed
+  };
+
   // Team management: tracks which team each peer is on ('home' | 'away')
   const playerTeams = {};
   let localPlayerTeam = 'home';
@@ -1778,6 +1787,104 @@ async function main() {
     throwInState.thrown = false;
     throwInState.handBone = null;
     clearThrowInButton();
+  }
+
+  function startBotThrowIn(ai) {
+    if (!multiplayer.isHost) return;
+    botThrowInState.active = true;
+    botThrowInState.ai = ai;
+    botThrowInState.holding = true;
+    botThrowInState.thrown = false;
+    botThrowInState.handBone = findRightHandBone(ai.model);
+
+    // Freeze the bot so it doesn't kick the ball during the animation
+    ai.kickAnimating = true;
+
+    // Face toward the field (inward from sideline)
+    const sp = setPieceManager?.active;
+    if (sp && ai.model) {
+      // Turn to face inward (away from the sideline)
+      ai.model.rotation.y = Math.atan2(-Math.sign(sp.ballFixedPos.x), 0);
+    }
+
+    // Play throw-in animation
+    const actions = ai.model?.userData?.actions;
+    if (actions?.throwIn) {
+      const current = ai.model.userData.currentAction;
+      actions[current]?.fadeOut(0.15);
+      actions.throwIn.reset().fadeIn(0.15).play();
+      ai.model.userData.currentAction = 'throwIn';
+    }
+
+    setTimeout(() => {
+      executeBotThrowIn(ai);
+    }, 600);
+  }
+
+  function executeBotThrowIn(ai) {
+    if (!botThrowInState.holding) return;
+    botThrowInState.holding = false;
+    botThrowInState.thrown = true;
+
+    const sp = setPieceManager?.active;
+    if (!sp || !soccerBall?.body || !ai.body) {
+      ai.kickAnimating = false;
+      return;
+    }
+
+    const aiPos = ai.body.translation();
+    const takingTeam = sp.teamTaking;
+
+    // Find closest teammate to throw to
+    let closestTeammate = null;
+    let closestDist = Infinity;
+
+    for (const tm of (aiPlayers[takingTeam] ?? [])) {
+      if (tm === ai || !tm.body) continue;
+      const tmT = tm.body.translation();
+      const d = Math.hypot(tmT.x - aiPos.x, tmT.z - aiPos.z);
+      if (d < closestDist) { closestDist = d; closestTeammate = tmT; }
+    }
+    if (localPlayerTeam === takingTeam && playerControls?.body) {
+      const lt = playerControls.body.translation();
+      const d = Math.hypot(lt.x - aiPos.x, lt.z - aiPos.z);
+      if (d < closestDist) { closestDist = d; closestTeammate = lt; }
+    }
+    for (const [, p] of Object.entries(otherPlayers)) {
+      if (p.team !== takingTeam || !p.model) continue;
+      const d = Math.hypot(p.model.position.x - aiPos.x, p.model.position.z - aiPos.z);
+      if (d < closestDist) { closestDist = d; closestTeammate = p.model.position; }
+    }
+
+    const THROW_SPEED = 14;
+    const THROW_UP = 5;
+    let dirX, dirZ;
+    if (closestTeammate) {
+      const raw = new THREE.Vector3(closestTeammate.x - aiPos.x, 0, closestTeammate.z - aiPos.z);
+      if (raw.length() > 0.01) raw.normalize();
+      dirX = raw.x;
+      dirZ = raw.z;
+      if (ai.model) ai.model.rotation.y = Math.atan2(raw.x, raw.z);
+    } else {
+      const rot = ai.model?.rotation.y ?? 0;
+      dirX = Math.sin(rot);
+      dirZ = Math.cos(rot);
+    }
+
+    soccerBall.body.setLinvel({ x: dirX * THROW_SPEED, y: THROW_UP, z: dirZ * THROW_SPEED }, true);
+    soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+
+    // Unfreeze the bot after the throw
+    setTimeout(() => { ai.kickAnimating = false; }, 300);
+  }
+
+  function clearBotThrowIn() {
+    if (botThrowInState.ai) botThrowInState.ai.kickAnimating = false;
+    botThrowInState.active = false;
+    botThrowInState.ai = null;
+    botThrowInState.handBone = null;
+    botThrowInState.holding = false;
+    botThrowInState.thrown = false;
   }
 
   function applySetPiece({ spType, teamTaking, ballFixedPos, zone, exclusionZone, takerNetworkId }) {
@@ -2811,6 +2918,7 @@ async function main() {
       const ended = setPieceManager.update(soccerBall, takerBody, otherBodies, opposingBodies);
       if (ended) {
         clearThrowIn();
+        clearBotThrowIn();
         if (multiplayer.isHost) {
           multiplayer.send({ type: 'setPieceClear' });
         }
@@ -2834,9 +2942,41 @@ async function main() {
         soccerBall.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
         soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
       }
+
+      // Trigger bot throw-in once the set piece ball lock releases and taker is an AI
+      if (!ended && multiplayer.isHost && sp && sp.type === 'throwIn' && !sp.ballLocked
+          && !botThrowInState.active && sp.takerNetworkId !== myId) {
+        let takerAI = null;
+        outer2: for (const team of ['home', 'away']) {
+          for (const ai of (aiPlayers[team] ?? [])) {
+            if (ai.networkId === sp.takerNetworkId) { takerAI = ai; break outer2; }
+          }
+        }
+        if (takerAI) startBotThrowIn(takerAI);
+      }
+
+      // Pin ball to bot's hand bone while bot is holding it
+      if (botThrowInState.holding && soccerBall?.body) {
+        const _handPos = new THREE.Vector3();
+        const botAI = botThrowInState.ai;
+        if (botThrowInState.handBone) {
+          botThrowInState.handBone.getWorldPosition(_handPos);
+        } else if (botAI?.model) {
+          const rot = botAI.model.rotation.y;
+          _handPos.set(
+            botAI.model.position.x + Math.sin(rot) * 0.5,
+            botAI.model.position.y + 1.4,
+            botAI.model.position.z + Math.cos(rot) * 0.5
+          );
+        }
+        soccerBall.body.setTranslation({ x: _handPos.x, y: _handPos.y, z: _handPos.z }, true);
+        soccerBall.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
     } else {
       // Set piece not active; clear throw-in state if it lingered
       if (throwInState.holding || throwInState.button) clearThrowIn();
+      if (botThrowInState.active) clearBotThrowIn();
     }
 
     multiplayer.send({
