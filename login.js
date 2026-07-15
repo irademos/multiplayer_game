@@ -236,13 +236,13 @@ export async function initLogin(onSuccess) {
 
 // Characters available to unlock via Adventure Mode (in round order)
 export const ADVENTURE_ORDER = [
-  { label: 'COWBOY',      model: '/models/cowboy.fbx',        emoji: '🤠', key: 'cowboy' },
-  { label: 'GOLEM',       model: '/models/golem.fbx',         emoji: '🪨', key: 'golem' },
-  { label: 'ZOMBIE',      model: '/models/zombie.fbx',        emoji: '🧟', key: 'zombie' },
-  { label: 'ZOMBIE BOY',  model: '/models/zombie_boy.fbx',    emoji: '🧟', key: 'zombie_boy' },
-  { label: 'ZOMBIE GRN',  model: '/models/zombie_green.fbx',  emoji: '🟢', key: 'zombie_green' },
-  { label: 'CHIMP',       model: '/models/Chimpanzee.fbx',    emoji: '🐒', key: 'chimpanzee' },
-  { label: 'SEAGULL',     model: '/models/seagull.fbx',       emoji: '🐦', key: 'seagull' },
+  { label: 'COWBOY',      model: '/models/cowboy.fbx',        emoji: '🤠', key: 'cowboy', cost: 75 },
+  { label: 'GOLEM',       model: '/models/golem.fbx',         emoji: '🪨', key: 'golem', cost: 100 },
+  { label: 'ZOMBIE',      model: '/models/zombie.fbx',        emoji: '🧟', key: 'zombie', cost: 150 },
+  { label: 'ZOMBIE BOY',  model: '/models/zombie_boy.fbx',    emoji: '🧟', key: 'zombie_boy', cost: 250 },
+  { label: 'ZOMBIE GRN',  model: '/models/zombie_green.fbx',  emoji: '🟢', key: 'zombie_green', cost: 200 },
+  { label: 'CHIMP',       model: '/models/Chimpanzee.fbx',    emoji: '🐒', key: 'chimpanzee', cost: 500 },
+  { label: 'SEAGULL',     model: '/models/seagull.fbx',       emoji: '🐦', key: 'seagull', cost: 350 },
 ];
 
 const CHARACTERS = [
@@ -291,7 +291,7 @@ async function showCharacterSelect(overlay, username, onSuccess) {
         <button class="char-arrow" id="char-right">▶</button>
       </div>
       <button class="arcade-btn arcade-btn-green" id="char-ok">OK!</button>
-      <button class="arcade-btn arcade-btn-yellow hidden" id="char-buy">🪙 100 — UNLOCK</button>
+      <button class="arcade-btn arcade-btn-yellow hidden" id="char-buy">🪙 0 — UNLOCK</button>
       <div class="char-buy-note hidden" id="char-buy-note">OR BEAT THEM IN ADVENTURE MODE</div>
     </div>
   `;
@@ -313,7 +313,7 @@ async function showCharacterSelect(overlay, username, onSuccess) {
     el('char-buy').classList.toggle('hidden', !locked);
     el('char-buy-note').classList.toggle('hidden', !locked);
     if (locked) {
-      el('char-buy').textContent = `🪙 100 — UNLOCK`;
+      el('char-buy').textContent = `🪙 ${c.cost || 0} — UNLOCK`;
       el('char-buy').disabled = false;
     }
   }
@@ -342,17 +342,18 @@ async function showCharacterSelect(overlay, username, onSuccess) {
   el('char-buy').addEventListener('click', async () => {
     const chosen = CHARACTERS[idx];
     const btn = el('char-buy');
-    if (playerCoins < 100) {
+    const cost = chosen.cost || 0;
+    if (playerCoins < cost) {
       btn.textContent = 'NOT ENOUGH 🪙';
-      setTimeout(() => { btn.textContent = '🪙 100 — UNLOCK'; btn.disabled = false; }, 2000);
+      setTimeout(() => { btn.textContent = `🪙 ${cost} — UNLOCK`; btn.disabled = false; }, 2000);
       return;
     }
     btn.textContent = 'BUYING...';
     btn.disabled = true;
     try {
-      await purchaseUpgrade(username, `char_${chosen.key}`, 100);
+      await purchaseUpgrade(username, `char_${chosen.key}`, cost);
       unlockedKeys[`char_${chosen.key}`] = true;
-      playerCoins -= 100;
+      playerCoins -= cost;
       render();
     } catch (err) {
       if (err.message === 'NOT_ENOUGH_COINS') {
@@ -360,7 +361,7 @@ async function showCharacterSelect(overlay, username, onSuccess) {
       } else {
         btn.textContent = 'ERROR!';
       }
-      setTimeout(() => { btn.textContent = '🪙 100 — UNLOCK'; btn.disabled = false; }, 2000);
+      setTimeout(() => { btn.textContent = `🪙 ${cost} — UNLOCK`; btn.disabled = false; }, 2000);
     }
   });
 }

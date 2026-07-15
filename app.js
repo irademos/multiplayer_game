@@ -283,7 +283,12 @@ async function main() {
       renderProfileCharacterPicker(false);
       profileOverlay.classList.remove('hidden');
       try {
-        profileUnlockedKeys = await getUserUpgrades(getSession()) || {};
+        const [upgrades, stats] = await Promise.all([
+          getUserUpgrades(getSession()),
+          getPlayerStats(currentPlayerName),
+        ]);
+        profileUnlockedKeys = upgrades || {};
+        profileCoins = stats?.coins || 0;
         renderProfileCharacterPicker(false);
       } catch { /* keep current unlock display */ }
     }
@@ -344,6 +349,7 @@ async function main() {
 
     let profileCharIndex = Math.max(0, CHARACTERS.findIndex(c => c.model === characterModel));
     let profileUnlockedKeys = {};
+    let profileCoins = 0;
 
     function profileCharacterUnlocked(character) {
       return character.free || !!profileUnlockedKeys[`char_${character.key}`];
@@ -352,9 +358,15 @@ async function main() {
     async function renderProfileCharacterPicker(saveChoice = false) {
       const chosen = CHARACTERS[profileCharIndex];
       const statusEl = document.getElementById('profile-char-save-status');
+      const buyBtn = document.getElementById('profile-char-buy');
       document.getElementById('profile-char-emoji').textContent = chosen.emoji;
       const locked = !profileCharacterUnlocked(chosen);
       document.getElementById('profile-char-lock-info').classList.toggle('hidden', !locked);
+      if (buyBtn) {
+        buyBtn.classList.toggle('hidden', !locked);
+        buyBtn.textContent = `🪙 ${chosen.cost || 0} — UNLOCK`;
+        buyBtn.disabled = false;
+      }
       if (statusEl) statusEl.textContent = locked ? 'LOCKED' : '';
       if (locked || !saveChoice) return;
 
@@ -383,6 +395,38 @@ async function main() {
     document.getElementById('profile-char-right').addEventListener('click', () => {
       profileCharIndex = (profileCharIndex + 1) % CHARACTERS.length;
       renderProfileCharacterPicker(true);
+    });
+
+    document.getElementById('profile-char-buy').addEventListener('click', async () => {
+      const chosen = CHARACTERS[profileCharIndex];
+      const btn = document.getElementById('profile-char-buy');
+      const statusEl = document.getElementById('profile-char-save-status');
+      const cost = chosen.cost || 0;
+      if (!btn || profileCharacterUnlocked(chosen)) return;
+      if (profileCoins < cost) {
+        btn.textContent = 'NOT ENOUGH 🪙';
+        btn.disabled = true;
+        setTimeout(() => {
+          btn.textContent = `🪙 ${cost} — UNLOCK`;
+          btn.disabled = false;
+        }, 2000);
+        return;
+      }
+      btn.textContent = 'BUYING...';
+      btn.disabled = true;
+      try {
+        await purchaseUpgrade(currentPlayerName, `char_${chosen.key}`, cost);
+        profileUnlockedKeys[`char_${chosen.key}`] = true;
+        profileCoins -= cost;
+        if (statusEl) statusEl.textContent = 'UNLOCKED!';
+        renderProfileCharacterPicker(true);
+      } catch (err) {
+        btn.textContent = err.message === 'NOT_ENOUGH_COINS' ? 'NOT ENOUGH 🪙' : 'ERROR!';
+        setTimeout(() => {
+          btn.textContent = `🪙 ${cost} — UNLOCK`;
+          btn.disabled = false;
+        }, 2000);
+      }
     });
 
     // ── Shop ────────────────────────────────────────────────────────────────────
