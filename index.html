@@ -175,6 +175,10 @@
           ⚔️ ADVENTURE MODE
         </button>
         <div class="dashboard-btn-desc">UNLOCK NEW CHARACTERS</div>
+        <button class="arcade-btn arcade-btn-orange dashboard-big-btn" id="btn-tournament-mode">
+          🏆 TOURNAMENT MODE
+        </button>
+        <div class="dashboard-btn-desc">COMPETE DAILY FOR GLORY</div>
         <div class="dashboard-secondary-btns">
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-stats">📊 MY STATS</button>
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-leaderboard-dash">🏆 LEADERBOARD</button>
@@ -407,6 +411,56 @@
       <div class="adventure-result-buttons">
         <button class="arcade-btn arcade-btn-yellow" id="adv-try-again">↺ TRY AGAIN</button>
         <button class="arcade-btn arcade-btn-dim" id="adv-lose-quit">🏠 DASHBOARD</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════
+       TOURNAMENT OVERLAY
+  ════════════════════════════════ -->
+  <div id="tournament-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel tournament-panel">
+      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">🏆 TOURNAMENTS</div>
+      <div class="tournament-subtitle">DAILY TOURNAMENTS AT 12:30 PM &amp; 8:30 PM ET</div>
+      <div id="tournament-list" class="tournament-list">
+        <em>Loading...</em>
+      </div>
+      <button class="arcade-btn arcade-btn-dim" id="tournament-close">◄ BACK</button>
+    </div>
+  </div>
+
+  <!-- Tournament Bracket Overlay -->
+  <div id="tournament-bracket-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel tournament-bracket-panel">
+      <div class="arcade-title" style="font-size: clamp(12px,2.5vw,16px)">🏆 TOURNAMENT BRACKET</div>
+      <div id="bracket-status-msg" class="bracket-status-msg"></div>
+      <div id="bracket-countdown-row" class="bracket-countdown-row hidden">
+        <span id="bracket-countdown-label">Joining in</span>
+        <span id="bracket-countdown" class="bracket-countdown-num">2:00</span>
+      </div>
+      <div id="bracket-players-row" class="bracket-players-row hidden">
+        <span id="bracket-players-label"></span>
+      </div>
+      <div id="tournament-bracket-view" class="tournament-bracket-view"></div>
+      <div class="bracket-action-row">
+        <button class="arcade-btn arcade-btn-green hidden" id="bracket-ready-btn">✓ READY FOR NEXT MATCH</button>
+        <button class="arcade-btn arcade-btn-dim hidden" id="bracket-dashboard-btn">🏠 BACK TO MENU</button>
+        <button class="arcade-btn arcade-btn-dim hidden" id="bracket-close-btn">✕ CLOSE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tournament Notification Popup -->
+  <div id="tournament-notification" class="tournament-notification hidden">
+    <div class="tournament-notif-inner">
+      <div class="tournament-notif-icon">🏆</div>
+      <div class="tournament-notif-body">
+        <div class="tournament-notif-title">TOURNAMENT STARTING!</div>
+        <div class="tournament-notif-name" id="tournament-notif-name"></div>
+      </div>
+      <div class="tournament-notif-btns">
+        <button class="arcade-btn arcade-btn-green tournament-notif-join" id="tournament-notif-join">JOIN</button>
+        <button class="arcade-btn arcade-btn-dim tournament-notif-dismiss" id="tournament-notif-dismiss">✕</button>
       </div>
     </div>
   </div>

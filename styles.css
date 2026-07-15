@@ -1725,3 +1725,261 @@ body {
   accent-color: #4af;
   cursor: pointer;
 }
+
+/* ══════════════════════════════
+   TOURNAMENT STYLES
+═══════════════════════════════ */
+
+.arcade-btn-orange {
+  color: #ff9900;
+  border-color: #ff9900;
+  box-shadow: 3px 3px 0 #aa5500, 0 0 15px rgba(255, 153, 0, 0.3);
+}
+.arcade-btn-orange:hover:not(:disabled) {
+  background: rgba(255, 153, 0, 0.1);
+  box-shadow: 4px 4px 0 #aa5500, 0 0 20px rgba(255, 153, 0, 0.5);
+}
+
+/* Tournament list screen */
+.tournament-panel {
+  max-width: 540px;
+  width: 92vw;
+  max-height: 88vh;
+  overflow-y: auto;
+}
+.tournament-subtitle {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.3vw, 8px);
+  color: rgba(255,255,255,0.55);
+  text-align: center;
+  margin-bottom: 16px;
+}
+.tournament-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.tournament-card {
+  background: rgba(255,255,255,0.05);
+  border: 2px solid rgba(255,153,0,0.4);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tournament-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.tournament-card-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(8px, 1.8vw, 11px);
+  color: #ffcc44;
+}
+.tournament-card-status {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.2vw, 8px);
+  padding: 3px 7px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+.tournament-card-status.status-upcoming { color: #aaa; border: 1px solid #555; }
+.tournament-card-status.status-starting { color: #ff9900; border: 1px solid #ff9900; animation: blink-slow 1s infinite; }
+.tournament-card-status.status-active   { color: #44ff88; border: 1px solid #44ff88; }
+.tournament-card-status.status-complete { color: #888; border: 1px solid #555; }
+.tournament-card-info {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.2vw, 8px);
+  color: rgba(255,255,255,0.6);
+}
+.tournament-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.tournament-card-actions .arcade-btn {
+  font-size: clamp(7px, 1.4vw, 9px);
+  padding: 6px 12px;
+}
+.tournament-registered-badge {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.2vw, 8px);
+  color: #44ff88;
+}
+
+/* Bracket overlay */
+.tournament-bracket-panel {
+  max-width: 680px;
+  width: 96vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bracket-status-msg {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(9px, 2vw, 13px);
+  text-align: center;
+  padding: 6px 0;
+}
+.bracket-countdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(7px, 1.5vw, 10px);
+  color: rgba(255,255,255,0.7);
+}
+.bracket-countdown-num {
+  color: #ff9900;
+  font-size: clamp(10px, 2vw, 14px);
+}
+.bracket-players-row {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.2vw, 9px);
+  text-align: center;
+  color: rgba(255,255,255,0.6);
+}
+
+/* Bracket view */
+.tournament-bracket-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 4px 0;
+}
+.bracket-round {
+  border: 1px solid rgba(255,153,0,0.25);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.bracket-round-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(7px, 1.4vw, 9px);
+  background: rgba(255,153,0,0.12);
+  padding: 6px 10px;
+  color: #ff9900;
+  letter-spacing: 1px;
+}
+.bracket-match {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.2vw, 8px);
+}
+.bracket-match:last-child { border-bottom: none; }
+.bracket-match.my-match {
+  background: rgba(255,153,0,0.08);
+  border-left: 3px solid #ff9900;
+}
+.bracket-match-teams {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.bracket-team {
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: rgba(255,255,255,0.85);
+}
+.bracket-team.my-team { color: #ffcc44; font-weight: bold; }
+.bracket-team.winner  { color: #44ff88; }
+.bracket-team.loser   { color: #888; text-decoration: line-through; }
+.bracket-vs {
+  color: rgba(255,255,255,0.4);
+  font-size: clamp(5px, 1vw, 7px);
+}
+.bracket-match-result {
+  font-size: clamp(6px, 1.1vw, 8px);
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  min-width: 60px;
+  text-align: center;
+}
+.bracket-match-result.result-waiting { color: #ff9900; }
+.bracket-match-result.result-playing { color: #4af; animation: blink-slow 1s infinite; }
+.bracket-match-result.result-done    { color: #44ff88; }
+
+.bracket-action-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding-top: 4px;
+}
+
+/* Tournament notification popup */
+.tournament-notification {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10001;
+  background: rgba(10,8,20,0.96);
+  border: 2px solid #ff9900;
+  border-radius: 8px;
+  box-shadow: 0 0 30px rgba(255,153,0,0.5), 0 4px 20px rgba(0,0,0,0.8);
+  padding: 14px 18px;
+  min-width: 300px;
+  max-width: 90vw;
+  animation: slide-down 0.3s ease;
+}
+.tournament-notification.hidden { display: none; }
+
+@keyframes slide-down {
+  from { transform: translateX(-50%) translateY(-40px); opacity: 0; }
+  to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
+}
+
+.tournament-notif-inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.tournament-notif-icon {
+  font-size: 28px;
+  animation: pulse 1s infinite;
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.15); }
+}
+.tournament-notif-body {
+  flex: 1;
+}
+.tournament-notif-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(8px, 1.8vw, 11px);
+  color: #ff9900;
+  margin-bottom: 4px;
+}
+.tournament-notif-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.3vw, 8px);
+  color: rgba(255,255,255,0.7);
+}
+.tournament-notif-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tournament-notif-join {
+  font-size: clamp(7px, 1.4vw, 9px) !important;
+  padding: 6px 12px !important;
+}
+.tournament-notif-dismiss {
+  font-size: clamp(7px, 1.4vw, 9px) !important;
+  padding: 4px 8px !important;
+}

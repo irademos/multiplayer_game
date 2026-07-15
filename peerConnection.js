@@ -29,7 +29,7 @@ const debugNetLog = (...args) => {
 };
 
 export class Multiplayer {
-  constructor(playerName, onPeerData, { botsOnly = false } = {}) {
+  constructor(playerName, onPeerData, { botsOnly = false, forcedRoom = null } = {}) {
     this.connections = {};
     this.pendingConnections = new Set();
     this.pendingPayloads = new Map();
@@ -39,6 +39,7 @@ export class Multiplayer {
     this.onPeerData = onPeerData;
     this.playerName = playerName;
     this.botsOnly = botsOnly;
+    this.forcedRoom = forcedRoom;
     this.isHost = false;
     this.currentHostId = null;
     this.onHostChange = null;
@@ -113,7 +114,12 @@ export class Multiplayer {
 
       let isNewRoom = false;
 
-      if (this.botsOnly) {
+      if (this.forcedRoom) {
+        // Tournament room: join a specific named room
+        assignedRoom = this.forcedRoom;
+        const existingRooms = snapshot.exists() ? Object.keys(snapshot.val()) : [];
+        isNewRoom = !existingRooms.includes(this.forcedRoom);
+      } else if (this.botsOnly) {
         // Private bots-only room: find a unique unused room name so no public players can join
         const existingRoomNames = snapshot.exists() ? Object.keys(snapshot.val()) : [];
         let botRoomIndex = 0;
