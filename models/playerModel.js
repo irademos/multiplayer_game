@@ -270,11 +270,13 @@ export function createPlayerModel(
               fbxLoader.load(
                 `/models/animations/${encodeURIComponent(file)}`,
                 (anim) => {
-                  const clip = anim.animations[0];
-                  // const rootName = model.name || 'Root';
-                  // const src = anim.animations[0];
-                  // const clean = stripRootTracks(src, rootName);
-                  // const action = mixer.clipAction(clean);
+                  const src = anim.animations[0];
+                  const noRootMotion = ['runningKick', 'farKick', 'bicycleKick', 'throwIn', 'soccerHeader'];
+                  let clip = src;
+                  if (noRootMotion.includes(name)) {
+                    const rootName = anim.name || (anim.children[0]?.name) || 'Root';
+                    clip = stripRootTracks(src, rootName);
+                  }
                   const action = mixer.clipAction(clip);
                   if (
                     ['soccerHeader', 'hit', 'mutantPunch', 'mmaKick', 'runningKick', 'farKick', 'bicycleKick', 'hurricaneKick', 'projectile', 'die', 'throwIn'].includes(name)
