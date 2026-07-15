@@ -104,12 +104,16 @@ export class PlayerControls {
       world.createCollider(colDesc, this.body);
     }
 
-    // Set camera to third-person perspective
-    this.camera.position.set(this.playerX, this.playerY + 2, this.playerZ + 5);
+    // Face toward center of field: if player is in -z half, yaw = π (face +z)
+    this.yaw = this.playerZ < 0 ? Math.PI : 0;
+
+    // Camera offset in local space (behind player, applied after yaw rotation)
+    this.cameraOffset = new THREE.Vector3(0, 1, 5);
+
+    // Set camera to third-person perspective, behind the player facing center
+    const initZOff = 5 * Math.cos(this.yaw); // +5 when facing -z, -5 when facing +z
+    this.camera.position.set(this.playerX, this.playerY + 2, this.playerZ + initZOff);
     this.camera.lookAt(this.playerX, this.playerY + 1, this.playerZ);
-    // Store the initial camera offset (relative to player's target position)
-    this.cameraOffset = new THREE.Vector3();
-    this.cameraOffset.copy(this.camera.position).sub(new THREE.Vector3(this.playerX, this.playerY + 1, this.playerZ));
 
     // Initialize controls based on device
     this.initializeControls();
