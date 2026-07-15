@@ -2965,9 +2965,7 @@ async function main() {
   const settingsBtn = document.getElementById('settings-button');
   const overlay = document.getElementById('settings-overlay');
   const nameInput = document.getElementById('name-input');
-  const saveBtn = document.getElementById('save-settings');
   const characterSelect = document.getElementById('character-select');
-  const toggleBtn = document.getElementById("toggle-console");
   const consoleDiv = document.getElementById("console-log");
 
   function swapPlayerCharacter(newModelPath, teamColor = null) {
@@ -3029,38 +3027,6 @@ async function main() {
   }
   populateCharacterSelect();
 
-  settingsBtn.addEventListener('click', () => {
-    nameInput.value = playerName;
-    characterSelect.value = characterModel;
-    overlay.style.display = 'flex';
-  });
-
-  saveBtn.addEventListener('click', () => {
-    const trimmedName = nameInput.value.trim();
-    if (trimmedName) {
-      playerName = trimmedName;
-      if (player?.nameLabel) {
-        player.nameLabel.innerText = playerName;
-      }
-    }
-    setCookie("playerName", playerName);
-
-    const selectedModel = characterSelect.value;
-    if (selectedModel && selectedModel !== characterModel) {
-      characterModel = selectedModel;
-      swapPlayerCharacter(characterModel);
-      const sessionUser = getSession();
-      if (sessionUser) updateUserCharacter(sessionUser, characterModel);
-    }
-    setCookie("characterModel", characterModel);
-
-    overlay.style.display = 'none';
-  });
-
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.style.display = 'none';
-  });
-
   // In-game audio sliders
   const musicSlider = document.getElementById('music-volume-slider');
   const sfxSlider = document.getElementById('sfx-volume-slider');
@@ -3072,60 +3038,131 @@ async function main() {
     sfxSlider.value = audioManager.sfxVolume;
     sfxSlider.addEventListener('input', () => audioManager.setSfxVolume(parseFloat(sfxSlider.value)));
   }
-  settingsBtn.addEventListener('click', () => {
-    if (musicSlider) musicSlider.value = audioManager.musicVolume;
-    if (sfxSlider) sfxSlider.value = audioManager.sfxVolume;
-  });
 
-  // Tab switching
-  document.querySelectorAll('.tab-btn').forEach(btn => {
+  // Side tab switching
+  document.querySelectorAll('.side-tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => (c.style.display = 'none'));
+      document.querySelectorAll('.side-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.side-tab-content').forEach(c => (c.style.display = 'none'));
       btn.classList.add('active');
       const tab = document.getElementById(`tab-${btn.dataset.tab}`);
       if (tab) tab.style.display = 'block';
-      if (btn.dataset.tab === 'leaderboard') {
-        refreshLeaderboard();
+      if (btn.dataset.tab === 'multiplayer') {
+        refreshMultiplayerTab();
       }
     });
   });
 
-  async function refreshLeaderboard() {
-    const el = document.getElementById('leaderboard-list');
-    if (!el) return;
-    el.innerHTML = '<em>Loading...</em>';
+  // Leaderboard rank cache: name -> rank
+  let _lbRankCache = {};
+  let _lbRankLoaded = false;
+  async function ensureLbRanks() {
+    if (_lbRankLoaded) return;
     try {
       const rows = await getLeaderboard();
-      if (rows.length === 0) {
-        el.innerHTML = '<em>No scores yet.</em>';
-        return;
-      }
+      rows.forEach((row, i) => { _lbRankCache[row.name] = i + 1; });
+      _lbRankLoaded = true;
+    } catch (e) { /* ignore */ }
+  }
+
+  function pingClass(ms) {
+    if (ms == null) return '';
+    if (ms < 80) return 'ping-good';
+    if (ms < 180) return 'ping-ok';
+    return 'ping-bad';
+  }
+
+  async function refreshMultiplayerTab() {
+    const container = document.getElementById('teams-table-container');
+    if (!container) return;
+    await ensureLbRanks();
+
+    const localPing = multiplayer?.lastPingMs ?? null;
+
+    // Build data for each team
+    const teamDefs = [
+      { key: 'home', label: 'Blue Team', cls: 'home' },
+      { key: 'away', label: 'Red Team', cls: 'away' },
+    ];
+
+    container.innerHTML = '';
+
+    for (const { key, label, cls } of teamDefs) {
+      const section = document.createElement('div');
+      section.className = 'teams-section';
+
+      const header = document.createElement('div');
+      header.className = `teams-section-header ${cls}`;
+      header.textContent = label;
+      section.appendChild(header);
+
       const table = document.createElement('table');
-      table.innerHTML = '<thead><tr><th>#</th><th>Player</th><th>Goals</th><th>W</th><th>D</th><th>L</th></tr></thead>';
+      table.className = 'teams-table';
+      table.innerHTML = '<thead><tr><th>Player</th><th>Rank</th><th>Goals</th><th>Ping</th></tr></thead>';
       const tbody = document.createElement('tbody');
-      rows.forEach((row, i) => {
+
+      // Local player row (if on this team)
+      if (localPlayerTeam === key) {
+        const rank = _lbRankCache[playerName];
         const tr = document.createElement('tr');
-        [i + 1, row.name, row.goals || 0, row.wins || 0, row.draws || 0, row.losses || 0].forEach(val => {
-          const td = document.createElement('td');
-          td.textContent = val;
-          tr.appendChild(td);
-        });
+        tr.innerHTML = `
+          <td>${playerName} <span style="font-size:10px;color:#aaa">(you)</span></td>
+          <td class="player-rank">${rank ? `#${rank}` : '—'}</td>
+          <td>—</td>
+          <td class="${pingClass(localPing)}">${localPing != null ? `${localPing}ms` : '—'}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      // Remote human players on this team
+      for (const [pid, info] of Object.entries(otherPlayers)) {
+        if ((playerTeams[pid] ?? info.team) !== key) continue;
+        const name = info.name || pid;
+        const rank = _lbRankCache[name];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${name}</td>
+          <td class="player-rank">${rank ? `#${rank}` : '—'}</td>
+          <td>—</td>
+          <td>—</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      // AI players on this team
+      (aiPlayers[key] || []).forEach((ai, i) => {
+        const name = ai.name || `Bot ${i + 1}`;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${name}</td>
+          <td class="player-rank">—</td>
+          <td>—</td>
+          <td class="ping-bot">Bot</td>
+        `;
         tbody.appendChild(tr);
       });
+
       table.appendChild(tbody);
-      el.innerHTML = '';
-      el.appendChild(table);
-    } catch (err) {
-      el.innerHTML = '<em>Failed to load leaderboard.</em>';
-      console.error('Leaderboard error:', err);
+      section.appendChild(table);
+      container.appendChild(section);
     }
   }
 
-  toggleBtn.addEventListener("click", () => {
-    const visible = consoleDiv.style.display === "block";
-    consoleDiv.style.display = visible ? "none" : "block";
-    toggleBtn.textContent = visible ? "Show Console" : "Hide Console";
+  settingsBtn.addEventListener('click', () => {
+    overlay.style.display = 'flex';
+    if (musicSlider) musicSlider.value = audioManager.musicVolume;
+    if (sfxSlider) sfxSlider.value = audioManager.sfxVolume;
+    // Default to Audio tab
+    document.querySelectorAll('.side-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.side-tab-content').forEach(c => (c.style.display = 'none'));
+    const audioBtn = document.querySelector('.side-tab-btn[data-tab="audio"]');
+    const audioTab = document.getElementById('tab-audio');
+    if (audioBtn) audioBtn.classList.add('active');
+    if (audioTab) audioTab.style.display = 'block';
+  });
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.style.display = 'none';
   });
 
   (function() {
