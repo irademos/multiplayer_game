@@ -12,7 +12,7 @@ import { updateMeleeAttacks } from './melee.js';
 import { LevelLoader } from './levelLoader.js';
 import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
-import { recordGoal, recordGameResult, getPlayerStats, getLeaderboard } from './leaderboard.js';
+import { GOAL_COIN_REWARD, recordGoal, recordGameResult, getPlayerStats, getLeaderboard } from './leaderboard.js';
 import {
   getUpcomingTournaments, ensureTournamentsExist, subscribeTournamentList, subscribeTournament,
   registerForTournament, unregisterFromTournament, tryStartTournament,
@@ -1405,6 +1405,7 @@ async function main() {
         if (pid === myId) {
           if (team !== localPlayerTeam) {
             localPlayerTeam = team;
+            window.localPlayerTeam = localPlayerTeam;
             localTeamConfirmed = true;
             const newColor = team === 'home' ? 0x3399ff : 0xff3322;
             swapPlayerCharacter(characterModel, newColor);
@@ -1535,6 +1536,7 @@ async function main() {
       if (!localTeamConfirmed) {
         const changed = team !== localPlayerTeam;
         localPlayerTeam = team;
+        window.localPlayerTeam = localPlayerTeam;
         localTeamConfirmed = true;
         receivedJoinResponse = true;
         if (changed) {
@@ -1792,6 +1794,7 @@ async function main() {
   // Team management: tracks which team each peer is on ('home' | 'away')
   const playerTeams = {};
   let localPlayerTeam = 'home';
+  window.localPlayerTeam = localPlayerTeam;
   let localTeamConfirmed = false;
   let receivedJoinResponse = false;
 
@@ -1814,14 +1817,16 @@ async function main() {
       'justify-content:center', 'pointer-events:none', 'z-index:500',
       'opacity:0', 'transition:opacity 0.3s',
     ].join(';');
-    el.innerHTML = `<div style="
-      font-family:Impact,sans-serif;
-      font-size:clamp(80px,18vw,200px);
-      color:#ffe600;
-      text-shadow:0 0 40px #ff8800,0 0 80px #ff4400,4px 4px 0 #000,-4px -4px 0 #000,4px -4px 0 #000,-4px 4px 0 #000;
-      letter-spacing:10px;
-      animation:goalPulse 0.5s ease-in-out infinite alternate;
-    ">GOAL!</div>`;
+    const content = document.createElement('div');
+    content.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;animation:goalPulse 0.5s ease-in-out infinite alternate;';
+    const title = document.createElement('div');
+    title.textContent = 'GOAL!';
+    title.style.cssText = 'font-family:Impact,sans-serif;font-size:clamp(80px,18vw,200px);color:#ffe600;text-shadow:0 0 40px #ff8800,0 0 80px #ff4400,4px 4px 0 #000,-4px -4px 0 #000,4px -4px 0 #000,-4px 4px 0 #000;letter-spacing:10px;';
+    const scorer = document.createElement('div');
+    scorer.dataset.goalScorer = 'true';
+    scorer.style.cssText = 'font-family:Impact,sans-serif;font-size:clamp(24px,5vw,56px);color:#fff;text-shadow:0 0 24px #000,3px 3px 0 #000,-3px -3px 0 #000;letter-spacing:2px;';
+    content.append(title, scorer);
+    el.appendChild(content);
     const style = document.createElement('style');
     style.textContent = `@keyframes goalPulse{from{transform:scale(1) rotate(-3deg)}to{transform:scale(1.08) rotate(3deg)}}`;
     document.head.appendChild(style);
@@ -1829,8 +1834,13 @@ async function main() {
     _goalOverlayEl = el;
   }
 
-  function _showGoalOverlay() {
+  function _showGoalOverlay(scorerName = null, coinReward = GOAL_COIN_REWARD) {
     _ensureGoalOverlay();
+    const scorerEl = _goalOverlayEl.querySelector('[data-goal-scorer]');
+    if (scorerEl) {
+      const name = scorerName || 'Someone';
+      scorerEl.textContent = `${name} scored! +${coinReward} coins`;
+    }
     _goalOverlayEl.style.opacity = '1';
   }
 
@@ -1973,7 +1983,7 @@ async function main() {
     });
   }
 
-  function triggerGoalCelebration(scoringTeam, goalPos, onComplete) {
+  function triggerGoalCelebration(scoringTeam, goalPos, scorerName = null, onComplete) {
     goalCelebrationActive = true;
     if (playerControls) playerControls.enabled = false;
     Object.values(aiPlayers).flat().forEach(ai => { ai.frozen = true; });
@@ -1984,7 +1994,7 @@ async function main() {
       soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     }
 
-    _showGoalOverlay();
+    _showGoalOverlay(scorerName);
     _spawnConfetti(scoringTeam);
     _spawnGoalExplosion(goalPos, scoringTeam);
 
@@ -2180,8 +2190,9 @@ async function main() {
       goalCooldown = now + 7000;
       const goalPos = { x: 0, y: 1.5, z: SCORE_FIELD_HALF };
       const didTouch = soccerBall.lastTouchedTeam;
-      triggerGoalCelebration('home', goalPos, () => {
-        if (didTouch === 'home') recordGoal(playerName).catch(() => {});
+      const scorerName = soccerBall.lastTouchedName || (didTouch === 'home' ? playerName : 'Blue team');
+      triggerGoalCelebration('home', goalPos, scorerName, () => {
+        if (didTouch === localPlayerTeam && scorerName === playerName) recordGoal(playerName).catch(() => {});
       });
       return;
     }
@@ -2191,7 +2202,11 @@ async function main() {
       updateScoreUI();
       goalCooldown = now + 7000;
       const goalPos = { x: 0, y: 1.5, z: -SCORE_FIELD_HALF };
-      triggerGoalCelebration('away', goalPos, null);
+      const didTouch = soccerBall.lastTouchedTeam;
+      const scorerName = soccerBall.lastTouchedName || (didTouch === 'away' ? 'Red team' : 'Someone');
+      triggerGoalCelebration('away', goalPos, scorerName, () => {
+        if (didTouch === localPlayerTeam && scorerName === playerName) recordGoal(playerName).catch(() => {});
+      });
       return;
     }
 
@@ -2661,7 +2676,8 @@ async function main() {
     spawnProjectile,
     projectiles,
     audioManager,
-    spawnPosition: initialSpawn
+    spawnPosition: initialSpawn,
+    playerName
   });
   window.playerControls = playerControls;
 
@@ -3331,7 +3347,8 @@ async function main() {
           playerControls.body.linvel(),
           0.3,
           0.6,
-          spLocked && spTeam === localPlayerTeam ? null : localPlayerTeam
+          spLocked && spTeam === localPlayerTeam ? null : localPlayerTeam,
+          playerName
         );
       }
       Object.entries(aiPlayers).forEach(([team, players]) => {
@@ -3342,7 +3359,8 @@ async function main() {
             ai.body.linvel(),
             0.3,
             0.6,
-            spLocked && spTeam === team ? null : team
+            spLocked && spTeam === team ? null : team,
+            ai.name || 'Computer'
           );
         });
       });
