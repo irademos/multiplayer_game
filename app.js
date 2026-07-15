@@ -3165,6 +3165,10 @@ async function main() {
     if (e.target === overlay) overlay.style.display = 'none';
   });
 
+  document.getElementById('leave-game-btn').addEventListener('click', () => {
+    window.location.reload();
+  });
+
   (function() {
     const originalLog = console.log;
     console.log = function(...args) {
