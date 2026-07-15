@@ -4,7 +4,9 @@ const ATTACKS = {
   mutantPunch: { damage: 10, range: 1.5, hitTime: 300, hitWindow: 300 },
   hurricaneKick: { damage: 15, range: 2.0, hitTime: 200, hitWindow: 200 },
   mmaKick: { damage: 12, range: 1.7, hitTime: 175, hitWindow: 150 },
-  slide: { damage: 0, range: 1.8, hitTime: 50, hitWindow: 3000, ballForce: 0.55 }
+  slide: { damage: 0, range: 1.8, hitTime: 50, hitWindow: 3000, ballForce: 0.55 },
+  farKick: { damage: 8, range: 1.9, hitTime: 250, hitWindow: 200, ballForce: 0.9 },
+  bicycleKick: { damage: 10, range: 2.2, hitTime: 450, hitWindow: 300 },
 };
 
 export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) {

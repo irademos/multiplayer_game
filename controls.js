@@ -194,6 +194,7 @@ export class PlayerControls {
       if (this.canJump && this.body) {
         this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
         this.canJump = false;
+        setTimeout(() => this._trySoccerHeader(), 350);
       }
       event.preventDefault();
     });
@@ -310,6 +311,30 @@ export class PlayerControls {
       });
     }
 
+    // Lob button (touchstart for mobile; mousedown handled in app.js)
+    const lobBtn = document.getElementById('lob-button');
+    if (lobBtn) {
+      lobBtn.addEventListener('touchstart', (event) => {
+        if (!this.enabled || this.isInWater) return;
+        this.slideMomentum.set(0, 0, 0);
+        this.playAction('farKick');
+        this.audioManager?.playAttack?.();
+        event.preventDefault();
+      }, { passive: false });
+    }
+
+    // Bicycle button (touchstart for mobile; mousedown handled in app.js)
+    const bicycleBtn = document.getElementById('bicycle-button');
+    if (bicycleBtn) {
+      bicycleBtn.addEventListener('touchstart', (event) => {
+        if (!this.enabled || this.isInWater) return;
+        this.slideMomentum.set(0, 0, 0);
+        this.playAction('bicycleKick');
+        this.audioManager?.playAttack?.();
+        event.preventDefault();
+      }, { passive: false });
+    }
+
     // Punch button
     if (!document.getElementById('punch-button')) {
       const punchButton = document.createElement('button');
@@ -373,6 +398,7 @@ export class PlayerControls {
           this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
           this.canJump = false;
           this.hasDoubleJumped = false;
+          setTimeout(() => this._trySoccerHeader(), 350);
         } else if (!this.hasDoubleJumped && this.body) {
           this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
           this.hasDoubleJumped = true;
@@ -390,6 +416,16 @@ export class PlayerControls {
         this.slideMomentum.set(0, 0, 0);
         this.playAction('mmaKick');
         this.audioManager?.playAttack();
+      } else if (key === 'f') {
+        if (this.isInWater) return;
+        this.slideMomentum.set(0, 0, 0);
+        this.playAction('farKick');
+        this.audioManager?.playAttack?.();
+      } else if (key === 'v') {
+        if (this.isInWater) return;
+        this.slideMomentum.set(0, 0, 0);
+        this.playAction('bicycleKick');
+        this.audioManager?.playAttack?.();
       } else if (key === 'r') {
         this.triggerRoll();
       } else if (key === 'z') {
@@ -462,16 +498,20 @@ export class PlayerControls {
     const action = actions[actionName];
     actions[current]?.fadeOut(0.1);
     action.reset().fadeIn(0.1).play();
-    action.setEffectiveTimeScale(['mmaKick', 'hurricaneKick', 'runningKick'].includes(actionName) ? 2 : 1);
+    action.setEffectiveTimeScale(['mmaKick', 'hurricaneKick', 'runningKick', 'bicycleKick', 'farKick'].includes(actionName) ? 2 : 1);
     this.playerModel.userData.currentAction = actionName;
     this.currentSpecialAction = actionName;
 
-    if (["mutantPunch", "hurricaneKick", "mmaKick", "runningKick", "slide"].includes(actionName)) {
+    if (["mutantPunch", "hurricaneKick", "mmaKick", "runningKick", "slide", "farKick", "bicycleKick"].includes(actionName)) {
       this.playerModel.userData.attack = {
         name: actionName,
         start: Date.now(),
         hasHit: false,
       };
+    }
+
+    if (actionName === 'bicycleKick') {
+      setTimeout(() => this._applyBicycleKickForce(), 450);
     }
 
     if (actionName !== 'slide') {
@@ -484,6 +524,45 @@ export class PlayerControls {
       };
       mixer.addEventListener("finished", onFinished);
     }
+  }
+
+  _applyBicycleKickForce() {
+    if (!window.soccerBall?.body || !this.playerModel) return;
+    const ballPos = window.soccerBall.getPosition();
+    if (!ballPos) return;
+    const playerPos = this.playerModel.position;
+    const headPos = new THREE.Vector3(playerPos.x, playerPos.y + 1.8, playerPos.z);
+    const ballVec = new THREE.Vector3(ballPos.x, ballPos.y, ballPos.z);
+    if (headPos.distanceTo(ballVec) > 2.5) return;
+    // Kick ball backward (opposite of player facing) and upward
+    const facing = new THREE.Vector3(
+      Math.sin(this.playerModel.rotation.y),
+      0,
+      Math.cos(this.playerModel.rotation.y)
+    );
+    const force = 0.7;
+    window.soccerBall.applyImpulse({ x: -facing.x * force, y: 0.35, z: -facing.z * force });
+    window.soccerBall.lastTouchedTeam = 'home';
+    this.audioManager?.playBallKick?.();
+  }
+
+  _trySoccerHeader() {
+    if (!window.soccerBall?.body || !this.playerModel) return;
+    const ballPos = window.soccerBall.getPosition();
+    if (!ballPos) return;
+    const playerPos = this.playerModel.position;
+    const headPos = new THREE.Vector3(playerPos.x, playerPos.y + 1.7, playerPos.z);
+    const ballVec = new THREE.Vector3(ballPos.x, ballPos.y, ballPos.z);
+    if (headPos.distanceTo(ballVec) > 1.8) return;
+    const facing = new THREE.Vector3(
+      Math.sin(this.playerModel.rotation.y),
+      -0.15,
+      Math.cos(this.playerModel.rotation.y)
+    ).normalize();
+    const force = 0.5;
+    window.soccerBall.applyImpulse({ x: facing.x * force, y: facing.y * force, z: facing.z * force });
+    window.soccerBall.lastTouchedTeam = 'home';
+    this.audioManager?.playBallKick?.();
   }
 
   applyKnockback(impulse) {
@@ -586,7 +665,7 @@ export class PlayerControls {
       t.y = groundExpectedY;
     }
     const moveDirection = new THREE.Vector3(0, 0, 0);
-    const movementLocked = ['mutantPunch', 'mmaKick', 'runningKick', 'slide'].includes(this.currentSpecialAction);
+    const movementLocked = ['mutantPunch', 'mmaKick', 'runningKick', 'slide', 'farKick', 'bicycleKick'].includes(this.currentSpecialAction);
     if (!movementLocked) {
       if (this.isMobile) {
         if (this.joystickForce > 0.1) {

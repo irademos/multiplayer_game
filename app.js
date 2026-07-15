@@ -2228,6 +2228,8 @@ async function main() {
   bindActionButton('roll-button', () => playerControls.triggerRoll());
   bindActionButton('slide-button', () => playerControls.triggerSlide());
   bindActionButton('sprint-button', () => playerControls.triggerSprint());
+  bindActionButton('lob-button', () => playerControls.playAction('farKick'));
+  bindActionButton('bicycle-button', () => playerControls.playAction('bicycleKick'));
 
   let localStream = null;
   let micActive = false;

@@ -109,15 +109,13 @@ function clipWithExistingTargetsOnly(clip, root) {
   return new THREE.AnimationClip(clip.name, clip.duration, tracks);
 }
 
-function stripRootTracks(clip, rootName) {
-  const blocked = new Set([
-    `${rootName}.position`,
-    `${rootName}.quaternion`,
-    `${rootName}.scale`,
-    `${rootName}.matrix`,
-    `${rootName}.visible`,
-  ]);
-  const tracks = clip.tracks.filter(t => !blocked.has(t.name));
+function stripRootMotion(clip) {
+  // Remove position tracks from hip/root bones to prevent character from drifting
+  const tracks = clip.tracks.filter(t => {
+    if (!t.name.endsWith('.position')) return true;
+    const boneName = t.name.split('.')[0].toLowerCase();
+    return !boneName.includes('hip') && !boneName.includes('root') && boneName !== 'armature';
+  });
   return new THREE.AnimationClip(clip.name, clip.duration, tracks);
 }
 
@@ -248,10 +246,10 @@ export function createPlayerModel(
             idle: 'Breathing Idle.fbx',
             walk: 'Old Man Walk.fbx',
             run: 'Drunk Run Forward.fbx',
-            jump: 'Joyful Jump.fbx',
+            jump: 'Soccer Header.fbx',
             hit: 'Flying Back Death.fbx',
             mutantPunch: 'Mutant Punch.fbx',
-            mmaKick: 'Mma Kick.fbx',
+            mmaKick: 'Running Kick.fbx',
             runningKick: 'Stand To Roll.fbx',
             slide: 'Female Laying Pose.fbx',
             hurricaneKick: 'Hurricane Kick.fbx',
@@ -259,7 +257,9 @@ export function createPlayerModel(
             die: 'Dying.fbx',
             float: 'Floating.fbx',
             swim: 'Swimming.fbx',
-            sit: 'Sitting Rubbing Arm.fbx'
+            sit: 'Sitting Rubbing Arm.fbx',
+            bicycleKick: 'Bicycle Kick.fbx',
+            farKick: 'Far Kick.fbx',
           };
 
           const promises = Object.entries(animationFiles).map(([name, file]) => {
@@ -267,14 +267,10 @@ export function createPlayerModel(
               fbxLoader.load(
                 `/models/animations/${encodeURIComponent(file)}`,
                 (anim) => {
-                  const clip = anim.animations[0];
-                  // const rootName = model.name || 'Root';
-                  // const src = anim.animations[0];
-                  // const clean = stripRootTracks(src, rootName);
-                  // const action = mixer.clipAction(clean);
+                  const clip = stripRootMotion(anim.animations[0]);
                   const action = mixer.clipAction(clip);
                   if (
-                    ['jump', 'hit', 'mutantPunch', 'mmaKick', 'runningKick', 'hurricaneKick', 'projectile', 'die'].includes(name)
+                    ['hit', 'mutantPunch', 'mmaKick', 'runningKick', 'hurricaneKick', 'projectile', 'die', 'bicycleKick', 'farKick'].includes(name)
                   ) {
                     action.loop = THREE.LoopOnce;
                     action.clampWhenFinished = true;
@@ -364,4 +360,3 @@ export function createPlayerModel(
 
   return { model: playerGroup, nameLabel: label };
 }
-
