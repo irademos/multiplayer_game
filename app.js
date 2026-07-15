@@ -1058,6 +1058,7 @@ async function main() {
     if (data.type === 'setPieceClear') {
       if (!multiplayer.isHost) {
         setPieceManager?.clear();
+        clearThrowIn();
       }
       return;
     }
@@ -1230,6 +1231,14 @@ async function main() {
   const MIN_PLAYERS_PER_TEAM = botsOnly ? botsPerTeam : 3;
   const aiPlayers = { home: [], away: [] };
   let setPieceManager;
+
+  // Throw-in hand-holding state (local player is the taker)
+  const throwInState = {
+    holding: false,     // ball is held at player's hand
+    handBone: null,     // THREE.Bone for right hand
+    button: null,       // DOM button element
+    thrown: false,      // animation triggered, waiting for release
+  };
 
   // Team management: tracks which team each peer is on ('home' | 'away')
   const playerTeams = {};
@@ -1664,6 +1673,113 @@ async function main() {
   }
 
   // Apply a set piece locally (runs on host via triggerSetPiece and on clients via network message).
+  function findRightHandBone(model) {
+    let bone = null;
+    model.traverse((obj) => {
+      if (bone) return;
+      const n = obj.name.toLowerCase();
+      if (obj.isBone && (n.includes('righthand') || n.includes('right_hand') || n.includes('r_hand') || n.includes('handright'))) {
+        bone = obj;
+      }
+    });
+    // Fallback: any bone with "hand" and "r" or "right"
+    if (!bone) {
+      model.traverse((obj) => {
+        if (bone) return;
+        const n = obj.name.toLowerCase();
+        if (obj.isBone && n.includes('hand') && (n.startsWith('r') || n.includes('_r'))) {
+          bone = obj;
+        }
+      });
+    }
+    return bone;
+  }
+
+  function startThrowInHolding() {
+    clearThrowIn();
+    throwInState.holding = true;
+    throwInState.thrown = false;
+
+    // Find hand bone inside the player model
+    if (playerModel) {
+      throwInState.handBone = findRightHandBone(playerModel);
+    }
+
+    // Create the throw-in button
+    const btn = document.createElement('button');
+    btn.id = 'throw-in-btn';
+    btn.textContent = 'THROW IN';
+    btn.style.cssText = [
+      'position:fixed',
+      'top:50%',
+      'left:50%',
+      'transform:translate(-50%,-50%)',
+      'z-index:500',
+      'padding:16px 36px',
+      'font-size:20px',
+      'font-weight:bold',
+      'background:rgba(255,220,0,0.92)',
+      'color:#222',
+      'border:3px solid #c8a000',
+      'border-radius:12px',
+      'cursor:pointer',
+      'letter-spacing:2px',
+      'pointer-events:auto',
+      'box-shadow:0 4px 16px rgba(0,0,0,0.5)',
+    ].join(';');
+
+    btn.addEventListener('click', executeThrowIn);
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); executeThrowIn(); }, { passive: false });
+
+    document.body.appendChild(btn);
+    throwInState.button = btn;
+  }
+
+  function executeThrowIn() {
+    if (!throwInState.holding || throwInState.thrown) return;
+    throwInState.thrown = true;
+
+    // Play the throw-in animation
+    if (playerControls) {
+      playerControls.playAction('throwIn');
+    }
+
+    // After ~0.6s (mid-animation), launch the ball forward
+    setTimeout(() => {
+      throwInState.holding = false;
+
+      if (soccerBall?.body && playerModel) {
+        const rot = playerModel.rotation.y;
+        const THROW_SPEED = 14;
+        const THROW_UP = 5;
+        soccerBall.body.setLinvel({
+          x: Math.sin(rot) * THROW_SPEED,
+          y: THROW_UP,
+          z: Math.cos(rot) * THROW_SPEED,
+        }, true);
+        soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
+
+      // Remove button
+      clearThrowInButton();
+    }, 600);
+  }
+
+  function clearThrowInButton() {
+    if (throwInState.button) {
+      throwInState.button.removeEventListener('click', executeThrowIn);
+      throwInState.button.remove();
+      throwInState.button = null;
+    }
+  }
+
+  function clearThrowIn() {
+    throwInState.holding = false;
+    throwInState.thrown = false;
+    throwInState.handBone = null;
+    clearThrowInButton();
+  }
+
   function applySetPiece({ spType, teamTaking, ballFixedPos, zone, exclusionZone, takerNetworkId }) {
     if (!setPieceManager) return;
 
@@ -1700,6 +1816,11 @@ async function main() {
         playerControls.playerY = sy;
         playerControls.playerZ = spawnZ;
         playerControls.lastPosition.set(spawnX, sy, spawnZ);
+      }
+
+      // For throw-ins: attach ball to player's hand and show the throw button
+      if (spType === 'throwIn') {
+        startThrowInHolding();
       }
     } else if (multiplayer.isHost) {
       // Host is not the taker — teleport the AI taker body
@@ -2688,9 +2809,34 @@ async function main() {
       }
 
       const ended = setPieceManager.update(soccerBall, takerBody, otherBodies, opposingBodies);
-      if (ended && multiplayer.isHost) {
-        multiplayer.send({ type: 'setPieceClear' });
+      if (ended) {
+        clearThrowIn();
+        if (multiplayer.isHost) {
+          multiplayer.send({ type: 'setPieceClear' });
+        }
       }
+
+      // While player is holding ball for throw-in, pin ball to hand bone each frame
+      if (throwInState.holding && soccerBall?.body) {
+        const _handPos = new THREE.Vector3();
+        if (throwInState.handBone) {
+          throwInState.handBone.getWorldPosition(_handPos);
+        } else if (playerModel) {
+          // Fallback: slightly in front and up from player
+          const rot = playerModel.rotation.y;
+          _handPos.set(
+            playerModel.position.x + Math.sin(rot) * 0.5,
+            playerModel.position.y + 1.4,
+            playerModel.position.z + Math.cos(rot) * 0.5
+          );
+        }
+        soccerBall.body.setTranslation({ x: _handPos.x, y: _handPos.y, z: _handPos.z }, true);
+        soccerBall.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
+    } else {
+      // Set piece not active; clear throw-in state if it lingered
+      if (throwInState.holding || throwInState.button) clearThrowIn();
     }
 
     multiplayer.send({
