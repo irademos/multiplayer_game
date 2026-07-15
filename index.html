@@ -157,36 +157,37 @@
         <span id="dashboard-online-num">0</span> ONLINE
       </div>
       <div class="dashboard-btn-group">
-        <button class="arcade-btn arcade-btn-green dashboard-big-btn" id="btn-play-online">
-          ▶ PLAY ONLINE
-        </button>
-        <div class="dashboard-btn-desc">JOIN OTHER PLAYERS</div>
-        <button class="arcade-btn arcade-btn-yellow dashboard-big-btn" id="btn-play-bots">
-          ▶ PLAY VS BOTS
-        </button>
-        <div class="dashboard-btn-desc">PRIVATE — NO RANDOMS</div>
-        <button class="arcade-btn arcade-btn-purple dashboard-big-btn" id="btn-adventure-mode">
-          ⚔️ ADVENTURE MODE
-        </button>
-        <div class="dashboard-btn-desc">UNLOCK NEW CHARACTERS</div>
-        <button class="arcade-btn arcade-btn-orange dashboard-big-btn" id="btn-tournament-mode">
-          🏆 TOURNAMENT MODE
-        </button>
-        <div class="dashboard-btn-desc">COMPETE DAILY FOR GLORY</div>
+        <div class="dashboard-mode-grid">
+          <div class="dashboard-mode-card">
+            <button class="arcade-btn arcade-btn-green dashboard-big-btn" id="btn-play-online">
+              ▶ PLAY ONLINE
+            </button>
+            <div class="dashboard-btn-desc">JOIN OTHER PLAYERS</div>
+          </div>
+          <div class="dashboard-mode-card">
+            <button class="arcade-btn arcade-btn-yellow dashboard-big-btn" id="btn-play-bots">
+              ▶ PLAY VS BOTS
+            </button>
+            <div class="dashboard-btn-desc">PRIVATE — NO RANDOMS</div>
+          </div>
+          <div class="dashboard-mode-card">
+            <button class="arcade-btn arcade-btn-purple dashboard-big-btn" id="btn-adventure-mode">
+              ⚔️ ADVENTURE MODE
+            </button>
+            <div class="dashboard-btn-desc">UNLOCK NEW CHARACTERS</div>
+          </div>
+          <div class="dashboard-mode-card">
+            <button class="arcade-btn arcade-btn-orange dashboard-big-btn" id="btn-tournament-mode">
+              🏆 TOURNAMENT MODE
+            </button>
+            <div class="dashboard-btn-desc">COMPETE DAILY FOR GLORY</div>
+          </div>
+        </div>
         <div class="dashboard-secondary-btns">
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-stats">📊 MY STATS</button>
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-leaderboard-dash">🏆 LEADERBOARD</button>
-          <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-profile">👤 PROFILE</button>
-        </div>
-      </div>
-      <div class="dashboard-audio-section">
-        <div class="dashboard-audio-row">
-          <span class="dashboard-audio-label">🎵 MUSIC</span>
-          <input type="range" id="dash-music-volume" min="0" max="1" step="0.05" class="dashboard-audio-slider" />
-        </div>
-        <div class="dashboard-audio-row">
-          <span class="dashboard-audio-label">🔊 SFX</span>
-          <input type="range" id="dash-sfx-volume" min="0" max="1" step="0.05" class="dashboard-audio-slider" />
+          <button class="arcade-btn arcade-btn-yellow dashboard-secondary-btn" id="btn-open-shop">🛍 SHOP</button>
+          <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn dashboard-icon-btn" id="btn-profile" aria-label="Settings">⚙️</button>
         </div>
       </div>
     </div>
@@ -253,7 +254,7 @@
   <!-- Profile Overlay -->
   <div id="profile-overlay" class="arcade-overlay hidden">
     <div class="arcade-panel profile-panel">
-      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">👤 PROFILE</div>
+      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">⚙️ SETTINGS</div>
       <div class="profile-section">
         <div class="profile-label">DISPLAY NAME</div>
         <div class="profile-name-row">
@@ -263,12 +264,28 @@
         <div class="arcade-error hidden" id="profile-name-error"></div>
         <div class="profile-name-ok hidden" id="profile-name-ok">✔ NAME UPDATED!</div>
       </div>
-      <div class="profile-section">
-        <div class="profile-label">CHARACTER</div>
-        <button class="arcade-btn arcade-btn-dim profile-char-btn" id="btn-profile-char">CHANGE CHARACTER</button>
+      <div class="profile-section profile-audio-section">
+        <div class="dashboard-audio-row">
+          <span class="dashboard-audio-label">🎵 MUSIC</span>
+          <input type="range" id="dash-music-volume" min="0" max="1" step="0.05" class="dashboard-audio-slider" />
+        </div>
+        <div class="dashboard-audio-row">
+          <span class="dashboard-audio-label">🔊 SFX</span>
+          <input type="range" id="dash-sfx-volume" min="0" max="1" step="0.05" class="dashboard-audio-slider" />
+        </div>
       </div>
-      <div class="profile-section">
-        <button class="arcade-btn arcade-btn-yellow profile-shop-btn" id="btn-open-shop">🛍 SHOP</button>
+      <div class="profile-section profile-character-section">
+        <div class="profile-character-picker" id="profile-character-picker">
+          <button class="char-arrow profile-char-arrow" id="profile-char-left" aria-label="Previous character">◀</button>
+          <div class="char-display profile-char-display">
+            <div class="char-emoji" id="profile-char-emoji"></div>
+            <div class="char-lock-info hidden" id="profile-char-lock-info">
+              <div class="char-lock-icon">🔒</div>
+            </div>
+            <div class="profile-char-save-status" id="profile-char-save-status"></div>
+          </div>
+          <button class="char-arrow profile-char-arrow" id="profile-char-right" aria-label="Next character">▶</button>
+        </div>
       </div>
       <div class="profile-section">
         <button class="arcade-btn arcade-btn-dim" id="btn-adv-settings-open">⚙ ADVANCED SETTINGS</button>

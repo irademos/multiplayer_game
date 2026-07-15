@@ -208,8 +208,8 @@ export async function initLogin(onSuccess) {
       const hash = await hashPin(name, pin);
       await saveUser(name, hash, null);
       saveSession(name);
-      // Go to character select — overlay stays until char selected
-      showCharacterSelect(overlay, name, onSuccess);
+      overlay.classList.add('hidden');
+      onSuccess({ username: name, character: '/models/old_man.fbx' });
     } catch (e) {
       setError('signup', 'ERROR — CHECK CONNECTION');
     } finally {
