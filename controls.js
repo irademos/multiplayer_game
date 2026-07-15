@@ -7,8 +7,14 @@ import { getSpawnPosition } from './spawnUtils.js';
 // Movement constants
 const SPEED = 5;
 const SWIM_SPEED = 2;
-const SPRINT_MULTIPLIER = 1.8;
-const SPRINT_DURATION_MS = 500;
+const SPRINT_BASE_MULTIPLIER = 1.4;
+const SPRINT_MAX_MULTIPLIER = 2.8;
+const SPRINT_FREQUENCY_WINDOW_MS = 1500; // window to count presses
+const SPRINT_MAX_PRESSES = 6;            // presses in window for max speed
+const SPRINT_DURATION_MS = 300;          // how long each press keeps sprint active
+const SPRINT_MAX_STAMINA = 100;
+const SPRINT_DRAIN_RATE = 25;            // stamina per second while sprinting
+const SPRINT_REGEN_RATE = 15;            // stamina per second while not sprinting
 const JUMP_FORCE = 5;
 const PLAYER_RADIUS = 0.3;
 const PLAYER_HALF_HEIGHT = 0.6;
@@ -57,6 +63,9 @@ export class PlayerControls {
     this.runningKickTimer = null;
     this.runningKickOriginalY = 0;
     this.sprintEndTime = 0;
+    this.sprintPressTimestamps = []; // rolling window of recent sprint presses
+    this.sprintStamina = SPRINT_MAX_STAMINA;
+    this.lastSprintUpdateTime = performance.now();
     
     // Mobile control variables
     this.joystick = null;
@@ -885,16 +894,45 @@ export class PlayerControls {
 
   triggerSprint() {
     if (!this.enabled || this.isInWater) return;
-    this.sprintEndTime = performance.now() + SPRINT_DURATION_MS;
+    if (this.sprintStamina <= 0) return;
+    const now = performance.now();
+    // Purge presses outside the rolling window
+    this.sprintPressTimestamps = this.sprintPressTimestamps.filter(t => now - t < SPRINT_FREQUENCY_WINDOW_MS);
+    this.sprintPressTimestamps.push(now);
+    this.sprintEndTime = now + SPRINT_DURATION_MS;
+  }
+
+  _updateSprintStamina() {
+    const now = performance.now();
+    const dt = (now - this.lastSprintUpdateTime) / 1000;
+    this.lastSprintUpdateTime = now;
+    if (this.isSprinting()) {
+      this.sprintStamina = Math.max(0, this.sprintStamina - SPRINT_DRAIN_RATE * dt);
+      if (this.sprintStamina === 0) this.sprintEndTime = 0; // cut sprint immediately
+    } else {
+      this.sprintStamina = Math.min(SPRINT_MAX_STAMINA, this.sprintStamina + SPRINT_REGEN_RATE * dt);
+    }
+  }
+
+  isSprinting() {
+    return performance.now() < this.sprintEndTime;
+  }
+
+  _getSprintFrequencyMultiplier() {
+    const now = performance.now();
+    const recent = this.sprintPressTimestamps.filter(t => now - t < SPRINT_FREQUENCY_WINDOW_MS).length;
+    const ratio = Math.min(1, recent / SPRINT_MAX_PRESSES);
+    return SPRINT_BASE_MULTIPLIER + ratio * (SPRINT_MAX_MULTIPLIER - SPRINT_BASE_MULTIPLIER);
   }
 
   getSprintPercent() {
-    return Math.max(0, Math.min(100, ((this.sprintEndTime - performance.now()) / SPRINT_DURATION_MS) * 100));
+    return (this.sprintStamina / SPRINT_MAX_STAMINA) * 100;
   }
 
   getCurrentSpeed() {
+    this._updateSprintStamina();
     const baseSpeed = this.isInWater ? SWIM_SPEED : SPEED;
-    return this.getSprintPercent() > 0 ? baseSpeed * SPRINT_MULTIPLIER : baseSpeed;
+    return this.isSprinting() ? baseSpeed * this._getSprintFrequencyMultiplier() : baseSpeed;
   }
 
   /**

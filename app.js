@@ -1855,6 +1855,14 @@ async function main() {
     if (sprintFill) {
       const sprintPercent = playerControls?.getSprintPercent?.() ?? 0;
       sprintFill.style.width = `${sprintPercent}%`;
+      // Color: cyan at full, orange at mid, red when critically low
+      if (sprintPercent > 50) {
+        sprintFill.style.background = '#27d9ff';
+      } else if (sprintPercent > 20) {
+        sprintFill.style.background = '#ffaa00';
+      } else {
+        sprintFill.style.background = '#ff3333';
+      }
     }
   }
   updateSprintUI();
