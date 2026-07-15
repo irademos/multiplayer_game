@@ -240,7 +240,6 @@ export class SetPieceManager {
 
 
   _buildCircleZoneVisual(zone, color, opacity, y) {
-    const boxH = 2.5;
     const floorGeo = new THREE.CircleGeometry(zone.radius, 48);
     const floorMat = new THREE.MeshBasicMaterial({
       color,
@@ -263,12 +262,6 @@ export class SetPieceManager {
     this.scene.add(ring);
     this._zoneMeshes.push(ring);
 
-    const edgesGeo = new THREE.EdgesGeometry(new THREE.CylinderGeometry(zone.radius, zone.radius, boxH, 48, 1, true));
-    const edgesMat = new THREE.LineBasicMaterial({ color });
-    const edges = new THREE.LineSegments(edgesGeo, edgesMat);
-    edges.position.set(zone.x, y + boxH / 2, zone.z);
-    this.scene.add(edges);
-    this._zoneMeshes.push(edges);
   }
 
   _createLabel() {
@@ -522,8 +515,8 @@ export function buildSetPieceParams(ballOutPos, lastTouchedTeam) {
       // Use a circular corner area that is nudged onto the field instead of a box outside it.
       const zone = {
         shape: 'circle',
-        x: cornerX - xSign * 1.25,
-        z: cornerZ - zSign * 1.25,
+        x: cornerX - xSign * 0.5,
+        z: cornerZ - zSign * 0.5,
         radius: 3.0,
       };
       // Opposing team must stay 9 units from the corner (on the field side)
