@@ -1974,6 +1974,7 @@ async function main() {
   const SCORE_GOAL_WIDTH = 10;
   const SCORE_GOAL_HEIGHT = 3;
   const SCORE_FIELD_HALF = 50;
+  const BALL_OUT_OF_BOUNDS_BUFFER = 1.0;
 
   const scoreEl = document.createElement('div');
   scoreEl.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);font-size:28px;font-weight:bold;padding:8px 28px;border-radius:10px;z-index:200;font-family:sans-serif;pointer-events:none;letter-spacing:4px;';
@@ -2118,8 +2119,9 @@ async function main() {
     const pos = soccerBall.getPosition();
     if (!pos) return;
 
-    const outZ = pos.z > SCORE_FIELD_HALF || pos.z < -SCORE_FIELD_HALF;
-    const outX = Math.abs(pos.x) > SCORE_FIELD_X_HALF;
+    const outZ = pos.z > SCORE_FIELD_HALF + BALL_OUT_OF_BOUNDS_BUFFER ||
+                 pos.z < -SCORE_FIELD_HALF - BALL_OUT_OF_BOUNDS_BUFFER;
+    const outX = Math.abs(pos.x) > SCORE_FIELD_X_HALF + BALL_OUT_OF_BOUNDS_BUFFER;
     if (!outX && !outZ) return;
 
     const inX = Math.abs(pos.x) <= SCORE_GOAL_WIDTH / 2;
