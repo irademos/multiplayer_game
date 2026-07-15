@@ -13,6 +13,15 @@ import { LevelLoader } from './levelLoader.js';
 import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
 import { recordGoal, recordGameResult, getPlayerStats, getLeaderboard } from './leaderboard.js';
+import {
+  getUpcomingTournaments, ensureTournamentsExist, subscribeTournamentList, subscribeTournament,
+  registerForTournament, unregisterFromTournament, tryStartTournament,
+  confirmJoin, markReady, kickAndFillBots, reportMatchResult,
+  findPlayerMatch, getRealPlayersForMatch, getMatchRoomId,
+  startTournamentNotifications, JOIN_TIMEOUT_MS, READY_TIMEOUT_MS,
+} from './tournament.js';
+import { ref, get, onValue } from 'firebase/database';
+import { db } from './firebase-init.js';
 import { AudioManager } from './audioManager.js';
 import { AIPlayer } from './aiPlayer.js';
 import { SoccerBall } from './soccerBall.js';
@@ -82,8 +91,44 @@ async function main() {
     });
   });
 
+  // ── Tournament notifications (active throughout the session) ─────────────────
+  ensureTournamentsExist().catch(() => {});
+  let _activeTournamentNotifId = null;
+  const _stopTournamentNotifs = startTournamentNotifications(playerName, (tid, label) => {
+    showTournamentNotification(tid, label);
+  });
+
+  function showTournamentNotification(tid, label) {
+    _activeTournamentNotifId = tid;
+    const popup = document.getElementById('tournament-notification');
+    const nameEl = document.getElementById('tournament-notif-name');
+    if (popup && nameEl) {
+      nameEl.textContent = label;
+      popup.classList.remove('hidden');
+    }
+  }
+
+  document.getElementById('tournament-notif-dismiss')?.addEventListener('click', () => {
+    document.getElementById('tournament-notification').classList.add('hidden');
+  });
+
+  document.getElementById('tournament-notif-join')?.addEventListener('click', () => {
+    document.getElementById('tournament-notification').classList.add('hidden');
+    if (_activeTournamentNotifId) {
+      openTournamentBracket(_activeTournamentNotifId, playerName, null);
+    }
+  });
+
   // ── Dashboard — choose Play Online vs Play Bots ─────────────────────────────
   const { botsOnly, botsPerTeam, ballSizeMultiplier, gravityMultiplier, adventureMode, adventureCharModel, adventureRoundConfig } = await new Promise(resolve => {
+    // ── Check if returning from a tournament game ─────────────────────────────
+    const returningTournamentId = sessionStorage.getItem('tournamentId');
+    const returningMatchId = sessionStorage.getItem('tournamentMatchId');
+    if (returningTournamentId && returningMatchId) {
+      resolve({ botsOnly: false, botsPerTeam: 3, ballSizeMultiplier: 1.0, gravityMultiplier: 1.0 });
+      return;
+    }
+
     const overlay = document.getElementById('dashboard-overlay');
     const settingsOverlay = document.getElementById('bots-settings-overlay');
     const onlineNumEl = document.getElementById('dashboard-online-num');
@@ -552,6 +597,23 @@ async function main() {
       showAdventureRound(getSavedAdventureRound());
     });
 
+    // ── Tournament Mode button ────────────────────────────────────────────────
+    document.getElementById('btn-tournament-mode')?.addEventListener('click', () => {
+      overlay.classList.add('hidden');
+      openTournamentList(playerName, () => {
+        overlay.classList.remove('hidden');
+      }, (tid, matchId, isTeam1, roomId) => {
+        // Start a tournament game
+        sessionStorage.setItem('tournamentId', tid);
+        sessionStorage.setItem('tournamentMatchId', matchId);
+        sessionStorage.setItem('tournamentRoomId', roomId);
+        sessionStorage.setItem('tournamentIsTeam1', isTeam1 ? '1' : '0');
+        sessionStorage.setItem('skipToGame', '1');
+        unsubCount();
+        resolve({ botsOnly: false, botsPerTeam: 3, ballSizeMultiplier: 1.0, gravityMultiplier: 1.0 });
+      });
+    });
+
     document.getElementById('adv-start-round').addEventListener('click', () => {
       const state = getAdventureState();
       const roundIdx = state?.round ?? 0;
@@ -637,6 +699,405 @@ async function main() {
       }
     }
   });
+
+  // ── Tournament UI functions ────────────────────────────────────────────────
+  function fmtMs(ms) {
+    const s = Math.max(0, Math.ceil(ms / 1000));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+
+  function fmtTime(ts) {
+    return new Date(ts).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+  }
+
+  function renderBracket(bracket, myName, targetEl) {
+    if (!bracket?.matches || !bracket?.teams) { targetEl.innerHTML = '<em>No bracket data</em>'; return; }
+
+    const roundNums = [...new Set(Object.values(bracket.matches).map(m => m.round))].sort((a, b) => a - b);
+    const roundNames = ['Round of 16', 'Quarterfinals', 'Semifinals', 'Final'];
+    targetEl.innerHTML = '';
+
+    for (const r of roundNums) {
+      const roundMatches = Object.entries(bracket.matches)
+        .filter(([, m]) => m.round === r)
+        .sort(([, a], [, b]) => a.matchIndex - b.matchIndex);
+
+      const roundEl = document.createElement('div');
+      roundEl.className = 'bracket-round';
+      roundEl.innerHTML = `<div class="bracket-round-title">${roundNames[r] || `Round ${r + 1}`}</div>`;
+
+      for (const [matchId, match] of roundMatches) {
+        const t1 = bracket.teams[match.team1];
+        const t2 = bracket.teams[match.team2];
+        if (!t1 || !t2) continue;
+
+        const myTeamId = findMyTeamInMatch(bracket, matchId, myName);
+        const isMyMatch = !!myTeamId;
+        const won1 = match.winner === 'team1';
+        const won2 = match.winner === 'team2';
+
+        const t1cls = `bracket-team${myTeamId === match.team1 ? ' my-team' : ''}${match.status === 'complete' ? (won1 ? ' winner' : ' loser') : ''}`;
+        const t2cls = `bracket-team${myTeamId === match.team2 ? ' my-team' : ''}${match.status === 'complete' ? (won2 ? ' winner' : ' loser') : ''}`;
+
+        let resultCls = 'result-waiting', resultTxt = 'UPCOMING';
+        if (match.status === 'waiting_join') { resultCls = 'result-waiting'; resultTxt = 'JOINING...'; }
+        if (match.status === 'playing')      { resultCls = 'result-playing'; resultTxt = 'LIVE'; }
+        if (match.status === 'complete')     { resultCls = 'result-done';    resultTxt = 'DONE'; }
+
+        const matchEl = document.createElement('div');
+        matchEl.className = `bracket-match${isMyMatch ? ' my-match' : ''}`;
+        matchEl.innerHTML = `
+          <div class="bracket-match-teams">
+            <span class="${t1cls}">${t1.name}</span>
+            <span class="bracket-vs">vs</span>
+            <span class="${t2cls}">${t2.name}</span>
+          </div>
+          <span class="bracket-match-result ${resultCls}">${resultTxt}</span>`;
+        roundEl.appendChild(matchEl);
+      }
+
+      targetEl.appendChild(roundEl);
+    }
+  }
+
+  function findMyTeamInMatch(bracket, matchId, myName) {
+    const match = bracket?.matches?.[matchId];
+    if (!match) return null;
+    const t1 = bracket.teams?.[match.team1]?.players || [];
+    const t2 = bracket.teams?.[match.team2]?.players || [];
+    if (t1.some(p => !p.isBot && p.username === myName)) return match.team1;
+    if (t2.some(p => !p.isBot && p.username === myName)) return match.team2;
+    return null;
+  }
+
+  function openTournamentBracket(tid, myName, onStartGame) {
+    const overlay = document.getElementById('tournament-bracket-overlay');
+    const statusMsg = document.getElementById('bracket-status-msg');
+    const countdownRow = document.getElementById('bracket-countdown-row');
+    const countdownEl = document.getElementById('bracket-countdown');
+    const countdownLabel = document.getElementById('bracket-countdown-label');
+    const playersRow = document.getElementById('bracket-players-row');
+    const playersLabel = document.getElementById('bracket-players-label');
+    const bracketView = document.getElementById('tournament-bracket-view');
+    const readyBtn = document.getElementById('bracket-ready-btn');
+    const dashBtn = document.getElementById('bracket-dashboard-btn');
+    const closeBtn = document.getElementById('bracket-close-btn');
+    if (!overlay) return;
+
+    overlay.classList.remove('hidden');
+    readyBtn.classList.add('hidden');
+    dashBtn.classList.add('hidden');
+    closeBtn.classList.add('hidden');
+    countdownRow.classList.add('hidden');
+    playersRow.classList.add('hidden');
+    statusMsg.textContent = 'Loading bracket...';
+    statusMsg.style.color = '#aaa';
+
+    let joinCountdownTimer = null;
+    let unsubBracket = null;
+    let joinConfirmed = false;
+    let gameStarted = false;
+
+    function cleanup() {
+      if (joinCountdownTimer) clearInterval(joinCountdownTimer);
+      if (unsubBracket) unsubBracket();
+    }
+
+    unsubBracket = subscribeTournament(tid, async tData => {
+      if (!tData?.bracket) {
+        statusMsg.textContent = 'Tournament starting soon...';
+        return;
+      }
+
+      renderBracket(tData.bracket, myName, bracketView);
+      const myMatchInfo = findPlayerMatch(tData.bracket, myName);
+
+      if (!myMatchInfo) {
+        statusMsg.textContent = 'You are not in this tournament bracket.';
+        statusMsg.style.color = '#aaa';
+        closeBtn.classList.remove('hidden');
+        return;
+      }
+
+      const { matchId, match, myTeamId, isTeam1 } = myMatchInfo;
+
+      if (match.status === 'complete') {
+        const playerWon = match.winnerId === myTeamId;
+        if (playerWon) {
+          statusMsg.textContent = '🏆 YOUR TEAM WON! Waiting for next round...';
+          statusMsg.style.color = '#44ff88';
+        } else {
+          statusMsg.textContent = '💀 YOUR TEAM LOST. Better luck next time!';
+          statusMsg.style.color = '#ff4444';
+          closeBtn.classList.remove('hidden');
+        }
+        return;
+      }
+
+      if (match.status === 'playing' && !gameStarted) {
+        gameStarted = true;
+        const roomId = getMatchRoomId(tid, matchId);
+        statusMsg.textContent = '▶ STARTING MATCH...';
+        statusMsg.style.color = '#44ff88';
+        cleanup();
+        setTimeout(() => {
+          if (onStartGame) {
+            onStartGame(tid, matchId, isTeam1, roomId);
+          } else {
+            sessionStorage.setItem('tournamentId', tid);
+            sessionStorage.setItem('tournamentMatchId', matchId);
+            sessionStorage.setItem('tournamentRoomId', roomId);
+            sessionStorage.setItem('tournamentIsTeam1', isTeam1 ? '1' : '0');
+            sessionStorage.setItem('skipToGame', '1');
+            location.reload();
+          }
+        }, 1000);
+        return;
+      }
+
+      if (match.status === 'waiting_join') {
+        const realPlayers = getRealPlayersForMatch(tData.bracket, matchId);
+        const joined = match.joinedPlayers || {};
+        const joinedCount = realPlayers.filter(p => joined[p]).length;
+
+        statusMsg.textContent = `YOUR MATCH: ${myMatchInfo.myTeam.name} vs ${myMatchInfo.opponentTeam.name}`;
+        statusMsg.style.color = '#ffcc44';
+
+        playersRow.classList.remove('hidden');
+        playersLabel.textContent = `${joinedCount}/${realPlayers.length} players joined`;
+
+        if (!joinConfirmed) {
+          joinConfirmed = true;
+          await confirmJoin(tid, matchId, myName).catch(() => {});
+
+          // Start countdown
+          const deadline = Date.now() + JOIN_TIMEOUT_MS;
+          countdownRow.classList.remove('hidden');
+          countdownLabel.textContent = 'Match starts in:';
+
+          if (joinCountdownTimer) clearInterval(joinCountdownTimer);
+          joinCountdownTimer = setInterval(async () => {
+            const left = deadline - Date.now();
+            if (countdownEl) countdownEl.textContent = fmtMs(left);
+            if (left <= 0) {
+              clearInterval(joinCountdownTimer);
+              // Kick non-joined players and start
+              await kickAndFillBots(tid, matchId, tData.bracket).catch(() => {});
+            }
+          }, 500);
+        }
+      }
+    });
+  }
+
+  function openTournamentList(myName, onBack, onStartGame) {
+    const overlay = document.getElementById('tournament-overlay');
+    const listEl = document.getElementById('tournament-list');
+    const closeBtn = document.getElementById('tournament-close');
+    if (!overlay) return;
+
+    overlay.classList.remove('hidden');
+    listEl.innerHTML = '<em>Loading...</em>';
+
+    let registeredTournaments = new Set();
+    const unsub = subscribeTournamentList(tournaments => {
+      listEl.innerHTML = '';
+      if (!tournaments.length) { listEl.innerHTML = '<em>No upcoming tournaments</em>'; return; }
+
+      for (const t of tournaments) {
+        const isRegistered = !!t.registrations?.[myName];
+        if (isRegistered) registeredTournaments.add(t.id);
+        const regCount = t.registrationCount || 0;
+        const now = Date.now();
+        const minutesUntil = Math.floor((t.scheduledTime - now) / 60000);
+        const timeStr = minutesUntil > 0
+          ? `Starts in ${minutesUntil < 60 ? `${minutesUntil}m` : `${Math.floor(minutesUntil / 60)}h ${minutesUntil % 60}m`}`
+          : (t.status === 'upcoming' ? 'Starting soon!' : '');
+
+        const card = document.createElement('div');
+        card.className = 'tournament-card';
+
+        let statusCls = `status-${t.status}`;
+        let statusLabel = t.status.toUpperCase();
+        if (t.status === 'starting') statusLabel = 'STARTING!';
+        if (t.status === 'complete' && t.champion) {
+          const champTeam = t.bracket?.teams?.[t.champion];
+          statusLabel = `WINNER: ${champTeam?.name || '?'}`;
+        }
+
+        card.innerHTML = `
+          <div class="tournament-card-header">
+            <span class="tournament-card-name">🏆 ${t.label}</span>
+            <span class="tournament-card-status ${statusCls}">${statusLabel}</span>
+          </div>
+          <div class="tournament-card-info">${fmtTime(t.scheduledTime)}</div>
+          <div class="tournament-card-info">${regCount} player${regCount !== 1 ? 's' : ''} registered</div>
+          ${timeStr ? `<div class="tournament-card-info">${timeStr}</div>` : ''}`;
+
+        const actionsEl = document.createElement('div');
+        actionsEl.className = 'tournament-card-actions';
+
+        if (t.status === 'upcoming' || t.status === 'starting') {
+          if (isRegistered) {
+            const badge = document.createElement('span');
+            badge.className = 'tournament-registered-badge';
+            badge.textContent = '✓ REGISTERED';
+            actionsEl.appendChild(badge);
+
+            const leaveBtn = document.createElement('button');
+            leaveBtn.className = 'arcade-btn arcade-btn-red';
+            leaveBtn.textContent = 'LEAVE';
+            leaveBtn.addEventListener('click', async () => {
+              leaveBtn.disabled = true;
+              await unregisterFromTournament(t.id, myName).catch(() => {});
+            });
+            actionsEl.appendChild(leaveBtn);
+          } else {
+            const joinBtn = document.createElement('button');
+            joinBtn.className = 'arcade-btn arcade-btn-green';
+            joinBtn.textContent = 'JOIN';
+            joinBtn.addEventListener('click', async () => {
+              joinBtn.disabled = true;
+              joinBtn.textContent = 'JOINING...';
+              await ensureTournamentsExist().catch(() => {});
+              await registerForTournament(t.id, myName).catch(() => {});
+            });
+            actionsEl.appendChild(joinBtn);
+          }
+        }
+
+        if ((t.status === 'starting' || t.status === 'active') && isRegistered) {
+          const viewBtn = document.createElement('button');
+          viewBtn.className = 'arcade-btn arcade-btn-orange';
+          viewBtn.textContent = 'VIEW BRACKET';
+          viewBtn.addEventListener('click', () => {
+            overlay.classList.add('hidden');
+            openTournamentBracket(t.id, myName, onStartGame);
+          });
+          actionsEl.appendChild(viewBtn);
+        }
+
+        card.appendChild(actionsEl);
+        listEl.appendChild(card);
+      }
+    });
+
+    const handleClose = () => {
+      unsub();
+      overlay.classList.add('hidden');
+      if (onBack) onBack();
+    };
+
+    closeBtn.replaceWith(closeBtn.cloneNode(true));
+    document.getElementById('tournament-close').addEventListener('click', handleClose);
+  }
+
+  // ── Tournament game-over handler (called from showWinScreen) ─────────────────
+  async function handleTournamentGameOver(winningTeam, localPlayerTeam) {
+    const tid = sessionStorage.getItem('tournamentId');
+    const matchId = sessionStorage.getItem('tournamentMatchId');
+    const isTeam1 = sessionStorage.getItem('tournamentIsTeam1') === '1';
+    if (!tid || !matchId) return;
+
+    // Determine tournament winner
+    let winnerTournamentTeam;
+    if (winningTeam === null) {
+      winnerTournamentTeam = 'team1'; // draw: team1 advances
+    } else {
+      const playerWon = winningTeam === localPlayerTeam;
+      winnerTournamentTeam = (playerWon === isTeam1) ? 'team1' : 'team2';
+    }
+
+    await reportMatchResult(tid, matchId, winnerTournamentTeam).catch(() => {});
+
+    const playerAdvanced = winnerTournamentTeam === (isTeam1 ? 'team1' : 'team2');
+
+    const overlay = document.getElementById('tournament-bracket-overlay');
+    const statusMsg = document.getElementById('bracket-status-msg');
+    const countdownRow = document.getElementById('bracket-countdown-row');
+    const countdownEl = document.getElementById('bracket-countdown');
+    const countdownLabel = document.getElementById('bracket-countdown-label');
+    const playersRow = document.getElementById('bracket-players-row');
+    const readyBtn = document.getElementById('bracket-ready-btn');
+    const dashBtn = document.getElementById('bracket-dashboard-btn');
+    const closeBtn = document.getElementById('bracket-close-btn');
+    const bracketView = document.getElementById('tournament-bracket-view');
+
+    if (!overlay) return;
+    overlay.classList.remove('hidden');
+    readyBtn.classList.add('hidden');
+    dashBtn.classList.add('hidden');
+    closeBtn.classList.add('hidden');
+    countdownRow.classList.add('hidden');
+    playersRow.classList.add('hidden');
+
+    // Load and render bracket
+    const tSnap = await get(ref(db, `tournaments/${tid}`)).catch(() => null);
+    const tData = tSnap?.val();
+    if (tData?.bracket) renderBracket(tData.bracket, playerName, bracketView);
+
+    if (playerAdvanced) {
+      statusMsg.textContent = '🏆 YOU ADVANCED TO THE NEXT ROUND!';
+      statusMsg.style.color = '#44ff88';
+      readyBtn.classList.remove('hidden');
+      countdownRow.classList.remove('hidden');
+      countdownLabel.textContent = 'Auto-return in:';
+
+      let secondsLeft = READY_TIMEOUT_MS / 1000;
+      const countdownInterval = setInterval(() => {
+        secondsLeft--;
+        if (countdownEl) countdownEl.textContent = fmtMs(secondsLeft * 1000);
+        if (secondsLeft <= 0) {
+          clearInterval(countdownInterval);
+          finishTournamentRound(tid);
+        }
+      }, 1000);
+
+      const handleReady = () => {
+        clearInterval(countdownInterval);
+        readyBtn.disabled = true;
+        readyBtn.textContent = '⏳ WAITING...';
+        countdownRow.classList.add('hidden');
+        finishTournamentRound(tid);
+      };
+
+      readyBtn.replaceWith(readyBtn.cloneNode(true));
+      document.getElementById('bracket-ready-btn').addEventListener('click', handleReady);
+
+    } else {
+      statusMsg.textContent = '💀 YOU HAVE BEEN ELIMINATED!';
+      statusMsg.style.color = '#ff4444';
+      dashBtn.classList.remove('hidden');
+
+      // Subscribe to watch the rest of the tournament
+      const unsub = subscribeTournament(tid, tData2 => {
+        if (tData2?.bracket) renderBracket(tData2.bracket, playerName, bracketView);
+      });
+
+      const handleDash = () => {
+        unsub();
+        sessionStorage.removeItem('tournamentId');
+        sessionStorage.removeItem('tournamentMatchId');
+        sessionStorage.removeItem('tournamentRoomId');
+        sessionStorage.removeItem('tournamentIsTeam1');
+        location.reload();
+      };
+
+      dashBtn.replaceWith(dashBtn.cloneNode(true));
+      document.getElementById('bracket-dashboard-btn').addEventListener('click', handleDash);
+    }
+  }
+
+  function finishTournamentRound(tid) {
+    // Clear tournament session and return to dashboard to find next match
+    sessionStorage.removeItem('tournamentId');
+    sessionStorage.removeItem('tournamentMatchId');
+    sessionStorage.removeItem('tournamentRoomId');
+    sessionStorage.removeItem('tournamentIsTeam1');
+    // Show notification-based flow: when next round is created, notification fires
+    // For now, navigate back to dashboard and let the notification bring them back
+    location.reload();
+  }
 
   let multiplayer = null;
   let playerControls = null;
@@ -912,7 +1373,12 @@ async function main() {
 
       // Assign team if not already done (may already be set if presence arrived first)
       if (!playerTeams[requesterId]) {
-        playerTeams[requesterId] = assignTeamToNewPlayer();
+        // Honor preferred team for tournament games if the team has room
+        if (data.preferredTeam && ['home', 'away'].includes(data.preferredTeam)) {
+          playerTeams[requesterId] = data.preferredTeam;
+        } else {
+          playerTeams[requesterId] = assignTeamToNewPlayer();
+        }
       }
       const assignedTeam = playerTeams[requesterId];
 
@@ -1113,7 +1579,8 @@ async function main() {
     }
   }
 
-  multiplayer = new Multiplayer(playerName, handleIncomingData, { botsOnly });
+  const tournamentRoomId = sessionStorage.getItem('tournamentRoomId') || null;
+  multiplayer = new Multiplayer(playerName, handleIncomingData, { botsOnly, forcedRoom: tournamentRoomId });
   multiplayer.onHostChange = ({ previousHostId, newHostId, isCurrentHost, roomPeerCount = 1 }) => {
     if (previousHostId && previousHostId === multiplayer.getId() && previousHostId !== newHostId) {
       const snapshot = serializeAuthoritativeStates();
@@ -1164,7 +1631,8 @@ async function main() {
   multiplayer.onPeerConnected = (peerId) => {
     if (multiplayer.isHost) return;
     if (peerId === multiplayer.getHostId()) {
-      multiplayer.sendTo(peerId, { type: 'joinRequest', requesterId: multiplayer.getId() });
+      const tournamentTeam = sessionStorage.getItem('tournamentIsTeam1') === '1' ? 'home' : (sessionStorage.getItem('tournamentIsTeam1') === '0' ? 'away' : null);
+      multiplayer.sendTo(peerId, { type: 'joinRequest', requesterId: multiplayer.getId(), preferredTeam: tournamentTeam });
     }
   };
 
@@ -1573,9 +2041,12 @@ async function main() {
       });
     }
 
-    // After 4 seconds reveal the Play Again button (or adventure result)
+    // After 4 seconds reveal the Play Again button (or adventure/tournament result)
     setTimeout(async () => {
-      if (adventureMode) {
+      if (sessionStorage.getItem('tournamentId') && sessionStorage.getItem('tournamentMatchId')) {
+        // Tournament game over — show bracket and ready/eliminated screen
+        await handleTournamentGameOver(winningTeam, localPlayerTeam);
+      } else if (adventureMode) {
         const advState = (() => { try { return JSON.parse(sessionStorage.getItem('adventureState') || 'null'); } catch { return null; } })();
         const playerWon = winningTeam === localPlayerTeam;
         const result = winningTeam === null ? 'draw' : playerWon ? 'win' : 'loss';
