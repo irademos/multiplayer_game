@@ -305,7 +305,7 @@ export class PlayerControls {
       kickButton.addEventListener('touchstart', (event) => {
         if (!this.enabled || this.isInWater) return;
         this.slideMomentum.set(0, 0, 0);
-        this.playAction('mmaKick');
+        this.playAction('runningKick');
         this.audioManager?.playAttack();
         event.preventDefault();
       });
@@ -791,7 +791,7 @@ export class PlayerControls {
           actionName = isMovingNow ? 'swim' : 'float';
         } else {
           actionName = 'idle';
-          if (!this.canJump) actionName = 'jump';
+          if (!this.canJump) actionName = 'soccerHeader';
           else if (isMovingNow) actionName = 'run';
         }
         const current = this.playerModel.userData.currentAction;

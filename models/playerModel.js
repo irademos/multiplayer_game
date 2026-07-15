@@ -248,11 +248,13 @@ export function createPlayerModel(
             idle: 'Breathing Idle.fbx',
             walk: 'Old Man Walk.fbx',
             run: 'Drunk Run Forward.fbx',
-            jump: 'Joyful Jump.fbx',
+            soccerHeader: 'Soccer Header.fbx',
             hit: 'Flying Back Death.fbx',
             mutantPunch: 'Mutant Punch.fbx',
             mmaKick: 'Mma Kick.fbx',
-            runningKick: 'Stand To Roll.fbx',
+            runningKick: 'Running Kick.fbx',
+            farKick: 'Far Kick.fbx',
+            bicycleKick: 'Bicycle Kick.fbx',
             slide: 'Female Laying Pose.fbx',
             hurricaneKick: 'Hurricane Kick.fbx',
             projectile: 'Projectile.fbx',
@@ -275,7 +277,7 @@ export function createPlayerModel(
                   // const action = mixer.clipAction(clean);
                   const action = mixer.clipAction(clip);
                   if (
-                    ['jump', 'hit', 'mutantPunch', 'mmaKick', 'runningKick', 'hurricaneKick', 'projectile', 'die', 'throwIn'].includes(name)
+                    ['soccerHeader', 'hit', 'mutantPunch', 'mmaKick', 'runningKick', 'farKick', 'bicycleKick', 'hurricaneKick', 'projectile', 'die', 'throwIn'].includes(name)
                   ) {
                     action.loop = THREE.LoopOnce;
                     action.clampWhenFinished = true;
