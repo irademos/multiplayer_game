@@ -6,7 +6,7 @@ import { getTerrainHeight } from './water.js';
 import { Multiplayer, subscribeOnlineCount } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
-import { initLogin, getSession, clearSession, getUser, updateUserDisplayName, getUserUpgrades, purchaseUpgrade, unlockCharacterFree, showCharacterSelect, updateUserCharacter, CHARACTERS, ADVENTURE_ORDER, changePin, deleteAccount } from './login.js';
+import { initLogin, getSession, clearSession, getUser, updateUserDisplayName, getUserUpgrades, purchaseUpgrade, unlockCharacterFree, updateUserCharacter, CHARACTERS, ADVENTURE_ORDER, changePin, deleteAccount } from './login.js';
 import { spawnProjectile, updateProjectiles } from './projectiles.js';
 import { updateMeleeAttacks } from './melee.js';
 import { LevelLoader } from './levelLoader.js';
@@ -274,12 +274,18 @@ async function main() {
     // ── Profile button ──────────────────────────────────────────────────────────
     let currentPlayerName = playerName;
 
-    function openProfileOverlay() {
+    async function openProfileOverlay() {
       const profileOverlay = document.getElementById('profile-overlay');
       document.getElementById('profile-name-input').value = currentPlayerName;
       document.getElementById('profile-name-error').classList.add('hidden');
       document.getElementById('profile-name-ok').classList.add('hidden');
+      profileCharIndex = Math.max(0, CHARACTERS.findIndex(c => c.model === characterModel));
+      renderProfileCharacterPicker(false);
       profileOverlay.classList.remove('hidden');
+      try {
+        profileUnlockedKeys = await getUserUpgrades(getSession()) || {};
+        renderProfileCharacterPicker(false);
+      } catch { /* keep current unlock display */ }
     }
 
     document.getElementById('btn-profile').addEventListener('click', openProfileOverlay);
@@ -336,21 +342,47 @@ async function main() {
       }
     });
 
-    // Change character from profile
-    document.getElementById('btn-profile-char').addEventListener('click', () => {
-      const profileOverlay = document.getElementById('profile-overlay');
-      const sessionUser = getSession();
-      profileOverlay.classList.add('hidden');
-      // Reuse the character select screen; pass a dummy overlay that won't be shown
-      const dummyOverlay = document.createElement('div');
-      showCharacterSelect(dummyOverlay, sessionUser, ({ character }) => {
-        setCookie('characterModel', character, 365);
-        if (character !== characterModel) {
-          characterModel = character;
+    let profileCharIndex = Math.max(0, CHARACTERS.findIndex(c => c.model === characterModel));
+    let profileUnlockedKeys = {};
+
+    function profileCharacterUnlocked(character) {
+      return character.free || !!profileUnlockedKeys[`char_${character.key}`];
+    }
+
+    async function renderProfileCharacterPicker(saveChoice = false) {
+      const chosen = CHARACTERS[profileCharIndex];
+      const statusEl = document.getElementById('profile-char-save-status');
+      document.getElementById('profile-char-emoji').textContent = chosen.emoji;
+      const locked = !profileCharacterUnlocked(chosen);
+      document.getElementById('profile-char-lock-info').classList.toggle('hidden', !locked);
+      if (statusEl) statusEl.textContent = locked ? 'LOCKED' : '';
+      if (locked || !saveChoice) return;
+
+      if (statusEl) statusEl.textContent = 'SAVING...';
+      try {
+        await updateUserCharacter(getSession(), chosen.model);
+        setCookie('characterModel', chosen.model, 365);
+        if (chosen.model !== characterModel) {
+          characterModel = chosen.model;
           swapPlayerCharacter(characterModel);
         }
-        openProfileOverlay();
-      });
+        if (statusEl) statusEl.textContent = 'SAVED!';
+        setTimeout(() => {
+          if (statusEl && CHARACTERS[profileCharIndex].model === chosen.model) statusEl.textContent = '';
+        }, 1200);
+      } catch {
+        if (statusEl) statusEl.textContent = 'SAVE FAILED';
+      }
+    }
+
+    document.getElementById('profile-char-left').addEventListener('click', () => {
+      profileCharIndex = (profileCharIndex - 1 + CHARACTERS.length) % CHARACTERS.length;
+      renderProfileCharacterPicker(true);
+    });
+
+    document.getElementById('profile-char-right').addEventListener('click', () => {
+      profileCharIndex = (profileCharIndex + 1) % CHARACTERS.length;
+      renderProfileCharacterPicker(true);
     });
 
     // ── Shop ────────────────────────────────────────────────────────────────────
@@ -437,14 +469,10 @@ async function main() {
       });
     }
 
-    document.getElementById('btn-open-shop').addEventListener('click', () => {
-      document.getElementById('profile-overlay').classList.add('hidden');
-      openShopOverlay();
-    });
+    document.getElementById('btn-open-shop').addEventListener('click', openShopOverlay);
 
     document.getElementById('btn-shop-close').addEventListener('click', () => {
       document.getElementById('shop-overlay').classList.add('hidden');
-      openProfileOverlay();
     });
 
     // ── Advanced Settings ────────────────────────────────────────────────────────

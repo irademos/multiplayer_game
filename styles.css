@@ -2037,3 +2037,93 @@ body {
   font-size: clamp(7px, 1.4vw, 9px) !important;
   padding: 4px 8px !important;
 }
+
+/* Dashboard mode layout: two rows of two primary actions */
+.dashboard-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+  width: 100%;
+}
+
+.dashboard-mode-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.dashboard-mode-card .dashboard-btn-desc {
+  margin-bottom: 0;
+  text-align: center;
+}
+
+.dashboard-icon-btn {
+  flex: 0 0 auto;
+  min-width: 48px !important;
+  font-size: 16px !important;
+}
+
+.profile-audio-section {
+  gap: 10px;
+}
+
+.profile-audio-section .dashboard-audio-row {
+  width: 100%;
+}
+
+.profile-character-section {
+  padding-top: 8px;
+}
+
+.profile-character-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.profile-char-arrow {
+  padding: 10px 12px;
+  font-size: 16px;
+}
+
+.profile-char-display {
+  position: relative;
+  min-height: 110px;
+  max-width: 180px;
+  padding: 12px;
+}
+
+.profile-char-display .char-emoji {
+  font-size: 56px;
+}
+
+.profile-char-display .char-lock-info {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.profile-char-display .char-lock-info.hidden {
+  display: none;
+}
+
+.profile-char-save-status {
+  min-height: 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: #00ffcc;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+@media (max-width: 560px) {
+  .dashboard-mode-grid {
+    grid-template-columns: 1fr;
+  }
+}
