@@ -65,7 +65,7 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) 
             if (cfg.lob) {
               // Lob: steep upward arc, short horizontal distance
               const lobForce = cfg.ballForce ?? 0.9;
-              impulse = { x: dir.x * lobForce * 0.25, y: lobForce * 0.85, z: dir.z * lobForce * 0.25 };
+              impulse = { x: dir.x * lobForce * 0.25, y: lobForce * 0.45, z: dir.z * lobForce * 0.25 };
             } else {
               dir.y = Math.max(dir.y, 0.2);
               dir.normalize();
