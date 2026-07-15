@@ -11,6 +11,7 @@ export class SoccerBall {
     this.mesh = null;
     this.body = null;
     this.lastTouchedTeam = null; // 'home' | 'away' | null
+    this.lastTouchedName = null;
   }
 
   create(x = 0, y = 1, z = 0, sizeMultiplier = 1.0) {
@@ -89,7 +90,7 @@ export class SoccerBall {
   // even if the physics solver alone lets a fast-moving player rest on top
   // of it or pass through it without imparting velocity.
   // team: 'home' | 'away' | null — records who last touched the ball.
-  resolvePlayerContact(playerPos, playerVel, playerRadius, playerHalfHeight = 0, team = null) {
+  resolvePlayerContact(playerPos, playerVel, playerRadius, playerHalfHeight = 0, team = null, playerName = null) {
     if (!this.body) return;
     const t = this.body.translation();
     // Players are capsules, not points: find the closest point on the
@@ -108,7 +109,10 @@ export class SoccerBall {
     const dist = Math.sqrt(distSq);
     if (dist >= minDist || dist < 1e-4) return;
 
-    if (team) this.lastTouchedTeam = team;
+    if (team) {
+      this.lastTouchedTeam = team;
+      this.lastTouchedName = playerName;
+    }
 
     const nx = dx / dist;
     const ny = dy / dist;
@@ -137,5 +141,6 @@ export class SoccerBall {
     this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.lastTouchedTeam = null;
+    this.lastTouchedName = null;
   }
 }

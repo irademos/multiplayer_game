@@ -31,6 +31,7 @@ export class AIPlayer {
     this.rapierWorld = rapierWorld;
     this.targetGoalZ = targetGoalZ;
     this.ownGoalZ = -targetGoalZ;
+    this.name = name;
 
     this.character = new PlayerCharacter(name, model, color);
     this.model = this.character.model;

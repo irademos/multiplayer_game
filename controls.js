@@ -21,7 +21,7 @@ const PLAYER_HALF_HEIGHT = 0.6;
 const FLOAT_IDLE_DISPLAY_OFFSET = 0.2;
 
 export class PlayerControls {
-  constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager, spawnPosition }) {
+  constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager, spawnPosition, playerName }) {
     this.yaw = 0;
     this.pitch = 0;
     this.pointerLocked = false;
@@ -31,6 +31,7 @@ export class PlayerControls {
     this.playerModel = playerModel;
     this.camera = camera;
     this.multiplayer = multiplayer;
+    this.playerName = playerName;
     this.lastPosition = new THREE.Vector3();
     this.wasMoving = false;
     this.isMoving = false;
@@ -546,7 +547,8 @@ export class PlayerControls {
     );
     const force = 0.7;
     window.soccerBall.applyImpulse({ x: -facing.x * force, y: 0.35, z: -facing.z * force });
-    window.soccerBall.lastTouchedTeam = 'home';
+    window.soccerBall.lastTouchedTeam = window.localPlayerTeam || 'home';
+    window.soccerBall.lastTouchedName = this.playerName;
     this.audioManager?.playBallKick?.();
   }
 
@@ -565,7 +567,8 @@ export class PlayerControls {
     ).normalize();
     const force = 0.5;
     window.soccerBall.applyImpulse({ x: facing.x * force, y: facing.y * force, z: facing.z * force });
-    window.soccerBall.lastTouchedTeam = 'home';
+    window.soccerBall.lastTouchedTeam = window.localPlayerTeam || 'home';
+    window.soccerBall.lastTouchedName = this.playerName;
     this.audioManager?.playBallKick?.();
   }
 
