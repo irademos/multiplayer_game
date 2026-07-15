@@ -2383,7 +2383,7 @@ async function main() {
         spawnX = ballFixedPos.x + Math.sign(ballFixedPos.x) * OFFSET;
         spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * OFFSET;
       } else if (spType === 'goalKick') {
-        spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * OFFSET;
+        spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * 3;
       }
       playerControls.body.setTranslation({ x: spawnX, y: sy, z: spawnZ }, true);
       playerControls.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -2422,7 +2422,7 @@ async function main() {
           spawnX = ballFixedPos.x + Math.sign(ballFixedPos.x) * OFFSET;
           spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * OFFSET;
         } else if (spType === 'goalKick') {
-          spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * OFFSET;
+          spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * 3;
         }
         takerAIBody.setTranslation({ x: spawnX, y: sy, z: spawnZ }, true);
         takerAIBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
