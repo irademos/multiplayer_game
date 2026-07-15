@@ -8,10 +8,10 @@ import { getSpawnPosition } from './spawnUtils.js';
 const SPEED = 5;
 const SWIM_SPEED = 2;
 const SPRINT_BASE_MULTIPLIER = 1.01;
-const SPRINT_MAX_MULTIPLIER = 2.2;
-const SPRINT_FREQUENCY_WINDOW_MS = 1000; // window to count presses
+const SPRINT_MAX_MULTIPLIER = 2.3;
+const SPRINT_FREQUENCY_WINDOW_MS = 1300; // window to count presses
 const SPRINT_MAX_PRESSES = 16;            // presses in window for max speed
-const SPRINT_DURATION_MS = 100;          // how long each press keeps sprint active
+const SPRINT_DURATION_MS = 220;          // how long each press keeps sprint active
 const SPRINT_MAX_STAMINA = 80;
 const SPRINT_DRAIN_RATE = 20;            // stamina per second while sprinting
 const SPRINT_REGEN_RATE = 5;             // stamina per second while not sprinting
