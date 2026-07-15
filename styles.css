@@ -250,7 +250,7 @@ body {
   cursor: pointer;
 }
 
-#health-bar {
+#sprint-bar {
   position: absolute;
   top: 10px;
   left: 10px;
@@ -261,10 +261,10 @@ body {
   z-index: 1000;
 }
 
-#health-fill {
+#sprint-fill {
   height: 100%;
-  background: #0f0;
-  width: 100%;
+  background: #27d9ff;
+  width: 0%;
 }
 
 #ammo-display {

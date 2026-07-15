@@ -7,6 +7,8 @@ import { getSpawnPosition } from './spawnUtils.js';
 // Movement constants
 const SPEED = 5;
 const SWIM_SPEED = 2;
+const SPRINT_MULTIPLIER = 1.8;
+const SPRINT_DURATION_MS = 500;
 const JUMP_FORCE = 5;
 const PLAYER_RADIUS = 0.3;
 const PLAYER_HALF_HEIGHT = 0.6;
@@ -54,6 +56,7 @@ export class PlayerControls {
     this.currentSpecialAction = null;
     this.runningKickTimer = null;
     this.runningKickOriginalY = 0;
+    this.sprintEndTime = 0;
     
     // Mobile control variables
     this.joystick = null;
@@ -321,15 +324,7 @@ export class PlayerControls {
       slideButton.innerText = 'SLIDE';
       actionContainer.appendChild(slideButton);
       slideButton.addEventListener('touchstart', (event) => {
-        if (!this.enabled || this.isInWater || this.currentSpecialAction) return;
-        const vel = this.body?.linvel();
-        const hSpeed = vel ? Math.hypot(vel.x, vel.z) : 0;
-        const speedRatio = Math.min(hSpeed / SPEED, 1);
-        const magnitude = 0.8 + speedRatio * 1.8;
-        this.slideMomentumDecay = 0.880 + speedRatio * 0.060;
-        this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(magnitude);
-        this.playAction('slide');
-        this.audioManager?.playSlide();
+        this.triggerSlide();
         event.preventDefault();
       });
     }
@@ -387,20 +382,11 @@ export class PlayerControls {
         this.playAction('mmaKick');
         this.audioManager?.playAttack();
       } else if (key === 'r') {
-        if (this.isInWater) return;
-        this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(1.4);
-        this.playAction('runningKick');
-        this.audioManager?.playRoll();
+        this.triggerRoll();
       } else if (key === 'z') {
-        if (this.isInWater || this.currentSpecialAction) return;
-        const vel = this.body?.linvel();
-        const hSpeed = vel ? Math.hypot(vel.x, vel.z) : 0;
-        const speedRatio = Math.min(hSpeed / SPEED, 1);
-        const magnitude = 0.8 + speedRatio * 1.8;
-        this.slideMomentumDecay = 0.880 + speedRatio * 0.060;
-        this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(magnitude);
-        this.playAction('slide');
-        this.audioManager?.playSlide();
+        this.triggerSlide();
+      } else if (key === 'shift') {
+        this.triggerSprint();
       } else if (key === 'g') {
         if (this.grabbedTarget) {
           this.releaseGrab();
@@ -657,7 +643,7 @@ export class PlayerControls {
         this.playerModel.userData.currentAction = 'idle';
       }
     } else {
-      const speed = this.isInWater ? SWIM_SPEED : SPEED;
+      const speed = this.getCurrentSpeed();
       this.body.setLinvel({ x: movement.x * speed, y: vel.y, z: movement.z * speed }, true);
       }
     const newX = t.x;
@@ -876,6 +862,39 @@ export class PlayerControls {
   
   getPlayerModel() {
     return this.playerModel;
+  }
+
+  triggerRoll() {
+    if (!this.enabled || this.isInWater || this.currentSpecialAction) return;
+    this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(1.4);
+    this.playAction('runningKick');
+    this.audioManager?.playRoll();
+  }
+
+  triggerSlide() {
+    if (!this.enabled || this.isInWater || this.currentSpecialAction) return;
+    const vel = this.body?.linvel();
+    const hSpeed = vel ? Math.hypot(vel.x, vel.z) : 0;
+    const speedRatio = Math.min(hSpeed / SPEED, 1);
+    const magnitude = 0.8 + speedRatio * 1.8;
+    this.slideMomentumDecay = 0.880 + speedRatio * 0.060;
+    this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(magnitude);
+    this.playAction('slide');
+    this.audioManager?.playSlide();
+  }
+
+  triggerSprint() {
+    if (!this.enabled || this.isInWater) return;
+    this.sprintEndTime = performance.now() + SPRINT_DURATION_MS;
+  }
+
+  getSprintPercent() {
+    return Math.max(0, Math.min(100, ((this.sprintEndTime - performance.now()) / SPRINT_DURATION_MS) * 100));
+  }
+
+  getCurrentSpeed() {
+    const baseSpeed = this.isInWater ? SWIM_SPEED : SPEED;
+    return this.getSprintPercent() > 0 ? baseSpeed * SPRINT_MULTIPLIER : baseSpeed;
   }
 
   /**

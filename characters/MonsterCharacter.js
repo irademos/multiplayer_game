@@ -142,12 +142,11 @@ export function updateMonster(monster, deltaTime, playerModel, otherPlayers) {
         const dist = monster.position.distanceTo(player.model.position);
         if (dist < 3.2) {
           if (player.id === 'local' && !window.playerControls.isKnocked) {
-            window.localHealth = Math.max(0, window.localHealth - 10);
             if (window.playerControls) {
               const impulse = monster.userData.direction.clone().multiplyScalar(0.17);
               window.playerControls.applyKnockback(impulse);
             }
-            console.log(`👹 Monster attacks you! Distance: ${dist.toFixed(2)} | Health: ${window.localHealth.toFixed(1)}`);
+            console.log(`👹 Monster attacks you! Distance: ${dist.toFixed(2)}`);
           } else if (player.id !== 'local') {
             const op = otherPlayers[player.id];
             if (op) {

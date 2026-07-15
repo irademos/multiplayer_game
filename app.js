@@ -1850,17 +1850,14 @@ async function main() {
   document.addEventListener('mousedown', _startMusic, { once: true });
   document.addEventListener('touchstart', _startMusic, { once: true });
 
-  window.localHealth = 100;
-
-  const healthFill = document.getElementById('health-fill');
-  function updateHealthUI() {
-    if (healthFill) {
-      healthFill.style.width = `${window.localHealth}%`;
+  const sprintFill = document.getElementById('sprint-fill');
+  function updateSprintUI() {
+    if (sprintFill) {
+      const sprintPercent = playerControls?.getSprintPercent?.() ?? 0;
+      sprintFill.style.width = `${sprintPercent}%`;
     }
   }
-  updateHealthUI();
-
-  let playerDead = false;
+  updateSprintUI();
 
   const projectiles = [];
 
@@ -2181,8 +2178,7 @@ async function main() {
   }
 
   function respawnPlayer() {
-    window.localHealth = 100;
-    updateHealthUI();
+    updateSprintUI();
     const spawn = getTeamSpawnPosition(localPlayerTeam);
     playerModel.position.set(spawn.x, spawn.y, spawn.z);
     playerControls.playerX = spawn.x;
@@ -2196,7 +2192,6 @@ async function main() {
     }
     playerControls.velocity.set(0, 0, 0);
     playerControls.enabled = true;
-    playerDead = false;
     const actions = playerModel.userData.actions;
     const current = playerModel.userData.currentAction;
     actions?.[current]?.fadeOut(0.2);
@@ -2211,18 +2206,20 @@ async function main() {
     shoot: () => playerControls.triggerFire()
   });
 
-  const rollButton = document.getElementById('roll-button');
-  if (rollButton) {
-    const doRoll = (e) => {
+  const bindActionButton = (id, action) => {
+    const button = document.getElementById(id);
+    if (!button) return;
+    const handler = (e) => {
       e.preventDefault();
-      if (!playerControls.enabled || playerControls.isInWater || playerControls.currentSpecialAction) return;
-      playerControls.slideMomentum.copy(playerControls.lastMoveDirection).multiplyScalar(1.4);
-      playerControls.playAction('runningKick');
-      playerControls.audioManager?.playAttack();
+      action();
     };
-    rollButton.addEventListener('touchstart', doRoll, { passive: false });
-    rollButton.addEventListener('mousedown', doRoll);
-  }
+    button.addEventListener('touchstart', handler, { passive: false });
+    button.addEventListener('mousedown', handler);
+  };
+
+  bindActionButton('roll-button', () => playerControls.triggerRoll());
+  bindActionButton('slide-button', () => playerControls.triggerSlide());
+  bindActionButton('sprint-button', () => playerControls.triggerSprint());
 
   let localStream = null;
   let micActive = false;
@@ -2551,20 +2548,7 @@ async function main() {
       lastControlSend = now;
     }
 
-    updateHealthUI();
-    if (window.localHealth <= 0 && !playerDead) {
-      playerDead = true;
-      playerControls.enabled = false;
-      const actions = playerModel.userData.actions;
-      const current = playerModel.userData.currentAction;
-      const die = actions?.die;
-      if (die) {
-        actions[current]?.fadeOut(0.2);
-        die.reset().fadeIn(0.2).play();
-        playerModel.userData.currentAction = 'die';
-      }
-      showGameOver();
-    }
+    updateSprintUI();
 
     const mixerDelta = mixerClock.getDelta();
 
