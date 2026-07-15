@@ -36,47 +36,34 @@
   <!-- Settings Overlay -->
   <div id="settings-overlay">
     <div id="settings-panel">
-      <label for="name-input">Name:</label>
-      <input type="text" id="name-input" />
-      <label for="character-select">Character:</label>
-      <select id="character-select"></select>
-      <button id="save-settings">Save</button>
-
-      <div class="audio-settings-section">
-        <label class="audio-settings-label" for="music-volume-slider">🎵 Music Volume</label>
-        <input type="range" id="music-volume-slider" min="0" max="1" step="0.05" />
-        <label class="audio-settings-label" for="sfx-volume-slider">🔊 SFX Volume</label>
-        <input type="range" id="sfx-volume-slider" min="0" max="1" step="0.05" />
+      <div id="settings-side-tabs">
+        <button class="side-tab-btn active" data-tab="audio">Audio</button>
+        <button class="side-tab-btn" data-tab="multiplayer">Multiplayer</button>
       </div>
+      <div id="settings-tab-body">
+        <div id="tab-audio" class="side-tab-content">
+          <div class="audio-settings-section">
+            <label class="audio-settings-label" for="music-volume-slider">🎵 Music Volume</label>
+            <input type="range" id="music-volume-slider" min="0" max="1" step="0.05" />
+            <label class="audio-settings-label" for="sfx-volume-slider">🔊 SFX Volume</label>
+            <input type="range" id="sfx-volume-slider" min="0" max="1" step="0.05" />
+          </div>
+        </div>
 
-      <button id="toggle-console">Show Console</button>
-
-      <div id="console-log" style="display: none; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.7); color: #0f0; padding: 10px; font-family: monospace; font-size: 12px; margin-top: 10px;"></div>
-
-      <hr />
-
-      <div id="settings-tabs">
-        <button class="tab-btn active" data-tab="multiplayer">Multiplayer</button>
-        <button class="tab-btn" data-tab="leaderboard">Leaderboard</button>
-      </div>
-
-      <div id="tab-multiplayer" class="tab-content">
-        <h3>Connected Players</h3>
-        <ul id="connected-players-list"></ul>
-
-        <h3>Connection Issues</h3>
-        <ul id="connection-errors-list"></ul>
-
-        <h3>Ping (ms)</h3>
-        <div id="ping-display">-</div>
-      </div>
-
-      <div id="tab-leaderboard" class="tab-content" style="display:none">
-        <h3>Leaderboard</h3>
-        <div id="leaderboard-list"><em>Loading...</em></div>
+        <div id="tab-multiplayer" class="side-tab-content" style="display:none">
+          <div id="teams-table-container"></div>
+        </div>
       </div>
     </div>
   </div>
+
+  <!-- Hidden elements kept for JS compatibility -->
+  <input type="text" id="name-input" style="display:none" />
+  <select id="character-select" style="display:none"></select>
+  <div id="console-log" style="display:none"></div>
+  <ul id="connected-players-list" style="display:none"></ul>
+  <ul id="connection-errors-list" style="display:none"></ul>
+  <div id="ping-display" style="display:none"></div>
 
   <!-- ══════════════════════════════
        ARCADE LOGIN OVERLAY
