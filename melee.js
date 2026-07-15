@@ -5,7 +5,7 @@ const ATTACKS = {
   hurricaneKick: { damage: 15, range: 2.0, hitTime: 200, hitWindow: 200 },
   mmaKick: { damage: 12, range: 1.7, hitTime: 175, hitWindow: 150 },
   slide: { damage: 0, range: 1.8, hitTime: 50, hitWindow: 3000, ballForce: 0.55 },
-  farKick: { damage: 8, range: 1.9, hitTime: 250, hitWindow: 200, ballForce: 0.9 },
+  farKick: { damage: 8, range: 1.9, hitTime: 250, hitWindow: 200, ballForce: 0.9, lob: true },
   bicycleKick: { damage: 10, range: 2.2, hitTime: 450, hitWindow: 300 },
 };
 
@@ -61,10 +61,18 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) 
             const dir = new THREE.Vector3()
               .subVectors(ballVec, attacker.model.position)
               .normalize();
-            dir.y = Math.max(dir.y, 0.2);
-            dir.normalize();
-            const force = cfg.ballForce ?? 0.3;
-            window.soccerBall.applyImpulse({ x: dir.x * force, y: dir.y * force, z: dir.z * force });
+            let impulse;
+            if (cfg.lob) {
+              // Lob: steep upward arc, short horizontal distance
+              const lobForce = cfg.ballForce ?? 0.9;
+              impulse = { x: dir.x * lobForce * 0.25, y: lobForce * 0.85, z: dir.z * lobForce * 0.25 };
+            } else {
+              dir.y = Math.max(dir.y, 0.2);
+              dir.normalize();
+              const force = cfg.ballForce ?? 0.3;
+              impulse = { x: dir.x * force, y: dir.y * force, z: dir.z * force };
+            }
+            window.soccerBall.applyImpulse(impulse);
             audioManager?.playBallKick();
           }
         }
