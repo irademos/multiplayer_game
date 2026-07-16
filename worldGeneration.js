@@ -242,7 +242,90 @@ function addStand(scene, rapierWorld, cx, cz, rotY, length, depth, height, seatC
   }
 }
 
+let _grassUniforms = null;
+
+export function updateGrass(time) {
+  if (_grassUniforms) _grassUniforms.time.value = time;
+}
+
+function createGrassBladesOnField(scene) {
+  const rng = getSeededRandom("grass");
+
+  // Blade geometry: thin quad standing upright along Y
+  const W = 0.06;
+  const H = 0.28;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+    -W, 0, 0,
+     W, 0, 0,
+     W, H, 0,
+    -W, H, 0,
+  ]), 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([
+    0, 0,  1, 0,  1, 1,  0, 1,
+  ]), 2));
+  geo.setIndex(new THREE.BufferAttribute(new Uint16Array([0, 1, 2, 0, 2, 3]), 1));
+
+  const uniforms = { time: { value: 0 } };
+  _grassUniforms = uniforms;
+
+  const mat = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader: /* glsl */`
+      #include <common>
+      #include <instanced_pars_vertex>
+
+      uniform float time;
+      varying float vUvY;
+
+      void main() {
+        vUvY = uv.y;
+
+        vec3 transformed = position;
+        // use instance world X/Z for spatially varying wind
+        vec3 wPos = vec3(instanceMatrix[3]);
+        float wind =
+          sin(wPos.x * 2.0 + time * 2.0) * 0.08 +
+          cos(wPos.z * 1.5 + time * 1.6) * 0.05;
+        transformed.x += wind * uv.y;
+
+        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(transformed, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */`
+      varying float vUvY;
+
+      void main() {
+        vec3 rootColor = vec3(0.08, 0.38, 0.08);
+        vec3 tipColor  = vec3(0.28, 0.65, 0.18);
+        gl_FragColor = vec4(mix(rootColor, tipColor, vUvY), 1.0);
+      }
+    `,
+    side: THREE.DoubleSide,
+  });
+
+  const COUNT = 16000;
+  const mesh = new THREE.InstancedMesh(geo, mat, COUNT);
+  mesh.frustumCulled = false;
+
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < COUNT; i++) {
+    dummy.position.set(
+      (rng() - 0.5) * FIELD_WIDTH,
+      0,
+      (rng() - 0.5) * FIELD_LENGTH,
+    );
+    dummy.rotation.set(0, rng() * Math.PI * 2, 0);
+    dummy.scale.set(0.8 + rng() * 0.7, 0.7 + rng() * 0.8, 1);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  scene.add(mesh);
+}
+
 export function generateSoccerField(scene, rapierWorld) {
+  // Flat base ground panels (field lines sit on these)
   const grassMat = new THREE.MeshStandardMaterial({ color: 0x2d8a2d, roughness: 0.95 });
   const grassAlt = new THREE.MeshStandardMaterial({ color: 0x267a26, roughness: 0.95 });
 
@@ -259,6 +342,8 @@ export function generateSoccerField(scene, rapierWorld) {
     stripe.receiveShadow = true;
     scene.add(stripe);
   }
+
+  createGrassBladesOnField(scene);
 
   // Surround — darker ground beyond the pitch
   const surroundMat = new THREE.MeshStandardMaterial({ color: 0x4a3a28, roughness: 0.95 });
