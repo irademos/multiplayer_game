@@ -3459,6 +3459,14 @@ async function main() {
             humanTeammates.push(new THREE.Vector3(lt.x, lt.y, lt.z));
           }
 
+          // During a corner kick, non-taker bots position near the attacking goal.
+          let cornerKickGoalZ = null;
+          if (sp?.type === 'cornerKick' && sp.teamTaking === team && ai !== ballChaser) {
+            // The goal being attacked is opposite to the corner's z side.
+            // ballFixedPos.z tells us which end the corner is at; bots attack the same end.
+            cornerKickGoalZ = sp.ballFixedPos.z > 0 ? 50 : -50;
+          }
+
           ai.update(frameDelta, soccerBall, {
             pursueBall: !ballChaser || ai === ballChaser,
             formationIndex: index,
@@ -3467,7 +3475,8 @@ async function main() {
             chaserPosition: ballChaserPosition,
             teammates: players,
             opponents,
-            humanTeammates
+            humanTeammates,
+            cornerKickGoalZ
           });
         } else {
           ai.model.userData.mixer?.update(frameDelta);

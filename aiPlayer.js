@@ -78,6 +78,20 @@ export class AIPlayer {
     return ballPos.clone().add(backingOffset);
   }
 
+  _getCornerKickPosition(formationIndex, formationCount, goalZ) {
+    // Spread non-taker bots around the goal mouth during a corner kick.
+    const count = Math.max(1, formationCount);
+    const index = Math.max(0, Math.min(count - 1, formationIndex));
+    // Positions spread along X from -10 to +10, at varying depths in front of goal
+    const xSlots = [-9, -5, -1, 3, 7, 11];
+    const zDepths = [5, 7, 9, 6, 8, 10]; // distance in front of goal line
+    const slot = index % xSlots.length;
+    const x = xSlots[slot];
+    const zSign = goalZ < 0 ? -1 : 1;
+    const z = goalZ - zSign * zDepths[slot];
+    return new THREE.Vector3(x, 0, z);
+  }
+
   _getFormationPosition(ballPos, formationIndex, formationCount, chaserIndex, chaserPosition) {
     const count = Math.max(1, formationCount);
     const index = Math.max(0, Math.min(count - 1, formationIndex));
@@ -133,7 +147,7 @@ export class AIPlayer {
     }
   }
 
-  update(delta, soccerBall, { pursueBall = true, formationIndex = 0, formationCount = 1, chaserIndex = null, chaserPosition = null, teammates = [], opponents = [], humanTeammates = [] } = {}) {
+  update(delta, soccerBall, { pursueBall = true, formationIndex = 0, formationCount = 1, chaserIndex = null, chaserPosition = null, teammates = [], opponents = [], humanTeammates = [], cornerKickGoalZ = null } = {}) {
     if (!this.body) return;
 
     const mixer = this.model.userData.mixer;
@@ -317,9 +331,14 @@ export class AIPlayer {
 
       targetPos = ballPos.clone().sub(clampedDir.clone().multiplyScalar(0.4));
     } else {
-      targetPos = pursueBall
-        ? this._getBallPressurePosition(ballPos)
-        : this._getFormationPosition(ballPos, formationIndex, formationCount, chaserIndex, chaserPosition);
+      if (!pursueBall && cornerKickGoalZ !== null) {
+        targetPos = this._getCornerKickPosition(formationIndex, formationCount, cornerKickGoalZ);
+        targetPos.y = ballPos.y;
+      } else {
+        targetPos = pursueBall
+          ? this._getBallPressurePosition(ballPos)
+          : this._getFormationPosition(ballPos, formationIndex, formationCount, chaserIndex, chaserPosition);
+      }
     }
 
     const moveDir = new THREE.Vector3(targetPos.x - t.x, 0, targetPos.z - t.z);
