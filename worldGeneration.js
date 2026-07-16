@@ -564,7 +564,9 @@ export async function addFans(scene) {
     const model = cloneSkinnedModel(gltf.scene);
     model.position.set(pos.x, 0, pos.z);
     model.scale.setScalar(fanScale);
-    model.rotation.y = Math.atan2(-pos.x, -pos.z);
+    // model.rotation.y = 
+    model.rotation.x = Math.PI / 2;
+    model.rotation.z = -Math.atan2(-pos.x, -pos.z);
     model.traverse(child => { if (child.isMesh) child.castShadow = true; });
     scene.add(model);
 
