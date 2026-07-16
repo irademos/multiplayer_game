@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 
-const BALL_RADIUS = 0.28;
+const BALL_RADIUS = 0.3;
 const _ballLoader = new GLTFLoader();
 
 export class SoccerBall {
