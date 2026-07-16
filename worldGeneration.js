@@ -272,8 +272,6 @@ function createGrassBladesOnField(scene) {
   const mat = new THREE.ShaderMaterial({
     uniforms,
     vertexShader: /* glsl */`
-      attribute mat4 instanceMatrix;
-
       uniform float time;
 
       varying float vUvY;
