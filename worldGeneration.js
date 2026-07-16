@@ -577,3 +577,111 @@ export async function addFans(scene) {
   }
   return mixers;
 }
+
+// ---------------------------------------------------------------------------
+// Low-poly mountain ring
+// ---------------------------------------------------------------------------
+
+function buildMountainMesh(rng, baseWidth, baseDepth, peakHeight, segments) {
+  const halfW = baseWidth / 2;
+  const halfD = baseDepth / 2;
+
+  const positions = [];
+  const indices = [];
+
+  // apex
+  const apexX = (rng() - 0.5) * baseWidth * 0.15;
+  const apexZ = (rng() - 0.5) * baseDepth * 0.15;
+  positions.push(apexX, peakHeight, apexZ); // vertex 0
+
+  // base ring — slightly perturbed so faces are uneven (low-poly look)
+  for (let i = 0; i < segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    const rx = halfW * (0.85 + rng() * 0.30);
+    const rz = halfD * (0.85 + rng() * 0.30);
+    const px = Math.cos(angle) * rx + (rng() - 0.5) * baseWidth * 0.08;
+    const pz = Math.sin(angle) * rz + (rng() - 0.5) * baseDepth * 0.08;
+    const py = (rng() - 0.5) * peakHeight * 0.04; // tiny y jitter at base
+    positions.push(px, py, pz); // vertices 1..segments
+  }
+
+  // side faces: apex (0) → base[i] → base[i+1]
+  for (let i = 0; i < segments; i++) {
+    const a = 0;
+    const b = 1 + i;
+    const c = 1 + ((i + 1) % segments);
+    indices.push(a, b, c);
+  }
+
+  // bottom cap (flat, winding reversed to face down)
+  const capCenter = positions.length / 3;
+  positions.push(0, 0, 0);
+  for (let i = 0; i < segments; i++) {
+    const a = capCenter;
+    const b = 1 + ((i + 1) % segments);
+    const c = 1 + i;
+    indices.push(a, b, c);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals(); // flat normals per face give the low-poly faceted look
+  return geo;
+}
+
+export function createMountainRing(scene) {
+  const rng = getSeededRandom('mountainRing');
+
+  const RING_RADIUS = 175;      // distance from world centre
+  const MOUNTAIN_COUNT = 28;    // number of peaks in the ring
+  const BASE_W_MIN = 30;
+  const BASE_W_MAX = 60;
+  const BASE_D_MIN = 20;
+  const BASE_D_MAX = 40;
+  const HEIGHT_MIN = 35;
+  const HEIGHT_MAX = 80;
+  const SEGMENTS = 7;           // low segment count = faceted low-poly look
+
+  // Snow-capped stone palette
+  const rockColors = [0x7a7060, 0x8a8070, 0x6b6558, 0x908070, 0x7c7265];
+  const snowColors = [0xdde8f0, 0xe8f0f8, 0xcfd8e0];
+
+  for (let i = 0; i < MOUNTAIN_COUNT; i++) {
+    const angle = (i / MOUNTAIN_COUNT) * Math.PI * 2 + rng() * 0.18;
+    const radiusJitter = RING_RADIUS + (rng() - 0.5) * 30;
+    const cx = Math.cos(angle) * radiusJitter;
+    const cz = Math.sin(angle) * radiusJitter;
+
+    const bw = BASE_W_MIN + rng() * (BASE_W_MAX - BASE_W_MIN);
+    const bd = BASE_D_MIN + rng() * (BASE_D_MAX - BASE_D_MIN);
+    const ph = HEIGHT_MIN + rng() * (HEIGHT_MAX - HEIGHT_MIN);
+
+    // Rock body
+    const geoRock = buildMountainMesh(rng, bw, bd, ph, SEGMENTS);
+    const matRock = new THREE.MeshLambertMaterial({
+      color: rockColors[Math.floor(rng() * rockColors.length)],
+      flatShading: true,
+    });
+    const meshRock = new THREE.Mesh(geoRock, matRock);
+    meshRock.position.set(cx, 0, cz);
+    meshRock.rotation.y = rng() * Math.PI * 2;
+    meshRock.castShadow = true;
+    meshRock.receiveShadow = true;
+    scene.add(meshRock);
+
+    // Snow cap: a smaller mountain cone on top of the upper 30 % of the peak
+    const snowFraction = 0.28 + rng() * 0.12;
+    const snowBase = ph * snowFraction;
+    const geoSnow = buildMountainMesh(rng, bw * snowFraction * 1.1, bd * snowFraction * 1.1, snowBase, SEGMENTS);
+    const matSnow = new THREE.MeshLambertMaterial({
+      color: snowColors[Math.floor(rng() * snowColors.length)],
+      flatShading: true,
+    });
+    const meshSnow = new THREE.Mesh(geoSnow, matSnow);
+    meshSnow.position.set(cx, ph - snowBase * 0.05, cz);
+    meshSnow.rotation.y = meshRock.rotation.y + (rng() - 0.5) * 0.4;
+    meshSnow.castShadow = true;
+    scene.add(meshSnow);
+  }
+}
