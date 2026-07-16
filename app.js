@@ -1,7 +1,7 @@
 // app.js
 import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
-import { createClouds, generateSoccerField, createMoon, MOON_RADIUS, updateGrass } from "./worldGeneration.js";
+import { createClouds, generateSoccerField, createMoon, MOON_RADIUS, updateGrass, addSceneryProps, addFans } from "./worldGeneration.js";
 import { getTerrainHeight } from './water.js';
 import { Multiplayer, subscribeOnlineCount } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
@@ -517,6 +517,22 @@ async function main() {
 
     document.getElementById('btn-shop-close').addEventListener('click', () => {
       document.getElementById('shop-overlay').classList.add('hidden');
+    });
+
+    // ── Credits ──────────────────────────────────────────────────────────────────
+    document.getElementById('btn-credits').addEventListener('click', async () => {
+      const overlay = document.getElementById('credits-overlay');
+      const textEl = document.getElementById('credits-text');
+      overlay.classList.remove('hidden');
+      try {
+        const res = await fetch('/credits.txt');
+        textEl.textContent = res.ok ? (await res.text()) || '(empty)' : 'Could not load credits.';
+      } catch {
+        textEl.textContent = 'Could not load credits.';
+      }
+    });
+    document.getElementById('btn-credits-close').addEventListener('click', () => {
+      document.getElementById('credits-overlay').classList.add('hidden');
     });
 
     // ── Advanced Settings ────────────────────────────────────────────────────────
@@ -2595,6 +2611,10 @@ async function main() {
   generateSoccerField(scene, rapierWorld);
   createMoon(scene, rapierWorld, rbToMesh);
 
+  let fanMixers = [];
+  addSceneryProps(scene).catch(e => console.warn('addSceneryProps error', e));
+  addFans(scene).then(mixers => { fanMixers = mixers; }).catch(e => console.warn('addFans error', e));
+
   setPieceManager = new SetPieceManager(scene);
 
   soccerBall = new SoccerBall(scene, rapierWorld, rbToMesh);
@@ -3681,6 +3701,7 @@ async function main() {
     }
 
     updateGrass(clock.getElapsedTime());
+    for (const m of fanMixers) m.update(mixerDelta);
     renderer.render(scene, camera);
   }
 
