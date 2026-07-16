@@ -1791,6 +1791,115 @@ async function main() {
     }
   }
 
+  // ── Dust particle system ──────────────────────────────────────────────────────
+  const dustParticles = [];
+  const _dustGeo = new THREE.SphereGeometry(1, 5, 4);
+  let _prevBallSpeed = 0;
+  let _ballDustTimer = 0;
+  let _playerDustTimer = 0;
+
+  function spawnDustPuff(x, y, z, baseSize, count) {
+    for (let i = 0; i < count; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xc8a870,
+        transparent: true,
+        opacity: 0.55,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(_dustGeo, mat);
+      const s = baseSize * (0.7 + Math.random() * 0.6);
+      mesh.scale.setScalar(s);
+      mesh.position.set(
+        x + (Math.random() - 0.5) * baseSize,
+        y + Math.random() * 0.05,
+        z + (Math.random() - 0.5) * baseSize
+      );
+      scene.add(mesh);
+      const maxLife = 0.45 + Math.random() * 0.3;
+      dustParticles.push({
+        mesh, mat,
+        life: maxLife,
+        maxLife,
+        vx: (Math.random() - 0.5) * 1.4,
+        vy: 0.5 + Math.random() * 0.7,
+        vz: (Math.random() - 0.5) * 1.4,
+        baseScale: s,
+      });
+    }
+  }
+
+  function updateDustParticles(dt) {
+    for (let i = dustParticles.length - 1; i >= 0; i--) {
+      const p = dustParticles[i];
+      p.life -= dt;
+      const t = 1 - p.life / p.maxLife;
+      p.mesh.position.x += p.vx * dt;
+      p.mesh.position.y += p.vy * dt;
+      p.mesh.position.z += p.vz * dt;
+      p.vy = Math.max(0, p.vy - p.vy * 5 * dt);
+      p.mesh.scale.setScalar(p.baseScale * (1 + t * 2.5));
+      p.mat.opacity = Math.max(0, 0.55 * (1 - t));
+      if (p.life <= 0) {
+        scene.remove(p.mesh);
+        p.mat.dispose();
+        dustParticles.splice(i, 1);
+      }
+    }
+
+    if (soccerBall?.body) {
+      const bv = soccerBall.body.linvel();
+      const bSpeed = Math.sqrt(bv.x * bv.x + bv.y * bv.y + bv.z * bv.z);
+      const bp = soccerBall.body.translation();
+      const br = soccerBall.ballRadius ?? 0.28;
+      const nearGround = bp.y < br + 0.55;
+
+      // Kick: sudden speed spike → big puff burst
+      if (bSpeed - _prevBallSpeed > 2.5 && nearGround) {
+        spawnDustPuff(bp.x, bp.y - br * 0.6, bp.z, 0.22, 7);
+      }
+      _prevBallSpeed = bSpeed;
+
+      // Rolling dust while ball moves near ground
+      _ballDustTimer -= dt;
+      if (_ballDustTimer <= 0 && bSpeed > 0.8 && nearGround) {
+        _ballDustTimer = 0.06;
+        spawnDustPuff(bp.x, bp.y - br * 0.9, bp.z, 0.08, 2);
+      }
+    }
+
+    // Local player foot dust
+    if (playerModel && playerControls?.isMoving && playerControls?.canJump) {
+      _playerDustTimer -= dt;
+      if (_playerDustTimer <= 0) {
+        _playerDustTimer = 0.1;
+        spawnDustPuff(
+          playerModel.position.x,
+          playerModel.position.y - 0.58,
+          playerModel.position.z,
+          0.05, 1
+        );
+      }
+    }
+
+    // AI player foot dust
+    Object.values(aiPlayers).forEach(players => {
+      players.forEach(ai => {
+        if (!ai.body) return;
+        const av = ai.body.linvel();
+        const aSpeed = Math.sqrt(av.x * av.x + av.z * av.z);
+        if (aSpeed < 0.5) return;
+        const ap = ai.body.translation();
+        if (ap.y > 1.8) return;
+        if (!ai._dustTimer) ai._dustTimer = 0;
+        ai._dustTimer -= dt;
+        if (ai._dustTimer <= 0) {
+          ai._dustTimer = 0.1;
+          spawnDustPuff(ap.x, ap.y - 0.58, ap.z, 0.05, 1);
+        }
+      });
+    });
+  }
+
   createClouds(scene);
 
   let soccerBall;
@@ -3681,6 +3790,7 @@ async function main() {
     breakManager.update();
 
     _updateConfetti();
+    updateDustParticles(frameDelta);
     if (playerModel) updateRainbowTrail(playerModel, playerControls?.isMoving ?? false);
 
     if (followBallCamera && playerModel && soccerBall?.body) {

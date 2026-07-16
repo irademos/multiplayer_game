@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 
-const BALL_RADIUS = 0.22;
+const BALL_RADIUS = 0.28;
 
 export class SoccerBall {
   constructor(scene, rapierWorld, rbToMesh) {
