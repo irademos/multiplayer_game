@@ -1066,6 +1066,44 @@ body {
   .arcade-btn { padding: 10px 14px; min-width: 100px; }
   .char-emoji { font-size: 48px; }
   .char-arrow { padding: 10px 12px; font-size: 16px; }
+
+  /* In-game settings panel */
+  #settings-panel {
+    flex-direction: column;
+    min-width: 0;
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    min-height: 0;
+    max-height: calc(100vh - 24px);
+    border-radius: 8px;
+  }
+
+  #settings-side-tabs {
+    flex-direction: row;
+    min-width: 0;
+    padding: 0;
+    gap: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .side-tab-btn {
+    flex: 1;
+    text-align: center;
+    padding: 10px 4px;
+    font-size: 11px;
+    border-left: none;
+    border-bottom: 3px solid transparent;
+  }
+
+  .side-tab-btn.active {
+    border-left-color: transparent;
+    border-bottom-color: #3399ff;
+  }
+
+  #settings-tab-body {
+    padding: 14px;
+    max-height: calc(100vh - 120px);
+  }
 }
 
 /* ════════════════════════════════════════════════════════
