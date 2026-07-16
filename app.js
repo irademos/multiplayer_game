@@ -1,7 +1,7 @@
 // app.js
 import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
-import { createClouds, generateSoccerField, createMoon, MOON_RADIUS, updateGrass, addSceneryProps, addFans } from "./worldGeneration.js";
+import { createClouds, generateSoccerField, createGrassBladesOnField, createMoon, MOON_RADIUS, updateGrass, addSceneryProps, addFans } from "./worldGeneration.js";
 import { getTerrainHeight } from './water.js';
 import { Multiplayer, subscribeOnlineCount } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
@@ -1727,10 +1727,15 @@ async function main() {
   };
 
   const scene = new THREE.Scene();
+  // Start with a plain light-blue sky so the game is immediately visible.
+  // The full skybox cubemap is swapped in once it finishes loading in the background.
+  scene.background = new THREE.Color(0x87ceeb);
   const cubeLoader = new THREE.CubeTextureLoader();
   cubeLoader.setPath('/assets/skybox/');
-  const skyboxTexture = cubeLoader.load(['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png']);
-  scene.background = skyboxTexture;
+  cubeLoader.load(
+    ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png'],
+    (skyboxTexture) => { scene.background = skyboxTexture; }
+  );
 
   // ── Rainbow trail system ───────────────────────────────────────────────────
   const TRAIL_COLORS = [0xff0000, 0xff7700, 0xffee00, 0x00ee00, 0x0088ff, 0x8800ff];
@@ -2608,12 +2613,11 @@ async function main() {
     );
   }
 
+  // Load the essential field geometry (pitch stripes, goals, lines) synchronously
+  // so players can start immediately. Heavy background assets are deferred below.
   generateSoccerField(scene, rapierWorld);
-  createMoon(scene, rapierWorld, rbToMesh);
 
   let fanMixers = [];
-  addSceneryProps(scene).catch(e => console.warn('addSceneryProps error', e));
-  addFans(scene).then(mixers => { fanMixers = mixers; }).catch(e => console.warn('addFans error', e));
 
   setPieceManager = new SetPieceManager(scene);
 
@@ -3706,6 +3710,21 @@ async function main() {
   }
 
   animate();
+
+  // After the game loop is running, load the remaining heavy assets in the background.
+  // Stagger them so they don't all hit the GPU/network at once.
+  setTimeout(() => {
+    createGrassBladesOnField(scene);
+  }, 500);
+  setTimeout(() => {
+    createMoon(scene, rapierWorld, rbToMesh);
+  }, 1000);
+  setTimeout(() => {
+    addSceneryProps(scene).catch(e => console.warn('addSceneryProps error', e));
+  }, 1500);
+  setTimeout(() => {
+    addFans(scene).then(mixers => { fanMixers = mixers; }).catch(e => console.warn('addFans error', e));
+  }, 2500);
 }
 
 window.addEventListener('DOMContentLoaded', main);
