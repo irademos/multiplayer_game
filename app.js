@@ -574,6 +574,49 @@ async function main() {
       openProfileOverlay();
     });
 
+    // ── Character Features ──────────────────────────────────────────────────────
+    async function openCharacterFeatures() {
+      document.getElementById('profile-overlay').classList.add('hidden');
+      document.getElementById('character-features-overlay').classList.remove('hidden');
+
+      let upgrades = {};
+      try {
+        upgrades = (await getUserUpgrades(getSession())) || {};
+      } catch { /* keep defaults */ }
+
+      const hasTrail = !!upgrades.rainbowTrail;
+      const row = document.getElementById('feature-row-rainbowTrail');
+      const btn = document.getElementById('btn-toggle-rainbowTrail');
+
+      if (hasTrail) {
+        row.classList.remove('locked');
+        btn.disabled = false;
+        const active = !!window.hasRainbowTrail;
+        btn.textContent = active ? '✅ ON' : '❌ OFF';
+        btn.className = `arcade-btn char-feature-toggle ${active ? 'on' : 'off'}`;
+      } else {
+        row.classList.add('locked');
+        btn.disabled = true;
+        btn.textContent = '🔒 LOCKED';
+        btn.className = 'arcade-btn char-feature-toggle';
+      }
+    }
+
+    document.getElementById('btn-char-features-open').addEventListener('click', openCharacterFeatures);
+
+    document.getElementById('btn-char-features-close').addEventListener('click', () => {
+      document.getElementById('character-features-overlay').classList.add('hidden');
+      openProfileOverlay();
+    });
+
+    document.getElementById('btn-toggle-rainbowTrail').addEventListener('click', () => {
+      window.hasRainbowTrail = !window.hasRainbowTrail;
+      const btn = document.getElementById('btn-toggle-rainbowTrail');
+      const active = window.hasRainbowTrail;
+      btn.textContent = active ? '✅ ON' : '❌ OFF';
+      btn.className = `arcade-btn char-feature-toggle ${active ? 'on' : 'off'}`;
+    });
+
     document.getElementById('btn-adv-save-pin').addEventListener('click', async () => {
       const oldPin = document.getElementById('adv-old-pin').value.trim();
       const newPin = document.getElementById('adv-new-pin').value.trim();

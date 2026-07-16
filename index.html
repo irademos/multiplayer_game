@@ -301,9 +301,35 @@
         </div>
       </div>
       <div class="profile-section">
+        <button class="arcade-btn arcade-btn-dim" id="btn-char-features-open">🌈 CHARACTER FEATURES</button>
+      </div>
+      <div class="profile-section">
         <button class="arcade-btn arcade-btn-dim" id="btn-adv-settings-open">⚙ ADVANCED SETTINGS</button>
       </div>
       <button class="arcade-btn arcade-btn-dim" id="btn-profile-close">◄ BACK</button>
+    </div>
+  </div>
+
+  <!-- Character Features Overlay -->
+  <div id="character-features-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel char-features-panel">
+      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">🌈 CHARACTER FEATURES</div>
+
+      <div class="char-features-list">
+        <!-- Rainbow Trail -->
+        <div class="char-feature-row" id="feature-row-rainbowTrail">
+          <div class="char-feature-info">
+            <span class="char-feature-emoji">🌈</span>
+            <div class="char-feature-text">
+              <div class="char-feature-name">RAINBOW TRAIL</div>
+              <div class="char-feature-desc">LEAVES A RAINBOW STREAK BEHIND YOU AS YOU RUN!</div>
+            </div>
+          </div>
+          <button class="arcade-btn char-feature-toggle" id="btn-toggle-rainbowTrail" disabled>🔒 LOCKED</button>
+        </div>
+      </div>
+
+      <button class="arcade-btn arcade-btn-dim" id="btn-char-features-close">◄ BACK</button>
     </div>
   </div>
 
