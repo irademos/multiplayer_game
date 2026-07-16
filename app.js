@@ -2554,16 +2554,22 @@ async function main() {
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   document.getElementById('game-container').appendChild(renderer.domElement);
 
   const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-  scene.add(ambientLight);
+  scene.fog = new THREE.Fog(0x87cfff, 80, 220);
+
+  const hemiLight = new THREE.HemisphereLight(0xbde8ff, 0x405020, 1.2);
+  scene.add(hemiLight);
 
   const dirLight = new THREE.DirectionalLight(0xffffff, 1);
   dirLight.position.set(5, 10, 5);
   dirLight.castShadow = true;
+  dirLight.shadow.bias = -0.0005;
+  dirLight.shadow.mapSize.set(4096, 4096);
   scene.add(dirLight);
 
 
