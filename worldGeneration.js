@@ -253,11 +253,13 @@ export function createGrassBladesOnField(scene) {
   for (let i = 0; i < COUNT; i++) {
     const stripeIdx = Math.floor((bladeZ[i] + FIELD_LENGTH / 2) / STRIPE_DEPTH) % 2;
     // Light stripe matches 0x2d8a2d, dark stripe matches 0x267a26
-    const rBase = stripeIdx === 0 ? 0.18 : 0.15;
-    const gBase = stripeIdx === 0 ? 0.52 : 0.46;
+    const rBase = stripeIdx === 0 ? 0.40 : 0.32;
+    const gBase = stripeIdx === 0 ? 0.88 : 0.76;
+    const bBase = stripeIdx === 0 ? 0.20 : 0.18;
+
     colorData[i * 3 + 0] = rBase + rng() * 0.06;
-    colorData[i * 3 + 1] = gBase + rng() * 0.10;
-    colorData[i * 3 + 2] = 0.12  + rng() * 0.05;
+    colorData[i * 3 + 1] = gBase + rng() * 0.08;
+    colorData[i * 3 + 2] = bBase + rng() * 0.04;
   }
   geo.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(colorData, 3));
 
@@ -302,8 +304,8 @@ export function createGrassBladesOnField(scene) {
       varying vec3 vColor;
 
       void main() {
-        vec3 rootColor = vec3(0.08, 0.38, 0.08);
-        vec3 col = mix(rootColor, vColor, vUv.y);
+        vec3 rootColor = vec3(0.22, 0.65, 0.18);
+        vec3 col = mix(rootColor, vColor * 1.2, vUv.y);
 
         // fade near tip edges so blade visually narrows
         float edge = abs(vUv.x - 0.5) * 2.0;
@@ -311,6 +313,7 @@ export function createGrassBladesOnField(scene) {
         alpha *= smoothstep(1.0, 0.75, vUv.y);
 
         if (alpha < 0.3) discard;
+        col *= 0.9;
         gl_FragColor = vec4(col, alpha);
       }
     `,

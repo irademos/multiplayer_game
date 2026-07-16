@@ -2735,6 +2735,10 @@ async function main() {
 
   scene.fog = new THREE.Fog(0x87cfff, 80, 220);
 
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.5;
+
   const hemiLight = new THREE.HemisphereLight(0xbde8ff, 0x405020, 1.2);
   scene.add(hemiLight);
 
