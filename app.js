@@ -1,7 +1,7 @@
 // app.js
 import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
-import { createClouds, generateSoccerField, createGrassBladesOnField, createMoon, MOON_RADIUS, updateGrass, addSceneryProps, addFans } from "./worldGeneration.js";
+import { createClouds, generateSoccerField, createGrassBladesOnField, createMoon, MOON_RADIUS, updateGrass, addSceneryProps, addFans, createMountainRing } from "./worldGeneration.js";
 import { getTerrainHeight } from './water.js';
 import { Multiplayer, subscribeOnlineCount } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
@@ -3725,6 +3725,7 @@ async function main() {
   setTimeout(() => {
     addFans(scene).then(mixers => { fanMixers = mixers; }).catch(e => console.warn('addFans error', e));
   }, 2500);
+  createMountainRing(scene);
 }
 
 window.addEventListener('DOMContentLoaded', main);
