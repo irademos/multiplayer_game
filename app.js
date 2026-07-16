@@ -2185,27 +2185,27 @@ async function main() {
     // Goal scored?
     if (inX && inY && pos.z > SCORE_FIELD_HALF && vel.z > 0) {
       // Red goal is on the +Z end, so scoring there awards the blue/home score.
+      // Credit the last home (blue) player to touch the ball regardless of who shot it last.
       score.home++;
       updateScoreUI();
       goalCooldown = now + 7000;
       const goalPos = { x: 0, y: 1.5, z: SCORE_FIELD_HALF };
-      const didTouch = soccerBall.lastTouchedTeam;
-      const scorerName = soccerBall.lastTouchedName || (didTouch === 'home' ? playerName : 'Blue team');
+      const scorerName = soccerBall.lastTouchedByTeam.home || 'Blue team';
       triggerGoalCelebration('home', goalPos, scorerName, () => {
-        if (didTouch === localPlayerTeam && scorerName === playerName) recordGoal(playerName).catch(() => {});
+        if (localPlayerTeam === 'home' && scorerName === playerName) recordGoal(playerName).catch(() => {});
       });
       return;
     }
     if (inX && inY && pos.z < -SCORE_FIELD_HALF && vel.z < 0) {
       // Blue goal is on the -Z end, so scoring there awards the red/away score.
+      // Credit the last away (red) player to touch the ball regardless of who shot it last.
       score.away++;
       updateScoreUI();
       goalCooldown = now + 7000;
       const goalPos = { x: 0, y: 1.5, z: -SCORE_FIELD_HALF };
-      const didTouch = soccerBall.lastTouchedTeam;
-      const scorerName = soccerBall.lastTouchedName || (didTouch === 'away' ? 'Red team' : 'Someone');
+      const scorerName = soccerBall.lastTouchedByTeam.away || 'Red team';
       triggerGoalCelebration('away', goalPos, scorerName, () => {
-        if (didTouch === localPlayerTeam && scorerName === playerName) recordGoal(playerName).catch(() => {});
+        if (localPlayerTeam === 'away' && scorerName === playerName) recordGoal(playerName).catch(() => {});
       });
       return;
     }
