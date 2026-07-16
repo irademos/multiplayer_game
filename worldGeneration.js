@@ -441,6 +441,13 @@ function loadGLTF(url) {
   return new Promise((resolve, reject) => _sceneryLoader.load(url, resolve, undefined, reject));
 }
 
+const building1_scale = 0.04;
+const building2_scale = 1.5;
+const building3_scale = 0.02;
+const building4_scale = 0.02;
+const building5_scale = 0.02;
+const pine_scale = 0.08;
+
 export async function addSceneryProps(scene) {
   // field: X -30..+30, Z -50..+50; props placed outside this boundary
   const placements = [
@@ -448,41 +455,41 @@ export async function addSceneryProps(scene) {
     { url: '/assets/props/coconut_tree.glb',            x: -55, z: -30, s: 6,   r: 0.5  },
     { url: '/assets/props/coconut_tree.glb',            x: -62, z:   5, s: 7,   r: 1.2  },
     { url: '/assets/props/coconut_tree.glb',            x: -56, z:  35, s: 5.5, r: 2.1  },
-    { url: '/assets/props/stylized_pine_tree_tree.glb', x: -68, z: -20, s: 5,   r: 0.3  },
-    { url: '/assets/props/stylized_pine_tree_tree.glb', x: -72, z:  22, s: 6,   r: 1.8  },
-    { url: '/assets/props/fantasy_house.glb',           x: -78, z: -12, s: 7,   r: 0.8  },
-    { url: '/assets/props/fantasy_house.glb',           x: -82, z:  30, s: 7,   r: -0.3 },
-    { url: '/assets/props/medieval_building_002.glb',   x: -88, z:   0, s: 7,   r: -0.5 },
-    { url: '/assets/props/medieval_building_004.glb',   x: -90, z: -35, s: 7,   r: 0.5  },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x: -68, z: -20, s: pine_scale,   r: 0.3  },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x: -72, z:  22, s: pine_scale,   r: 1.8  },
+    { url: '/assets/props/fantasy_house.glb',           x: -78, z: -12, s: building1_scale,   r: 0.8  },
+    { url: '/assets/props/fantasy_house.glb',           x: -82, z:  30, s: building1_scale,   r: -0.3 },
+    { url: '/assets/props/medieval_building_002.glb',   x: -88, z:   0, s: building3_scale,   r: -0.5 },
+    { url: '/assets/props/medieval_building_004.glb',   x: -90, z: -35, s: building4_scale,   r: 0.5  },
 
     // ── Right side (x positive) ──
     { url: '/assets/props/coconut_tree.glb',            x:  57, z: -25, s: 6.5, r: 2.5  },
     { url: '/assets/props/coconut_tree.glb',            x:  60, z:  15, s: 5,   r: 0.8  },
-    { url: '/assets/props/stylized_pine_tree_tree.glb', x:  70, z: -35, s: 5.5, r: 2.0  },
-    { url: '/assets/props/stylized_pine_tree_tree.glb', x:  74, z:  28, s: 6,   r: 0.5  },
-    { url: '/assets/props/fantasy_house (1).glb',       x:  80, z:   8, s: 7,   r: -0.8 },
-    { url: '/assets/props/fantasy_house (1).glb',       x:  85, z: -22, s: 7,   r: 0.4  },
-    { url: '/assets/props/medieval_building_004.glb',   x:  90, z:  22, s: 7,   r: -1.0 },
-    { url: '/assets/props/medieval_building_005.glb',   x:  88, z: -50, s: 7,   r: 0.7  },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x:  70, z: -35, s: pine_scale, r: 2.0  },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x:  74, z:  28, s: pine_scale,   r: 0.5  },
+    { url: '/assets/props/fantasy_house (1).glb',       x:  80, z:   8, s: building2_scale,   r: -0.8 },
+    { url: '/assets/props/fantasy_house (1).glb',       x:  85, z: -22, s: building2_scale,   r: 0.4  },
+    { url: '/assets/props/medieval_building_004.glb',   x:  90, z:  22, s: building4_scale,   r: -1.0 },
+    { url: '/assets/props/medieval_building_005.glb',   x:  88, z: -50, s: building5_scale,   r: 0.7  },
 
     // ── North end (z negative) ──
     { url: '/assets/props/coconut_tree.glb',            x: -20, z: -72, s: 6,   r: 1.0  },
     { url: '/assets/props/coconut_tree.glb',            x:  25, z: -76, s: 5.5, r: 2.8  },
-    { url: '/assets/props/stylized_pine_tree_tree.glb', x: -42, z: -78, s: 5,   r: 1.5  },
-    { url: '/assets/props/stylized_pine_tree_tree.glb', x:  38, z: -70, s: 5.5, r: 0.9  },
-    { url: '/assets/props/fantasy_house.glb',           x:  15, z: -68, s: 7,   r: 1.2  },
-    { url: '/assets/props/medieval_building_005.glb',   x:   0, z: -85, s: 7,   r: 0.0  },
-    { url: '/assets/props/medieval_building_002.glb',   x: -50, z: -70, s: 7,   r: 1.0  },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x: -42, z: -78, s: pine_scale,   r: 1.5  },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x:  38, z: -70, s: pine_scale, r: 0.9  },
+    { url: '/assets/props/fantasy_house.glb',           x:  15, z: -68, s: building1_scale,   r: 1.2  },
+    { url: '/assets/props/medieval_building_005.glb',   x:   0, z: -85, s: building5_scale,   r: 0.0  },
+    { url: '/assets/props/medieval_building_002.glb',   x: -50, z: -70, s: building3_scale,   r: 1.0  },
 
     // ── South end (z positive) ──
     { url: '/assets/props/coconut_tree.glb',            x: -15, z:  70, s: 6,   r: 3.0  },
     { url: '/assets/props/coconut_tree.glb',            x:  30, z:  72, s: 7,   r: 0.6  },
-    { url: '/assets/props/stylized_pine_tree_tree.glb', x: -40, z:  80, s: 5,   r: 1.2  },
-    { url: '/assets/props/stylized_pine_tree_tree.glb', x:  45, z:  75, s: 6,   r: 2.5  },
-    { url: '/assets/props/fantasy_house (1).glb',       x: -28, z:  70, s: 7,   r: 2.0  },
-    { url: '/assets/props/fantasy_house (1).glb',       x:  20, z:  80, s: 7,   r: -0.5 },
-    { url: '/assets/props/medieval_building_002.glb',   x:   0, z:  88, s: 7,   r: 0.0  },
-    { url: '/assets/props/medieval_building_005.glb',   x:  55, z:  72, s: 7,   r: -0.8 },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x: -40, z:  80, s: pine_scale,   r: 1.2  },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x:  45, z:  75, s: pine_scale,   r: 2.5  },
+    { url: '/assets/props/fantasy_house (1).glb',       x: -28, z:  70, s: building2_scale,   r: 2.0  },
+    { url: '/assets/props/fantasy_house (1).glb',       x:  20, z:  80, s: building2_scale,   r: -0.5 },
+    { url: '/assets/props/medieval_building_002.glb',   x:   0, z:  88, s: building3_scale,   r: 0.0  },
+    { url: '/assets/props/medieval_building_005.glb',   x:  55, z:  72, s: building5_scale,   r: -0.8 },
   ];
 
   const cache = new Map();
