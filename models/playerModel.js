@@ -165,7 +165,7 @@ export function createPlayerModel(
 
                   const basicParams = {
                     map: mat.map || null,
-                    color: (mat.color && mat.color.clone()) || new THREE.Color(0xffffff),
+                    color: (mat.color && mat.color.clone().multiplyScalar(brightness)) || new THREE.Color(brightness, brightness, brightness),
                     transparent: !!mat.transparent,
                     opacity: (typeof mat.opacity === 'number') ? mat.opacity : 1,
                     side: mat.side ?? THREE.FrontSide,
@@ -219,6 +219,8 @@ export function createPlayerModel(
             });
           }
 
+
+          const brightness = config.brightness ?? 1.0;
 
           // Scale and center the model so it rotates around its midpoint
           const scale = config.scale ?? 1;

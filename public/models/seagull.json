@@ -1,5 +1,6 @@
 {
   "scale": 0.00008,
   "yOffset": -0.85,
-  "zOffset": 0.0
+  "zOffset": 0.0,
+  "brightness": 1.0
 }

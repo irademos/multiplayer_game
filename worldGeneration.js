@@ -547,6 +547,13 @@ export async function addFans(scene) {
   ];
 
   const mixers = [];
+
+  let config = {};
+  try {
+    const res = await fetch('/models/fans/the_green_wizard_gnome_n64_style.json');
+    if (res.ok) config = await res.json();
+  } catch (e) {}
+
   let gltf;
   try {
     gltf = await loadGLTF('/models/fans/the_green_wizard_gnome_n64_style.glb');
@@ -555,23 +562,54 @@ export async function addFans(scene) {
     return mixers;
   }
 
-  const fanScale = 0.02;
-  const animName = 'Wizard_Gnome_Armature|idle';
+  const fanScale = config.scale ?? 0.02;
+  const animNames = Array.isArray(config.animations)
+    ? config.animations
+    : [config.animations ?? 'Wizard_Gnome_Armature|idle'];
+  const brightness = config.brightness ?? 1.0;
 
   for (const pos of fanPositions) {
     const model = cloneSkinnedModel(gltf.scene);
     model.position.set(pos.x, 0, pos.z);
     model.scale.setScalar(fanScale);
-    // model.rotation.y = 
     model.rotation.x = Math.PI / 2;
     model.rotation.z = -Math.atan2(-pos.x, -pos.z);
-    model.traverse(child => { if (child.isMesh) child.castShadow = true; });
+    model.traverse(child => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        if (brightness !== 1.0) {
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          mats.forEach(m => { if (m && m.color) m.color.multiplyScalar(brightness); });
+        }
+      }
+    });
     scene.add(model);
 
     if (gltf.animations && gltf.animations.length > 0) {
       const mixer = new THREE.AnimationMixer(model);
-      const clip = THREE.AnimationClip.findByName(gltf.animations, animName) ?? gltf.animations[0];
-      mixer.clipAction(clip).play();
+      let currentAction = null;
+
+      const playAnim = (name) => {
+        const clip = THREE.AnimationClip.findByName(gltf.animations, name) ?? gltf.animations[0];
+        const next = mixer.clipAction(clip);
+        if (currentAction && currentAction !== next) {
+          currentAction.fadeOut(0.5);
+          next.reset().fadeIn(0.5).play();
+        } else {
+          next.play();
+        }
+        currentAction = next;
+      };
+
+      const pickRandom = () => animNames[Math.floor(Math.random() * animNames.length)];
+      playAnim(pickRandom());
+
+      const scheduleSwitch = () => {
+        const delay = 8000 + Math.random() * 7000;
+        setTimeout(() => { playAnim(pickRandom()); scheduleSwitch(); }, delay);
+      };
+      scheduleSwitch();
+
       mixers.push(mixer);
     }
   }
