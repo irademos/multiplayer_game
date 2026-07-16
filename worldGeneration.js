@@ -272,10 +272,13 @@ function createGrassBladesOnField(scene) {
   const mat = new THREE.ShaderMaterial({
     uniforms,
     vertexShader: /* glsl */`
-      #include <common>
-      #include <instanced_pars_vertex>
+      attribute mat4 instanceMatrix;
+      attribute vec2 uv;
 
+      uniform mat4 projectionMatrix;
+      uniform mat4 modelViewMatrix;
       uniform float time;
+
       varying float vUvY;
 
       void main() {
