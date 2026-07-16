@@ -1711,7 +1711,10 @@ async function main() {
   };
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x87CEEB);
+  const cubeLoader = new THREE.CubeTextureLoader();
+  cubeLoader.setPath('/assets/skybox/');
+  const skyboxTexture = cubeLoader.load(['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png']);
+  scene.background = skyboxTexture;
 
   // ── Rainbow trail system ───────────────────────────────────────────────────
   const TRAIL_COLORS = [0xff0000, 0xff7700, 0xffee00, 0x00ee00, 0x0088ff, 0x8800ff];
