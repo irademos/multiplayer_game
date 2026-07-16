@@ -218,7 +218,7 @@ export function updateGrass(time) {
   if (_grassUniforms) _grassUniforms.time.value = time;
 }
 
-function createGrassBladesOnField(scene) {
+export function createGrassBladesOnField(scene) {
   const rng = getSeededRandom("grass");
 
   // Tapered triangle blade (tip at top)
@@ -362,8 +362,6 @@ export function generateSoccerField(scene, rapierWorld) {
     stripe.receiveShadow = true;
     scene.add(stripe);
   }
-
-  createGrassBladesOnField(scene);
 
   // Surround — darker ground beyond the pitch
   const surroundMat = new THREE.MeshStandardMaterial({ color: 0x4a3a28, roughness: 0.95 });
