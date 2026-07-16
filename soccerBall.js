@@ -28,13 +28,20 @@ export class SoccerBall {
 
     _ballLoader.load('/assets/props/soccer_ball.glb', (gltf) => {
       const model = gltf.scene;
-      // Scale the GLB so it matches the physics collider radius
-      const box = new THREE.Box3().setFromObject(model);
+      // Scale first so the bounding box reflects final size
+      const box0 = new THREE.Box3().setFromObject(model);
       const size = new THREE.Vector3();
-      box.getSize(size);
+      box0.getSize(size);
       const maxDim = Math.max(size.x, size.y, size.z);
       const scale = (ballRadius * 2) / maxDim;
       model.scale.setScalar(scale);
+      // Re-center: offset the model so its geometric center sits at (0,0,0),
+      // which is the physics body origin. This fixes the orbital-rotation bug
+      // and prevents the ball from floating above its collider.
+      const box1 = new THREE.Box3().setFromObject(model);
+      const center = new THREE.Vector3();
+      box1.getCenter(center);
+      model.position.sub(center);
       model.traverse(child => { if (child.isMesh) child.castShadow = true; });
       this.mesh.add(model);
     });
