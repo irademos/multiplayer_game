@@ -242,6 +242,129 @@ function addStand(scene, rapierWorld, cx, cz, rotY, length, depth, height, seatC
   }
 }
 
+let _grassUniforms = null;
+
+export function updateGrass(time) {
+  if (_grassUniforms) _grassUniforms.time.value = time;
+}
+
+function createGrassBladesOnField(scene) {
+  const rng = getSeededRandom("grass");
+
+  // Tapered triangle blade (tip at top)
+  const W = 0.035;
+  const H = 0.32;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+    -W,   0, 0,
+     W,   0, 0,
+     0.0, H, 0,
+  ]), 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([
+    0, 0,
+    1, 0,
+    0.5, 1,
+  ]), 2));
+  geo.setIndex([0, 1, 2]);
+
+  const COUNT = 40000;
+
+  // Per-instance color variation
+  const colorData = new Float32Array(COUNT * 3);
+  for (let i = 0; i < COUNT; i++) {
+    colorData[i * 3 + 0] = 0.2  + rng() * 0.08;
+    colorData[i * 3 + 1] = 0.45 + rng() * 0.15;
+    colorData[i * 3 + 2] = 0.12 + rng() * 0.05;
+  }
+  geo.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(colorData, 3));
+
+  const uniforms = { time: { value: 0 } };
+  _grassUniforms = uniforms;
+
+  const mat = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader: /* glsl */`
+      uniform float time;
+      attribute vec3 instanceColor;
+      varying vec2 vUv;
+      varying vec3 vColor;
+
+      void main() {
+        vUv = uv;
+        vColor = instanceColor;
+
+        vec3 transformed = position;
+
+        // taper: narrow toward tip
+        float taper = mix(1.0, 0.15, uv.y);
+        transformed.x *= taper;
+
+        // multi-wave wind — spatially varied, less synchronized
+        vec3 wPos = vec3(instanceMatrix[3]);
+        float wind =
+          sin(wPos.x * 1.6 + time * 1.9) * 0.06 +
+          sin(wPos.z * 2.3 + time * 2.6) * 0.04 +
+          sin((wPos.x + wPos.z) * 0.8 + time * 1.1) * 0.03;
+
+        // quadratic bend: tip moves most
+        float bend = uv.y * uv.y;
+        transformed.x += wind * bend;
+        transformed.z += wind * 0.25 * bend;
+
+        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(transformed, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */`
+      varying vec2 vUv;
+      varying vec3 vColor;
+
+      void main() {
+        vec3 rootColor = vec3(0.08, 0.38, 0.08);
+        vec3 col = mix(rootColor, vColor, vUv.y);
+
+        // fade near tip edges so blade visually narrows
+        float edge = abs(vUv.x - 0.5) * 2.0;
+        float alpha = 1.0 - smoothstep(0.7, 1.0, edge);
+        alpha *= smoothstep(1.0, 0.75, vUv.y);
+
+        if (alpha < 0.3) discard;
+        gl_FragColor = vec4(col, alpha);
+      }
+    `,
+    side: THREE.DoubleSide,
+    transparent: true,
+    alphaTest: 0.3,
+  });
+
+  const mesh = new THREE.InstancedMesh(geo, mat, COUNT);
+  mesh.frustumCulled = false;
+
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < COUNT; i++) {
+    dummy.position.set(
+      (rng() - 0.5) * FIELD_WIDTH,
+      0,
+      (rng() - 0.5) * FIELD_LENGTH,
+    );
+    // random yaw + small random lean
+    dummy.rotation.set(
+      (rng() - 0.5) * 0.3,
+      rng() * Math.PI * 2,
+      (rng() - 0.5) * 0.3,
+    );
+    // width and height variation
+    dummy.scale.set(
+      0.5 + rng() * 0.8,
+      0.7 + rng() * 0.9,
+      1,
+    );
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  scene.add(mesh);
+}
+
 export function generateSoccerField(scene, rapierWorld) {
   const grassMat = new THREE.MeshStandardMaterial({ color: 0x2d8a2d, roughness: 0.95 });
   const grassAlt = new THREE.MeshStandardMaterial({ color: 0x267a26, roughness: 0.95 });
@@ -259,6 +382,8 @@ export function generateSoccerField(scene, rapierWorld) {
     stripe.receiveShadow = true;
     scene.add(stripe);
   }
+
+  createGrassBladesOnField(scene);
 
   // Surround — darker ground beyond the pitch
   const surroundMat = new THREE.MeshStandardMaterial({ color: 0x4a3a28, roughness: 0.95 });

@@ -1,7 +1,7 @@
 // app.js
 import * as THREE from "three";
 import { PlayerCharacter } from "./characters/PlayerCharacter.js";
-import { createClouds, generateSoccerField, createMoon, MOON_RADIUS } from "./worldGeneration.js";
+import { createClouds, generateSoccerField, createMoon, MOON_RADIUS, updateGrass } from "./worldGeneration.js";
 import { getTerrainHeight } from './water.js';
 import { Multiplayer, subscribeOnlineCount } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
@@ -2534,6 +2534,7 @@ async function main() {
       camera.lookAt(ballPos);
     }
 
+    updateGrass(performance.now() / 1000);
     renderer.render(scene, camera);
   }
 
