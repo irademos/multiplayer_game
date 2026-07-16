@@ -250,7 +250,7 @@ body {
   cursor: pointer;
 }
 
-#health-bar {
+#sprint-bar {
   position: absolute;
   top: 10px;
   left: 10px;
@@ -261,10 +261,10 @@ body {
   z-index: 1000;
 }
 
-#health-fill {
+#sprint-fill {
   height: 100%;
-  background: #0f0;
-  width: 100%;
+  background: #27d9ff;
+  width: 0%;
 }
 
 #ammo-display {
@@ -388,72 +388,126 @@ body {
 }
 
 #settings-panel {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  text-align: center;
-}
-
-#settings-panel input,
-#settings-panel select {
-  margin-top: 8px;
-  margin-bottom: 12px;
-  padding: 4px;
-  width: 200px;
-}
-
-#settings-tabs {
+  background: #1a1a2e;
+  border-radius: 10px;
   display: flex;
-  gap: 0;
-  margin-bottom: 12px;
-  border-bottom: 2px solid #ddd;
+  flex-direction: row;
+  overflow: hidden;
+  min-width: 480px;
+  max-width: 700px;
+  min-height: 260px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
 }
 
-.tab-btn {
-  flex: 1;
-  padding: 8px 0;
+#settings-side-tabs {
+  display: flex;
+  flex-direction: column;
+  background: #12122a;
+  padding: 12px 0;
+  min-width: 110px;
+  gap: 4px;
+}
+
+.side-tab-btn {
   background: none;
   border: none;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
+  border-left: 3px solid transparent;
+  padding: 12px 18px;
   font-size: 13px;
   font-weight: bold;
   cursor: pointer;
-  color: #666;
-  transition: color 0.2s, border-color 0.2s;
-}
-
-.tab-btn.active {
-  color: #333;
-  border-bottom-color: #3399ff;
-}
-
-.tab-content {
-  min-height: 80px;
-}
-
-#leaderboard-list {
-  font-size: 13px;
+  color: #888;
   text-align: left;
-  max-height: 200px;
-  overflow-y: auto;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  letter-spacing: 0.04em;
 }
 
-#leaderboard-list table {
+.side-tab-btn:hover {
+  color: #ccc;
+  background: rgba(255,255,255,0.04);
+}
+
+.side-tab-btn.active {
+  color: #fff;
+  border-left-color: #3399ff;
+  background: rgba(51,153,255,0.10);
+}
+
+#settings-tab-body {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  max-height: 420px;
+  color: #eee;
+}
+
+.side-tab-content {
+  /* shown via display block/none */
+}
+
+/* Teams table in multiplayer tab */
+.teams-section {
+  margin-bottom: 18px;
+}
+
+.teams-section-header {
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.teams-section-header.home {
+  background: rgba(51,153,255,0.2);
+  color: #6fc3ff;
+}
+
+.teams-section-header.away {
+  background: rgba(255,51,34,0.2);
+  color: #ff8877;
+}
+
+.teams-table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 12px;
 }
 
-#leaderboard-list th,
-#leaderboard-list td {
-  padding: 4px 8px;
-  border-bottom: 1px solid #eee;
+.teams-table th {
+  color: #888;
+  font-weight: normal;
+  text-align: left;
+  padding: 3px 8px;
+  border-bottom: 1px solid #333;
 }
 
-#leaderboard-list th {
-  font-weight: bold;
-  background: #f5f5f5;
+.teams-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid #222;
+  color: #ddd;
 }
+
+.teams-table tr:last-child td {
+  border-bottom: none;
+}
+
+.teams-table .player-rank {
+  color: #888;
+  font-size: 11px;
+}
+
+.teams-table .ping-bot {
+  color: #888;
+  font-style: italic;
+  font-size: 11px;
+}
+
+.teams-table .ping-good { color: #4caf50; }
+.teams-table .ping-ok   { color: #ff9800; }
+.teams-table .ping-bad  { color: #f44336; }
 
 
 
@@ -1012,6 +1066,44 @@ body {
   .arcade-btn { padding: 10px 14px; min-width: 100px; }
   .char-emoji { font-size: 48px; }
   .char-arrow { padding: 10px 12px; font-size: 16px; }
+
+  /* In-game settings panel */
+  #settings-panel {
+    flex-direction: column;
+    min-width: 0;
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    min-height: 0;
+    max-height: calc(100vh - 24px);
+    border-radius: 8px;
+  }
+
+  #settings-side-tabs {
+    flex-direction: row;
+    min-width: 0;
+    padding: 0;
+    gap: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .side-tab-btn {
+    flex: 1;
+    text-align: center;
+    padding: 10px 4px;
+    font-size: 11px;
+    border-left: none;
+    border-bottom: 3px solid transparent;
+  }
+
+  .side-tab-btn.active {
+    border-left-color: transparent;
+    border-bottom-color: #3399ff;
+  }
+
+  #settings-tab-body {
+    padding: 14px;
+    max-height: calc(100vh - 120px);
+  }
 }
 
 /* ════════════════════════════════════════════════════════
@@ -1531,3 +1623,545 @@ body {
   border-image-slice: 1;
 }
 
+
+/* ════════════════════════════════════════════════════════
+   ADVENTURE MODE STYLES
+   ════════════════════════════════════════════════════════ */
+
+.arcade-btn-purple {
+  color: #cc44ff;
+  border-color: #cc44ff;
+  box-shadow: 3px 3px 0 #660099, 0 0 15px rgba(204, 68, 255, 0.3);
+}
+.arcade-btn-purple:hover:not(:disabled) {
+  background: rgba(204, 68, 255, 0.1);
+  box-shadow: 4px 4px 0 #660099, 0 0 20px rgba(204, 68, 255, 0.5);
+}
+
+.adventure-panel {
+  gap: 20px;
+  min-width: 300px;
+  max-width: 420px;
+  width: 90vw;
+}
+
+.adventure-round-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(8px, 1.8vw, 11px);
+  color: rgba(204, 68, 255, 0.9);
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.adventure-vs-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  border: 2px solid rgba(204, 68, 255, 0.4);
+  border-radius: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.adventure-vs-emoji {
+  font-size: 56px;
+  line-height: 1;
+}
+
+.adventure-vs-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(10px, 2.5vw, 14px);
+  color: #fff;
+  letter-spacing: 0.1em;
+}
+
+.adventure-vs-desc {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(7px, 1.5vw, 9px);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.adventure-vs-hint {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.3vw, 8px);
+  color: #ffdd00;
+  letter-spacing: 0.05em;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.adventure-result-text {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(7px, 1.6vw, 9px);
+  color: rgba(255,255,255,0.75);
+  text-align: center;
+  line-height: 1.8;
+}
+
+.adventure-unlocked-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 2px solid rgba(0, 255, 136, 0.5);
+  border-radius: 8px;
+}
+
+.adventure-unlocked-emoji {
+  font-size: 48px;
+}
+
+.adventure-unlocked-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(8px, 2vw, 11px);
+  color: #44ff88;
+  letter-spacing: 0.1em;
+}
+
+.adventure-result-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.adventure-result-buttons .arcade-btn {
+  width: 100%;
+  font-size: clamp(8px, 2vw, 11px) !important;
+  padding: 12px 16px !important;
+}
+
+/* Character select locked state */
+.char-lock-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.char-lock-icon {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(9px, 2vw, 12px);
+  color: #ff4444;
+  letter-spacing: 0.05em;
+}
+
+.char-lock-hint {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.3vw, 8px);
+  color: rgba(255,255,255,0.45);
+  text-align: center;
+  line-height: 1.8;
+}
+
+.char-buy-note {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.3vw, 7px);
+  color: rgba(255, 221, 0, 0.5);
+  text-align: center;
+  letter-spacing: 0.05em;
+  margin-top: -4px;
+}
+
+/* Audio settings sliders — in-game settings panel */
+.audio-settings-section {
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.audio-settings-label {
+  font-size: 11px;
+  color: #ccc;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.audio-settings-section input[type="range"] {
+  width: 100%;
+  accent-color: #4af;
+  cursor: pointer;
+}
+
+/* Audio settings sliders — dashboard panel */
+.dashboard-audio-section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dashboard-audio-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-audio-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(7px, 1.5vw, 9px);
+  color: rgba(255,255,255,0.7);
+  min-width: 60px;
+  white-space: nowrap;
+}
+
+.dashboard-audio-slider {
+  flex: 1;
+  accent-color: #4af;
+  cursor: pointer;
+}
+
+/* ══════════════════════════════
+   TOURNAMENT STYLES
+═══════════════════════════════ */
+
+.arcade-btn-orange {
+  color: #ff9900;
+  border-color: #ff9900;
+  box-shadow: 3px 3px 0 #aa5500, 0 0 15px rgba(255, 153, 0, 0.3);
+}
+.arcade-btn-orange:hover:not(:disabled) {
+  background: rgba(255, 153, 0, 0.1);
+  box-shadow: 4px 4px 0 #aa5500, 0 0 20px rgba(255, 153, 0, 0.5);
+}
+
+/* Tournament list screen */
+.tournament-panel {
+  max-width: 540px;
+  width: 92vw;
+  max-height: 88vh;
+  overflow-y: auto;
+}
+.tournament-subtitle {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.3vw, 8px);
+  color: rgba(255,255,255,0.55);
+  text-align: center;
+  margin-bottom: 16px;
+}
+.tournament-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.tournament-card {
+  background: rgba(255,255,255,0.05);
+  border: 2px solid rgba(255,153,0,0.4);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tournament-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.tournament-card-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(8px, 1.8vw, 11px);
+  color: #ffcc44;
+}
+.tournament-card-status {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.2vw, 8px);
+  padding: 3px 7px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+.tournament-card-status.status-upcoming { color: #aaa; border: 1px solid #555; }
+.tournament-card-status.status-starting { color: #ff9900; border: 1px solid #ff9900; animation: blink-slow 1s infinite; }
+.tournament-card-status.status-active   { color: #44ff88; border: 1px solid #44ff88; }
+.tournament-card-status.status-complete { color: #888; border: 1px solid #555; }
+.tournament-card-info {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.2vw, 8px);
+  color: rgba(255,255,255,0.6);
+}
+.tournament-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.tournament-card-actions .arcade-btn {
+  font-size: clamp(7px, 1.4vw, 9px);
+  padding: 6px 12px;
+}
+.tournament-registered-badge {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.2vw, 8px);
+  color: #44ff88;
+}
+
+/* Bracket overlay */
+.tournament-bracket-panel {
+  max-width: 680px;
+  width: 96vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bracket-status-msg {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(9px, 2vw, 13px);
+  text-align: center;
+  padding: 6px 0;
+}
+.bracket-countdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(7px, 1.5vw, 10px);
+  color: rgba(255,255,255,0.7);
+}
+.bracket-countdown-num {
+  color: #ff9900;
+  font-size: clamp(10px, 2vw, 14px);
+}
+.bracket-players-row {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.2vw, 9px);
+  text-align: center;
+  color: rgba(255,255,255,0.6);
+}
+
+/* Bracket view */
+.tournament-bracket-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 4px 0;
+}
+.bracket-round {
+  border: 1px solid rgba(255,153,0,0.25);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.bracket-round-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(7px, 1.4vw, 9px);
+  background: rgba(255,153,0,0.12);
+  padding: 6px 10px;
+  color: #ff9900;
+  letter-spacing: 1px;
+}
+.bracket-match {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.2vw, 8px);
+}
+.bracket-match:last-child { border-bottom: none; }
+.bracket-match.my-match {
+  background: rgba(255,153,0,0.08);
+  border-left: 3px solid #ff9900;
+}
+.bracket-match-teams {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.bracket-team {
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: rgba(255,255,255,0.85);
+}
+.bracket-team.my-team { color: #ffcc44; font-weight: bold; }
+.bracket-team.winner  { color: #44ff88; }
+.bracket-team.loser   { color: #888; text-decoration: line-through; }
+.bracket-vs {
+  color: rgba(255,255,255,0.4);
+  font-size: clamp(5px, 1vw, 7px);
+}
+.bracket-match-result {
+  font-size: clamp(6px, 1.1vw, 8px);
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  min-width: 60px;
+  text-align: center;
+}
+.bracket-match-result.result-waiting { color: #ff9900; }
+.bracket-match-result.result-playing { color: #4af; animation: blink-slow 1s infinite; }
+.bracket-match-result.result-done    { color: #44ff88; }
+
+.bracket-action-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding-top: 4px;
+}
+
+/* Tournament notification popup */
+.tournament-notification {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10001;
+  background: rgba(10,8,20,0.96);
+  border: 2px solid #ff9900;
+  border-radius: 8px;
+  box-shadow: 0 0 30px rgba(255,153,0,0.5), 0 4px 20px rgba(0,0,0,0.8);
+  padding: 14px 18px;
+  min-width: 300px;
+  max-width: 90vw;
+  animation: slide-down 0.3s ease;
+}
+.tournament-notification.hidden { display: none; }
+
+@keyframes slide-down {
+  from { transform: translateX(-50%) translateY(-40px); opacity: 0; }
+  to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
+}
+
+.tournament-notif-inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.tournament-notif-icon {
+  font-size: 28px;
+  animation: pulse 1s infinite;
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.15); }
+}
+.tournament-notif-body {
+  flex: 1;
+}
+.tournament-notif-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(8px, 1.8vw, 11px);
+  color: #ff9900;
+  margin-bottom: 4px;
+}
+.tournament-notif-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(6px, 1.3vw, 8px);
+  color: rgba(255,255,255,0.7);
+}
+.tournament-notif-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tournament-notif-join {
+  font-size: clamp(7px, 1.4vw, 9px) !important;
+  padding: 6px 12px !important;
+}
+.tournament-notif-dismiss {
+  font-size: clamp(7px, 1.4vw, 9px) !important;
+  padding: 4px 8px !important;
+}
+
+/* Dashboard mode layout: two rows of two primary actions */
+.dashboard-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+  width: 100%;
+}
+
+.dashboard-mode-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.dashboard-mode-card .dashboard-btn-desc {
+  margin-bottom: 0;
+  text-align: center;
+}
+
+.dashboard-icon-btn {
+  flex: 0 0 auto;
+  min-width: 48px !important;
+  font-size: 16px !important;
+}
+
+.profile-audio-section {
+  gap: 10px;
+}
+
+.profile-audio-section .dashboard-audio-row {
+  width: 100%;
+}
+
+.profile-character-section {
+  padding-top: 8px;
+}
+
+.profile-character-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.profile-char-arrow {
+  padding: 10px 12px;
+  font-size: 16px;
+}
+
+.profile-char-display {
+  position: relative;
+  min-height: 110px;
+  max-width: 180px;
+  padding: 12px;
+}
+
+.profile-char-display .char-emoji {
+  font-size: 56px;
+}
+
+.profile-char-display .char-lock-info {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.profile-char-display .char-lock-info.hidden {
+  display: none;
+}
+
+.profile-char-save-status {
+  min-height: 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: #00ffcc;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+@media (max-width: 560px) {
+  .dashboard-mode-grid {
+    grid-template-columns: 1fr;
+  }
+}

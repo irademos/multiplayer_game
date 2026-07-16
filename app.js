@@ -6,13 +6,22 @@ import { getTerrainHeight } from './water.js';
 import { Multiplayer, subscribeOnlineCount } from './peerConnection.js';
 import { PlayerControls } from './controls.js';
 import { getCookie, setCookie } from './utils.js';
-import { initLogin, getSession, clearSession, getUser, updateUserDisplayName, getUserUpgrades, purchaseUpgrade, showCharacterSelect, updateUserCharacter, CHARACTERS, changePin, deleteAccount } from './login.js';
+import { initLogin, getSession, clearSession, getUser, updateUserDisplayName, getUserUpgrades, purchaseUpgrade, unlockCharacterFree, updateUserCharacter, CHARACTERS, ADVENTURE_ORDER, changePin, deleteAccount } from './login.js';
 import { spawnProjectile, updateProjectiles } from './projectiles.js';
 import { updateMeleeAttacks } from './melee.js';
 import { LevelLoader } from './levelLoader.js';
 import { BreakManager } from './breakManager.js';
 import { initSpeechCommands } from './speechCommands.js';
-import { recordGoal, recordGameResult, getPlayerStats, getLeaderboard } from './leaderboard.js';
+import { GOAL_COIN_REWARD, recordGoal, recordGameResult, getPlayerStats, getLeaderboard } from './leaderboard.js';
+import {
+  getUpcomingTournaments, ensureTournamentsExist, subscribeTournamentList, subscribeTournament,
+  registerForTournament, unregisterFromTournament, tryStartTournament,
+  confirmJoin, markReady, kickAndFillBots, reportMatchResult,
+  findPlayerMatch, getRealPlayersForMatch, getMatchRoomId,
+  startTournamentNotifications, JOIN_TIMEOUT_MS, READY_TIMEOUT_MS,
+} from './tournament.js';
+import { ref, get, onValue } from 'firebase/database';
+import { db } from './firebase-init.js';
 import { AudioManager } from './audioManager.js';
 import { AIPlayer } from './aiPlayer.js';
 import { SoccerBall } from './soccerBall.js';
@@ -22,6 +31,41 @@ import { applyGlobalGravity } from "./gravity.js";
 import { getSpawnPosition } from './spawnUtils.js';
 
 const DEFAULT_CHARACTER_MODEL = "/models/old_man.fbx";
+const ADVENTURE_PROGRESS_KEY = 'adventureProgressRound';
+const ADVENTURE_IN_PROGRESS_KEY = 'adventureRoundInProgress';
+const ADVENTURE_ROUND_CONFIGS = [
+  { enemyBots: 1, playerTeamSize: 1 },
+  { enemyBots: 2, playerTeamSize: 2 },
+  { enemyBots: 2, playerTeamSize: 1 },
+  { enemyBots: 3, playerTeamSize: 2 },
+  { enemyBots: 4, playerTeamSize: 2 },
+  { enemyBots: 3, playerTeamSize: 1 },
+  { enemyBots: 4, playerTeamSize: 1 },
+];
+
+function clampAdventureRound(round) {
+  const parsed = Number.parseInt(round, 10);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.min(Math.max(parsed, 0), ADVENTURE_ROUND_CONFIGS.length - 1);
+}
+
+function getAdventureRoundConfig(roundIdx) {
+  return ADVENTURE_ROUND_CONFIGS[clampAdventureRound(roundIdx)] || ADVENTURE_ROUND_CONFIGS[0];
+}
+
+function getSavedAdventureRound() {
+  const savedRound = clampAdventureRound(localStorage.getItem(ADVENTURE_PROGRESS_KEY) || '0');
+  if (localStorage.getItem(ADVENTURE_IN_PROGRESS_KEY) !== '1') return savedRound;
+  const penaltyRound = clampAdventureRound(savedRound - 1);
+  localStorage.setItem(ADVENTURE_PROGRESS_KEY, String(penaltyRound));
+  localStorage.removeItem(ADVENTURE_IN_PROGRESS_KEY);
+  return penaltyRound;
+}
+
+function saveAdventureRound(roundIdx) {
+  localStorage.setItem(ADVENTURE_PROGRESS_KEY, String(clampAdventureRound(roundIdx)));
+}
+
 
 const clock = new THREE.Clock();
 const mixerClock = new THREE.Clock();
@@ -36,6 +80,8 @@ const FIXED_DT = 1 / 60;
 async function main() {
   document.body.addEventListener('touchstart', () => {}, { once: true });
 
+  const audioManager = new AudioManager();
+
   // ── Arcade login gate — resolves when player authenticates ──────────────────
   let { username: playerName, character: characterModel } = await new Promise(resolve => {
     initLogin(({ username, character }) => {
@@ -45,12 +91,60 @@ async function main() {
     });
   });
 
+  // ── Tournament notifications (active throughout the session) ─────────────────
+  ensureTournamentsExist().catch(() => {});
+  let _activeTournamentNotifId = null;
+  const _stopTournamentNotifs = startTournamentNotifications(playerName, (tid, label) => {
+    showTournamentNotification(tid, label);
+  });
+
+  function showTournamentNotification(tid, label) {
+    _activeTournamentNotifId = tid;
+    const popup = document.getElementById('tournament-notification');
+    const nameEl = document.getElementById('tournament-notif-name');
+    if (popup && nameEl) {
+      nameEl.textContent = label;
+      popup.classList.remove('hidden');
+    }
+  }
+
+  document.getElementById('tournament-notif-dismiss')?.addEventListener('click', () => {
+    document.getElementById('tournament-notification').classList.add('hidden');
+  });
+
+  document.getElementById('tournament-notif-join')?.addEventListener('click', () => {
+    document.getElementById('tournament-notification').classList.add('hidden');
+    if (_activeTournamentNotifId) {
+      openTournamentBracket(_activeTournamentNotifId, playerName, null);
+    }
+  });
+
   // ── Dashboard — choose Play Online vs Play Bots ─────────────────────────────
-  const { botsOnly, botsPerTeam, ballSizeMultiplier, gravityMultiplier } = await new Promise(resolve => {
+  const { botsOnly, botsPerTeam, ballSizeMultiplier, gravityMultiplier, adventureMode, adventureCharModel, adventureRoundConfig } = await new Promise(resolve => {
+    // ── Check if returning from a tournament game ─────────────────────────────
+    const returningTournamentId = sessionStorage.getItem('tournamentId');
+    const returningMatchId = sessionStorage.getItem('tournamentMatchId');
+    if (returningTournamentId && returningMatchId) {
+      resolve({ botsOnly: false, botsPerTeam: 3, ballSizeMultiplier: 1.0, gravityMultiplier: 1.0 });
+      return;
+    }
+
     const overlay = document.getElementById('dashboard-overlay');
     const settingsOverlay = document.getElementById('bots-settings-overlay');
     const onlineNumEl = document.getElementById('dashboard-online-num');
     overlay.classList.remove('hidden');
+
+    // Dashboard audio sliders
+    const dashMusicSlider = document.getElementById('dash-music-volume');
+    const dashSfxSlider = document.getElementById('dash-sfx-volume');
+    if (dashMusicSlider) {
+      dashMusicSlider.value = audioManager.musicVolume;
+      dashMusicSlider.addEventListener('input', () => audioManager.setMusicVolume(parseFloat(dashMusicSlider.value)));
+    }
+    if (dashSfxSlider) {
+      dashSfxSlider.value = audioManager.sfxVolume;
+      dashSfxSlider.addEventListener('input', () => audioManager.setSfxVolume(parseFloat(dashSfxSlider.value)));
+    }
 
     const unsubCount = subscribeOnlineCount(count => {
       if (onlineNumEl) onlineNumEl.textContent = count;
@@ -180,12 +274,23 @@ async function main() {
     // ── Profile button ──────────────────────────────────────────────────────────
     let currentPlayerName = playerName;
 
-    function openProfileOverlay() {
+    async function openProfileOverlay() {
       const profileOverlay = document.getElementById('profile-overlay');
       document.getElementById('profile-name-input').value = currentPlayerName;
       document.getElementById('profile-name-error').classList.add('hidden');
       document.getElementById('profile-name-ok').classList.add('hidden');
+      profileCharIndex = Math.max(0, CHARACTERS.findIndex(c => c.model === characterModel));
+      renderProfileCharacterPicker(false);
       profileOverlay.classList.remove('hidden');
+      try {
+        const [upgrades, stats] = await Promise.all([
+          getUserUpgrades(getSession()),
+          getPlayerStats(currentPlayerName),
+        ]);
+        profileUnlockedKeys = upgrades || {};
+        profileCoins = stats?.coins || 0;
+        renderProfileCharacterPicker(false);
+      } catch { /* keep current unlock display */ }
     }
 
     document.getElementById('btn-profile').addEventListener('click', openProfileOverlay);
@@ -242,21 +347,86 @@ async function main() {
       }
     });
 
-    // Change character from profile
-    document.getElementById('btn-profile-char').addEventListener('click', () => {
-      const profileOverlay = document.getElementById('profile-overlay');
-      const sessionUser = getSession();
-      profileOverlay.classList.add('hidden');
-      // Reuse the character select screen; pass a dummy overlay that won't be shown
-      const dummyOverlay = document.createElement('div');
-      showCharacterSelect(dummyOverlay, sessionUser, ({ character }) => {
-        setCookie('characterModel', character, 365);
-        if (character !== characterModel) {
-          characterModel = character;
+    let profileCharIndex = Math.max(0, CHARACTERS.findIndex(c => c.model === characterModel));
+    let profileUnlockedKeys = {};
+    let profileCoins = 0;
+
+    function profileCharacterUnlocked(character) {
+      return character.free || !!profileUnlockedKeys[`char_${character.key}`];
+    }
+
+    async function renderProfileCharacterPicker(saveChoice = false) {
+      const chosen = CHARACTERS[profileCharIndex];
+      const statusEl = document.getElementById('profile-char-save-status');
+      const buyBtn = document.getElementById('profile-char-buy');
+      document.getElementById('profile-char-emoji').textContent = chosen.emoji;
+      const locked = !profileCharacterUnlocked(chosen);
+      document.getElementById('profile-char-lock-info').classList.toggle('hidden', !locked);
+      if (buyBtn) {
+        buyBtn.classList.toggle('hidden', !locked);
+        buyBtn.textContent = `🪙 ${chosen.cost || 0} — UNLOCK`;
+        buyBtn.disabled = false;
+      }
+      if (statusEl) statusEl.textContent = locked ? 'LOCKED' : '';
+      if (locked || !saveChoice) return;
+
+      if (statusEl) statusEl.textContent = 'SAVING...';
+      try {
+        await updateUserCharacter(getSession(), chosen.model);
+        setCookie('characterModel', chosen.model, 365);
+        if (chosen.model !== characterModel) {
+          characterModel = chosen.model;
           swapPlayerCharacter(characterModel);
         }
-        openProfileOverlay();
-      });
+        if (statusEl) statusEl.textContent = 'SAVED!';
+        setTimeout(() => {
+          if (statusEl && CHARACTERS[profileCharIndex].model === chosen.model) statusEl.textContent = '';
+        }, 1200);
+      } catch {
+        if (statusEl) statusEl.textContent = 'SAVE FAILED';
+      }
+    }
+
+    document.getElementById('profile-char-left').addEventListener('click', () => {
+      profileCharIndex = (profileCharIndex - 1 + CHARACTERS.length) % CHARACTERS.length;
+      renderProfileCharacterPicker(true);
+    });
+
+    document.getElementById('profile-char-right').addEventListener('click', () => {
+      profileCharIndex = (profileCharIndex + 1) % CHARACTERS.length;
+      renderProfileCharacterPicker(true);
+    });
+
+    document.getElementById('profile-char-buy').addEventListener('click', async () => {
+      const chosen = CHARACTERS[profileCharIndex];
+      const btn = document.getElementById('profile-char-buy');
+      const statusEl = document.getElementById('profile-char-save-status');
+      const cost = chosen.cost || 0;
+      if (!btn || profileCharacterUnlocked(chosen)) return;
+      if (profileCoins < cost) {
+        btn.textContent = 'NOT ENOUGH 🪙';
+        btn.disabled = true;
+        setTimeout(() => {
+          btn.textContent = `🪙 ${cost} — UNLOCK`;
+          btn.disabled = false;
+        }, 2000);
+        return;
+      }
+      btn.textContent = 'BUYING...';
+      btn.disabled = true;
+      try {
+        await purchaseUpgrade(currentPlayerName, `char_${chosen.key}`, cost);
+        profileUnlockedKeys[`char_${chosen.key}`] = true;
+        profileCoins -= cost;
+        if (statusEl) statusEl.textContent = 'UNLOCKED!';
+        renderProfileCharacterPicker(true);
+      } catch (err) {
+        btn.textContent = err.message === 'NOT_ENOUGH_COINS' ? 'NOT ENOUGH 🪙' : 'ERROR!';
+        setTimeout(() => {
+          btn.textContent = `🪙 ${cost} — UNLOCK`;
+          btn.disabled = false;
+        }, 2000);
+      }
     });
 
     // ── Shop ────────────────────────────────────────────────────────────────────
@@ -343,14 +513,10 @@ async function main() {
       });
     }
 
-    document.getElementById('btn-open-shop').addEventListener('click', () => {
-      document.getElementById('profile-overlay').classList.add('hidden');
-      openShopOverlay();
-    });
+    document.getElementById('btn-open-shop').addEventListener('click', openShopOverlay);
 
     document.getElementById('btn-shop-close').addEventListener('click', () => {
       document.getElementById('shop-overlay').classList.add('hidden');
-      openProfileOverlay();
     });
 
     // ── Advanced Settings ────────────────────────────────────────────────────────
@@ -458,7 +624,552 @@ async function main() {
         if (upgrades?.rainbowTrail) window.hasRainbowTrail = true;
       } catch { /* ignore */ }
     })();
+
+    // ── Adventure Mode ──────────────────────────────────────────────────────────
+    const adventureRoundOverlay = document.getElementById('adventure-round-overlay');
+    const adventureWinOverlay = document.getElementById('adventure-win-overlay');
+    const adventureLoseOverlay = document.getElementById('adventure-lose-overlay');
+
+    function getAdventureState() {
+      try { return JSON.parse(sessionStorage.getItem('adventureState') || 'null'); } catch { return null; }
+    }
+    function setAdventureState(state) {
+      if (state) sessionStorage.setItem('adventureState', JSON.stringify(state));
+      else sessionStorage.removeItem('adventureState');
+    }
+
+    function showAdventureRound(roundIdx) {
+      const safeRoundIdx = clampAdventureRound(roundIdx);
+      const char = ADVENTURE_ORDER[safeRoundIdx];
+      if (!char) return;
+      overlay.classList.add('hidden');
+      document.getElementById('adv-round-label').textContent = `ROUND ${safeRoundIdx + 1} / ${ADVENTURE_ORDER.length}`;
+      document.getElementById('adv-enemy-emoji').textContent = char.emoji;
+      document.getElementById('adv-enemy-name').textContent = char.label;
+      const config = getAdventureRoundConfig(safeRoundIdx);
+      setAdventureState({ active: true, round: safeRoundIdx, charKey: char.key, charModel: char.model, charEmoji: char.emoji, charLabel: char.label, config });
+      document.querySelector('#adventure-round-overlay .adventure-vs-desc').textContent = `BOTS (${config.enemyBots}) VS YOU (${config.playerTeamSize})`;
+      adventureRoundOverlay.classList.remove('hidden');
+    }
+
+    function startAdventureRound(roundIdx) {
+      const safeRoundIdx = clampAdventureRound(roundIdx);
+      const char = ADVENTURE_ORDER[safeRoundIdx];
+      const config = getAdventureRoundConfig(safeRoundIdx);
+      saveAdventureRound(safeRoundIdx);
+      localStorage.setItem(ADVENTURE_IN_PROGRESS_KEY, '1');
+      setAdventureState({ active: true, round: safeRoundIdx, charKey: char.key, charModel: char.model, charEmoji: char.emoji, charLabel: char.label, config });
+      sessionStorage.setItem('skipToGame', '1');
+      unsubCount();
+      adventureRoundOverlay.classList.add('hidden');
+      resolve({ botsOnly: true, botsPerTeam: 3, ballSizeMultiplier: 1.0, gravityMultiplier: 1.0, adventureMode: true, adventureCharModel: char.model, adventureRoundConfig: config });
+    }
+
+    document.getElementById('btn-adventure-mode').addEventListener('click', () => {
+      showAdventureRound(getSavedAdventureRound());
+    });
+
+    // ── Tournament Mode button ────────────────────────────────────────────────
+    document.getElementById('btn-tournament-mode')?.addEventListener('click', () => {
+      overlay.classList.add('hidden');
+      openTournamentList(playerName, () => {
+        overlay.classList.remove('hidden');
+      }, (tid, matchId, isTeam1, roomId) => {
+        // Start a tournament game
+        sessionStorage.setItem('tournamentId', tid);
+        sessionStorage.setItem('tournamentMatchId', matchId);
+        sessionStorage.setItem('tournamentRoomId', roomId);
+        sessionStorage.setItem('tournamentIsTeam1', isTeam1 ? '1' : '0');
+        sessionStorage.setItem('skipToGame', '1');
+        unsubCount();
+        resolve({ botsOnly: false, botsPerTeam: 3, ballSizeMultiplier: 1.0, gravityMultiplier: 1.0 });
+      });
+    });
+
+    document.getElementById('adv-start-round').addEventListener('click', () => {
+      const state = getAdventureState();
+      const roundIdx = state?.round ?? 0;
+      startAdventureRound(roundIdx);
+    });
+
+    document.getElementById('adv-quit-pre').addEventListener('click', () => {
+      setAdventureState(null);
+      adventureRoundOverlay.classList.add('hidden');
+      overlay.classList.remove('hidden');
+    });
+
+    // Adventure win overlay buttons
+    document.getElementById('adv-next-round').addEventListener('click', () => {
+      const state = getAdventureState();
+      const nextRound = (state?.round ?? 0) + 1;
+      if (nextRound >= ADVENTURE_ORDER.length) {
+        // All rounds complete
+        saveAdventureRound(ADVENTURE_ORDER.length - 1);
+        localStorage.removeItem(ADVENTURE_IN_PROGRESS_KEY);
+        setAdventureState(null);
+        adventureWinOverlay.classList.add('hidden');
+        overlay.classList.remove('hidden');
+      } else {
+        const nextChar = ADVENTURE_ORDER[nextRound];
+        saveAdventureRound(nextRound);
+        setAdventureState({ active: true, round: nextRound, charKey: nextChar.key, charModel: nextChar.model, charEmoji: nextChar.emoji, charLabel: nextChar.label, config: getAdventureRoundConfig(nextRound) });
+        adventureWinOverlay.classList.add('hidden');
+        showAdventureRound(nextRound);
+      }
+    });
+
+    document.getElementById('adv-win-quit').addEventListener('click', () => {
+      setAdventureState(null);
+      adventureWinOverlay.classList.add('hidden');
+      overlay.classList.remove('hidden');
+    });
+
+    // Adventure lose overlay buttons
+    document.getElementById('adv-try-again').addEventListener('click', () => {
+      const state = getAdventureState();
+      const retryRound = clampAdventureRound(state?.round ?? getSavedAdventureRound());
+      adventureLoseOverlay.classList.add('hidden');
+      showAdventureRound(retryRound);
+    });
+
+    document.getElementById('adv-lose-quit').addEventListener('click', () => {
+      setAdventureState(null);
+      adventureLoseOverlay.classList.add('hidden');
+      overlay.classList.remove('hidden');
+    });
+
+    // Check if returning from an adventure round game
+    const returningAdventureState = getAdventureState();
+    if (returningAdventureState?.active && sessionStorage.getItem('adventureResult')) {
+      const result = sessionStorage.getItem('adventureResult');
+      sessionStorage.removeItem('adventureResult');
+      const roundIdx = clampAdventureRound(returningAdventureState.round);
+      const char = ADVENTURE_ORDER[roundIdx];
+
+      overlay.classList.add('hidden');
+
+      localStorage.removeItem(ADVENTURE_IN_PROGRESS_KEY);
+      if (result === 'win') {
+        saveAdventureRound(Math.min(roundIdx + 1, ADVENTURE_ORDER.length - 1));
+        document.getElementById('adv-win-text').textContent = `YOU DEFEATED THE ${char?.label || ''}!`;
+        document.getElementById('adv-unlocked-emoji').textContent = char?.emoji || '';
+        const isLastRound = roundIdx >= ADVENTURE_ORDER.length - 1;
+        document.getElementById('adv-next-round').classList.toggle('hidden', isLastRound);
+        if (isLastRound) {
+          document.getElementById('adv-win-text').textContent = 'YOU BEAT ADVENTURE MODE!';
+        }
+        adventureWinOverlay.classList.remove('hidden');
+      } else if (result === 'draw') {
+        saveAdventureRound(roundIdx);
+        showAdventureRound(roundIdx);
+      } else {
+        const previousRound = clampAdventureRound(roundIdx - 1);
+        saveAdventureRound(previousRound);
+        setAdventureState({ active: true, round: previousRound, config: getAdventureRoundConfig(previousRound) });
+        document.querySelector('#adventure-lose-overlay .adventure-result-text').innerHTML = 'YOU LOST — TRY AGAIN FROM<br>THE PREVIOUS ROUND.';
+        adventureLoseOverlay.classList.remove('hidden');
+      }
+    }
   });
+
+  // ── Tournament UI functions ────────────────────────────────────────────────
+  function fmtMs(ms) {
+    const s = Math.max(0, Math.ceil(ms / 1000));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+
+  function fmtTime(ts) {
+    return new Date(ts).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+  }
+
+  function renderBracket(bracket, myName, targetEl) {
+    if (!bracket?.matches || !bracket?.teams) { targetEl.innerHTML = '<em>No bracket data</em>'; return; }
+
+    const roundNums = [...new Set(Object.values(bracket.matches).map(m => m.round))].sort((a, b) => a - b);
+    const roundNames = ['Round of 16', 'Quarterfinals', 'Semifinals', 'Final'];
+    targetEl.innerHTML = '';
+
+    for (const r of roundNums) {
+      const roundMatches = Object.entries(bracket.matches)
+        .filter(([, m]) => m.round === r)
+        .sort(([, a], [, b]) => a.matchIndex - b.matchIndex);
+
+      const roundEl = document.createElement('div');
+      roundEl.className = 'bracket-round';
+      roundEl.innerHTML = `<div class="bracket-round-title">${roundNames[r] || `Round ${r + 1}`}</div>`;
+
+      for (const [matchId, match] of roundMatches) {
+        const t1 = bracket.teams[match.team1];
+        const t2 = bracket.teams[match.team2];
+        if (!t1 || !t2) continue;
+
+        const myTeamId = findMyTeamInMatch(bracket, matchId, myName);
+        const isMyMatch = !!myTeamId;
+        const won1 = match.winner === 'team1';
+        const won2 = match.winner === 'team2';
+
+        const t1cls = `bracket-team${myTeamId === match.team1 ? ' my-team' : ''}${match.status === 'complete' ? (won1 ? ' winner' : ' loser') : ''}`;
+        const t2cls = `bracket-team${myTeamId === match.team2 ? ' my-team' : ''}${match.status === 'complete' ? (won2 ? ' winner' : ' loser') : ''}`;
+
+        let resultCls = 'result-waiting', resultTxt = 'UPCOMING';
+        if (match.status === 'waiting_join') { resultCls = 'result-waiting'; resultTxt = 'JOINING...'; }
+        if (match.status === 'playing')      { resultCls = 'result-playing'; resultTxt = 'LIVE'; }
+        if (match.status === 'complete')     { resultCls = 'result-done';    resultTxt = 'DONE'; }
+
+        const matchEl = document.createElement('div');
+        matchEl.className = `bracket-match${isMyMatch ? ' my-match' : ''}`;
+        matchEl.innerHTML = `
+          <div class="bracket-match-teams">
+            <span class="${t1cls}">${t1.name}</span>
+            <span class="bracket-vs">vs</span>
+            <span class="${t2cls}">${t2.name}</span>
+          </div>
+          <span class="bracket-match-result ${resultCls}">${resultTxt}</span>`;
+        roundEl.appendChild(matchEl);
+      }
+
+      targetEl.appendChild(roundEl);
+    }
+  }
+
+  function findMyTeamInMatch(bracket, matchId, myName) {
+    const match = bracket?.matches?.[matchId];
+    if (!match) return null;
+    const t1 = bracket.teams?.[match.team1]?.players || [];
+    const t2 = bracket.teams?.[match.team2]?.players || [];
+    if (t1.some(p => !p.isBot && p.username === myName)) return match.team1;
+    if (t2.some(p => !p.isBot && p.username === myName)) return match.team2;
+    return null;
+  }
+
+  function openTournamentBracket(tid, myName, onStartGame) {
+    const overlay = document.getElementById('tournament-bracket-overlay');
+    const statusMsg = document.getElementById('bracket-status-msg');
+    const countdownRow = document.getElementById('bracket-countdown-row');
+    const countdownEl = document.getElementById('bracket-countdown');
+    const countdownLabel = document.getElementById('bracket-countdown-label');
+    const playersRow = document.getElementById('bracket-players-row');
+    const playersLabel = document.getElementById('bracket-players-label');
+    const bracketView = document.getElementById('tournament-bracket-view');
+    const readyBtn = document.getElementById('bracket-ready-btn');
+    const dashBtn = document.getElementById('bracket-dashboard-btn');
+    const closeBtn = document.getElementById('bracket-close-btn');
+    if (!overlay) return;
+
+    overlay.classList.remove('hidden');
+    readyBtn.classList.add('hidden');
+    dashBtn.classList.add('hidden');
+    closeBtn.classList.add('hidden');
+    countdownRow.classList.add('hidden');
+    playersRow.classList.add('hidden');
+    statusMsg.textContent = 'Loading bracket...';
+    statusMsg.style.color = '#aaa';
+
+    let joinCountdownTimer = null;
+    let unsubBracket = null;
+    let joinConfirmed = false;
+    let gameStarted = false;
+
+    function cleanup() {
+      if (joinCountdownTimer) clearInterval(joinCountdownTimer);
+      if (unsubBracket) unsubBracket();
+    }
+
+    unsubBracket = subscribeTournament(tid, async tData => {
+      if (!tData?.bracket) {
+        statusMsg.textContent = 'Tournament starting soon...';
+        return;
+      }
+
+      renderBracket(tData.bracket, myName, bracketView);
+      const myMatchInfo = findPlayerMatch(tData.bracket, myName);
+
+      if (!myMatchInfo) {
+        statusMsg.textContent = 'You are not in this tournament bracket.';
+        statusMsg.style.color = '#aaa';
+        closeBtn.classList.remove('hidden');
+        return;
+      }
+
+      const { matchId, match, myTeamId, isTeam1 } = myMatchInfo;
+
+      if (match.status === 'complete') {
+        const playerWon = match.winnerId === myTeamId;
+        if (playerWon) {
+          statusMsg.textContent = '🏆 YOUR TEAM WON! Waiting for next round...';
+          statusMsg.style.color = '#44ff88';
+        } else {
+          statusMsg.textContent = '💀 YOUR TEAM LOST. Better luck next time!';
+          statusMsg.style.color = '#ff4444';
+          closeBtn.classList.remove('hidden');
+        }
+        return;
+      }
+
+      if (match.status === 'playing' && !gameStarted) {
+        gameStarted = true;
+        const roomId = getMatchRoomId(tid, matchId);
+        statusMsg.textContent = '▶ STARTING MATCH...';
+        statusMsg.style.color = '#44ff88';
+        cleanup();
+        setTimeout(() => {
+          if (onStartGame) {
+            onStartGame(tid, matchId, isTeam1, roomId);
+          } else {
+            sessionStorage.setItem('tournamentId', tid);
+            sessionStorage.setItem('tournamentMatchId', matchId);
+            sessionStorage.setItem('tournamentRoomId', roomId);
+            sessionStorage.setItem('tournamentIsTeam1', isTeam1 ? '1' : '0');
+            sessionStorage.setItem('skipToGame', '1');
+            location.reload();
+          }
+        }, 1000);
+        return;
+      }
+
+      if (match.status === 'waiting_join') {
+        const realPlayers = getRealPlayersForMatch(tData.bracket, matchId);
+        const joined = match.joinedPlayers || {};
+        const joinedCount = realPlayers.filter(p => joined[p]).length;
+
+        statusMsg.textContent = `YOUR MATCH: ${myMatchInfo.myTeam.name} vs ${myMatchInfo.opponentTeam.name}`;
+        statusMsg.style.color = '#ffcc44';
+
+        playersRow.classList.remove('hidden');
+        playersLabel.textContent = `${joinedCount}/${realPlayers.length} players joined`;
+
+        if (!joinConfirmed) {
+          joinConfirmed = true;
+          await confirmJoin(tid, matchId, myName).catch(() => {});
+
+          // Start countdown
+          const deadline = Date.now() + JOIN_TIMEOUT_MS;
+          countdownRow.classList.remove('hidden');
+          countdownLabel.textContent = 'Match starts in:';
+
+          if (joinCountdownTimer) clearInterval(joinCountdownTimer);
+          joinCountdownTimer = setInterval(async () => {
+            const left = deadline - Date.now();
+            if (countdownEl) countdownEl.textContent = fmtMs(left);
+            if (left <= 0) {
+              clearInterval(joinCountdownTimer);
+              // Kick non-joined players and start
+              await kickAndFillBots(tid, matchId, tData.bracket).catch(() => {});
+            }
+          }, 500);
+        }
+      }
+    });
+  }
+
+  function openTournamentList(myName, onBack, onStartGame) {
+    const overlay = document.getElementById('tournament-overlay');
+    const listEl = document.getElementById('tournament-list');
+    const closeBtn = document.getElementById('tournament-close');
+    if (!overlay) return;
+
+    overlay.classList.remove('hidden');
+    listEl.innerHTML = '<em>Loading...</em>';
+
+    let registeredTournaments = new Set();
+    const unsub = subscribeTournamentList(tournaments => {
+      listEl.innerHTML = '';
+      if (!tournaments.length) { listEl.innerHTML = '<em>No upcoming tournaments</em>'; return; }
+
+      for (const t of tournaments) {
+        const isRegistered = !!t.registrations?.[myName];
+        if (isRegistered) registeredTournaments.add(t.id);
+        const regCount = t.registrationCount || 0;
+        const now = Date.now();
+        const minutesUntil = Math.floor((t.scheduledTime - now) / 60000);
+        const timeStr = minutesUntil > 0
+          ? `Starts in ${minutesUntil < 60 ? `${minutesUntil}m` : `${Math.floor(minutesUntil / 60)}h ${minutesUntil % 60}m`}`
+          : (t.status === 'upcoming' ? 'Starting soon!' : '');
+
+        const card = document.createElement('div');
+        card.className = 'tournament-card';
+
+        let statusCls = `status-${t.status}`;
+        let statusLabel = t.status.toUpperCase();
+        if (t.status === 'starting') statusLabel = 'STARTING!';
+        if (t.status === 'complete' && t.champion) {
+          const champTeam = t.bracket?.teams?.[t.champion];
+          statusLabel = `WINNER: ${champTeam?.name || '?'}`;
+        }
+
+        card.innerHTML = `
+          <div class="tournament-card-header">
+            <span class="tournament-card-name">🏆 ${t.label}</span>
+            <span class="tournament-card-status ${statusCls}">${statusLabel}</span>
+          </div>
+          <div class="tournament-card-info">${fmtTime(t.scheduledTime)}</div>
+          <div class="tournament-card-info">${regCount} player${regCount !== 1 ? 's' : ''} registered</div>
+          ${timeStr ? `<div class="tournament-card-info">${timeStr}</div>` : ''}`;
+
+        const actionsEl = document.createElement('div');
+        actionsEl.className = 'tournament-card-actions';
+
+        if (t.status === 'upcoming' || t.status === 'starting') {
+          if (isRegistered) {
+            const badge = document.createElement('span');
+            badge.className = 'tournament-registered-badge';
+            badge.textContent = '✓ REGISTERED';
+            actionsEl.appendChild(badge);
+
+            const leaveBtn = document.createElement('button');
+            leaveBtn.className = 'arcade-btn arcade-btn-red';
+            leaveBtn.textContent = 'LEAVE';
+            leaveBtn.addEventListener('click', async () => {
+              leaveBtn.disabled = true;
+              await unregisterFromTournament(t.id, myName).catch(() => {});
+            });
+            actionsEl.appendChild(leaveBtn);
+          } else {
+            const joinBtn = document.createElement('button');
+            joinBtn.className = 'arcade-btn arcade-btn-green';
+            joinBtn.textContent = 'JOIN';
+            joinBtn.addEventListener('click', async () => {
+              joinBtn.disabled = true;
+              joinBtn.textContent = 'JOINING...';
+              await ensureTournamentsExist().catch(() => {});
+              await registerForTournament(t.id, myName).catch(() => {});
+            });
+            actionsEl.appendChild(joinBtn);
+          }
+        }
+
+        if ((t.status === 'starting' || t.status === 'active') && isRegistered) {
+          const viewBtn = document.createElement('button');
+          viewBtn.className = 'arcade-btn arcade-btn-orange';
+          viewBtn.textContent = 'VIEW BRACKET';
+          viewBtn.addEventListener('click', () => {
+            overlay.classList.add('hidden');
+            openTournamentBracket(t.id, myName, onStartGame);
+          });
+          actionsEl.appendChild(viewBtn);
+        }
+
+        card.appendChild(actionsEl);
+        listEl.appendChild(card);
+      }
+    });
+
+    const handleClose = () => {
+      unsub();
+      overlay.classList.add('hidden');
+      if (onBack) onBack();
+    };
+
+    closeBtn.replaceWith(closeBtn.cloneNode(true));
+    document.getElementById('tournament-close').addEventListener('click', handleClose);
+  }
+
+  // ── Tournament game-over handler (called from showWinScreen) ─────────────────
+  async function handleTournamentGameOver(winningTeam, localPlayerTeam) {
+    const tid = sessionStorage.getItem('tournamentId');
+    const matchId = sessionStorage.getItem('tournamentMatchId');
+    const isTeam1 = sessionStorage.getItem('tournamentIsTeam1') === '1';
+    if (!tid || !matchId) return;
+
+    // Determine tournament winner
+    let winnerTournamentTeam;
+    if (winningTeam === null) {
+      winnerTournamentTeam = 'team1'; // draw: team1 advances
+    } else {
+      const playerWon = winningTeam === localPlayerTeam;
+      winnerTournamentTeam = (playerWon === isTeam1) ? 'team1' : 'team2';
+    }
+
+    await reportMatchResult(tid, matchId, winnerTournamentTeam).catch(() => {});
+
+    const playerAdvanced = winnerTournamentTeam === (isTeam1 ? 'team1' : 'team2');
+
+    const overlay = document.getElementById('tournament-bracket-overlay');
+    const statusMsg = document.getElementById('bracket-status-msg');
+    const countdownRow = document.getElementById('bracket-countdown-row');
+    const countdownEl = document.getElementById('bracket-countdown');
+    const countdownLabel = document.getElementById('bracket-countdown-label');
+    const playersRow = document.getElementById('bracket-players-row');
+    const readyBtn = document.getElementById('bracket-ready-btn');
+    const dashBtn = document.getElementById('bracket-dashboard-btn');
+    const closeBtn = document.getElementById('bracket-close-btn');
+    const bracketView = document.getElementById('tournament-bracket-view');
+
+    if (!overlay) return;
+    overlay.classList.remove('hidden');
+    readyBtn.classList.add('hidden');
+    dashBtn.classList.add('hidden');
+    closeBtn.classList.add('hidden');
+    countdownRow.classList.add('hidden');
+    playersRow.classList.add('hidden');
+
+    // Load and render bracket
+    const tSnap = await get(ref(db, `tournaments/${tid}`)).catch(() => null);
+    const tData = tSnap?.val();
+    if (tData?.bracket) renderBracket(tData.bracket, playerName, bracketView);
+
+    if (playerAdvanced) {
+      statusMsg.textContent = '🏆 YOU ADVANCED TO THE NEXT ROUND!';
+      statusMsg.style.color = '#44ff88';
+      readyBtn.classList.remove('hidden');
+      countdownRow.classList.remove('hidden');
+      countdownLabel.textContent = 'Auto-return in:';
+
+      let secondsLeft = READY_TIMEOUT_MS / 1000;
+      const countdownInterval = setInterval(() => {
+        secondsLeft--;
+        if (countdownEl) countdownEl.textContent = fmtMs(secondsLeft * 1000);
+        if (secondsLeft <= 0) {
+          clearInterval(countdownInterval);
+          finishTournamentRound(tid);
+        }
+      }, 1000);
+
+      const handleReady = () => {
+        clearInterval(countdownInterval);
+        readyBtn.disabled = true;
+        readyBtn.textContent = '⏳ WAITING...';
+        countdownRow.classList.add('hidden');
+        finishTournamentRound(tid);
+      };
+
+      readyBtn.replaceWith(readyBtn.cloneNode(true));
+      document.getElementById('bracket-ready-btn').addEventListener('click', handleReady);
+
+    } else {
+      statusMsg.textContent = '💀 YOU HAVE BEEN ELIMINATED!';
+      statusMsg.style.color = '#ff4444';
+      dashBtn.classList.remove('hidden');
+
+      // Subscribe to watch the rest of the tournament
+      const unsub = subscribeTournament(tid, tData2 => {
+        if (tData2?.bracket) renderBracket(tData2.bracket, playerName, bracketView);
+      });
+
+      const handleDash = () => {
+        unsub();
+        sessionStorage.removeItem('tournamentId');
+        sessionStorage.removeItem('tournamentMatchId');
+        sessionStorage.removeItem('tournamentRoomId');
+        sessionStorage.removeItem('tournamentIsTeam1');
+        location.reload();
+      };
+
+      dashBtn.replaceWith(dashBtn.cloneNode(true));
+      document.getElementById('bracket-dashboard-btn').addEventListener('click', handleDash);
+    }
+  }
+
+  function finishTournamentRound(tid) {
+    // Clear tournament session and return to dashboard to find next match
+    sessionStorage.removeItem('tournamentId');
+    sessionStorage.removeItem('tournamentMatchId');
+    sessionStorage.removeItem('tournamentRoomId');
+    sessionStorage.removeItem('tournamentIsTeam1');
+    // Show notification-based flow: when next round is created, notification fires
+    // For now, navigate back to dashboard and let the notification bring them back
+    location.reload();
+  }
 
   let multiplayer = null;
   let playerControls = null;
@@ -694,6 +1405,7 @@ async function main() {
         if (pid === myId) {
           if (team !== localPlayerTeam) {
             localPlayerTeam = team;
+            window.localPlayerTeam = localPlayerTeam;
             localTeamConfirmed = true;
             const newColor = team === 'home' ? 0x3399ff : 0xff3322;
             swapPlayerCharacter(characterModel, newColor);
@@ -734,7 +1446,12 @@ async function main() {
 
       // Assign team if not already done (may already be set if presence arrived first)
       if (!playerTeams[requesterId]) {
-        playerTeams[requesterId] = assignTeamToNewPlayer();
+        // Honor preferred team for tournament games if the team has room
+        if (data.preferredTeam && ['home', 'away'].includes(data.preferredTeam)) {
+          playerTeams[requesterId] = data.preferredTeam;
+        } else {
+          playerTeams[requesterId] = assignTeamToNewPlayer();
+        }
       }
       const assignedTeam = playerTeams[requesterId];
 
@@ -819,6 +1536,7 @@ async function main() {
       if (!localTeamConfirmed) {
         const changed = team !== localPlayerTeam;
         localPlayerTeam = team;
+        window.localPlayerTeam = localPlayerTeam;
         localTeamConfirmed = true;
         receivedJoinResponse = true;
         if (changed) {
@@ -880,6 +1598,7 @@ async function main() {
     if (data.type === 'setPieceClear') {
       if (!multiplayer.isHost) {
         setPieceManager?.clear();
+        clearThrowIn();
       }
       return;
     }
@@ -934,7 +1653,8 @@ async function main() {
     }
   }
 
-  multiplayer = new Multiplayer(playerName, handleIncomingData, { botsOnly });
+  const tournamentRoomId = sessionStorage.getItem('tournamentRoomId') || null;
+  multiplayer = new Multiplayer(playerName, handleIncomingData, { botsOnly, forcedRoom: tournamentRoomId });
   multiplayer.onHostChange = ({ previousHostId, newHostId, isCurrentHost, roomPeerCount = 1 }) => {
     if (previousHostId && previousHostId === multiplayer.getId() && previousHostId !== newHostId) {
       const snapshot = serializeAuthoritativeStates();
@@ -985,11 +1705,10 @@ async function main() {
   multiplayer.onPeerConnected = (peerId) => {
     if (multiplayer.isHost) return;
     if (peerId === multiplayer.getHostId()) {
-      multiplayer.sendTo(peerId, { type: 'joinRequest', requesterId: multiplayer.getId() });
+      const tournamentTeam = sessionStorage.getItem('tournamentIsTeam1') === '1' ? 'home' : (sessionStorage.getItem('tournamentIsTeam1') === '0' ? 'away' : null);
+      multiplayer.sendTo(peerId, { type: 'joinRequest', requesterId: multiplayer.getId(), preferredTeam: tournamentTeam });
     }
   };
-
-  const audioManager = new AudioManager();
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87CEEB);
@@ -999,15 +1718,17 @@ async function main() {
   const TRAIL_MAX = 24;
   const TRAIL_INTERVAL = 3; // frames between trail points
   let trailFrameCount = 0;
+  let trailColorIndex = 0;
   const trailMeshes = [];
 
   function spawnTrailParticle(position) {
-    const color = TRAIL_COLORS[trailMeshes.length % TRAIL_COLORS.length];
+    const color = TRAIL_COLORS[trailColorIndex % TRAIL_COLORS.length];
+    trailColorIndex++;
     const geo = new THREE.SphereGeometry(0.18, 6, 6);
     const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.copy(position);
-    mesh.position.y += 0.3;
+    mesh.position.y -= 0.1;
     mesh.userData.age = 0;
     scene.add(mesh);
     trailMeshes.push(mesh);
@@ -1053,9 +1774,27 @@ async function main() {
   const aiPlayers = { home: [], away: [] };
   let setPieceManager;
 
+  // Throw-in hand-holding state (local player is the taker)
+  const throwInState = {
+    holding: false,     // ball is held at player's hand
+    handBone: null,     // THREE.Bone for right hand
+    button: null,       // DOM button element
+    thrown: false,      // animation triggered, waiting for release
+  };
+
+  // Bot throw-in state (an AI player is the taker)
+  const botThrowInState = {
+    active: false,      // bot throw-in sequence is running
+    ai: null,           // the AIPlayer doing the throw-in
+    handBone: null,     // THREE.Bone on the bot's model
+    holding: false,     // ball is pinned to the bot's hand this frame
+    thrown: false,      // throw has been executed
+  };
+
   // Team management: tracks which team each peer is on ('home' | 'away')
   const playerTeams = {};
   let localPlayerTeam = 'home';
+  window.localPlayerTeam = localPlayerTeam;
   let localTeamConfirmed = false;
   let receivedJoinResponse = false;
 
@@ -1078,14 +1817,16 @@ async function main() {
       'justify-content:center', 'pointer-events:none', 'z-index:500',
       'opacity:0', 'transition:opacity 0.3s',
     ].join(';');
-    el.innerHTML = `<div style="
-      font-family:Impact,sans-serif;
-      font-size:clamp(80px,18vw,200px);
-      color:#ffe600;
-      text-shadow:0 0 40px #ff8800,0 0 80px #ff4400,4px 4px 0 #000,-4px -4px 0 #000,4px -4px 0 #000,-4px 4px 0 #000;
-      letter-spacing:10px;
-      animation:goalPulse 0.5s ease-in-out infinite alternate;
-    ">GOAL!</div>`;
+    const content = document.createElement('div');
+    content.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;animation:goalPulse 0.5s ease-in-out infinite alternate;';
+    const title = document.createElement('div');
+    title.textContent = 'GOAL!';
+    title.style.cssText = 'font-family:Impact,sans-serif;font-size:clamp(80px,18vw,200px);color:#ffe600;text-shadow:0 0 40px #ff8800,0 0 80px #ff4400,4px 4px 0 #000,-4px -4px 0 #000,4px -4px 0 #000,-4px 4px 0 #000;letter-spacing:10px;';
+    const scorer = document.createElement('div');
+    scorer.dataset.goalScorer = 'true';
+    scorer.style.cssText = 'font-family:Impact,sans-serif;font-size:clamp(24px,5vw,56px);color:#fff;text-shadow:0 0 24px #000,3px 3px 0 #000,-3px -3px 0 #000;letter-spacing:2px;';
+    content.append(title, scorer);
+    el.appendChild(content);
     const style = document.createElement('style');
     style.textContent = `@keyframes goalPulse{from{transform:scale(1) rotate(-3deg)}to{transform:scale(1.08) rotate(3deg)}}`;
     document.head.appendChild(style);
@@ -1093,8 +1834,13 @@ async function main() {
     _goalOverlayEl = el;
   }
 
-  function _showGoalOverlay() {
+  function _showGoalOverlay(scorerName = null, coinReward = GOAL_COIN_REWARD) {
     _ensureGoalOverlay();
+    const scorerEl = _goalOverlayEl.querySelector('[data-goal-scorer]');
+    if (scorerEl) {
+      const name = scorerName || 'Someone';
+      scorerEl.textContent = `${name} scored! +${coinReward} coins`;
+    }
     _goalOverlayEl.style.opacity = '1';
   }
 
@@ -1237,7 +1983,7 @@ async function main() {
     });
   }
 
-  function triggerGoalCelebration(scoringTeam, goalPos, onComplete) {
+  function triggerGoalCelebration(scoringTeam, goalPos, scorerName = null, onComplete) {
     goalCelebrationActive = true;
     if (playerControls) playerControls.enabled = false;
     Object.values(aiPlayers).flat().forEach(ai => { ai.frozen = true; });
@@ -1248,7 +1994,7 @@ async function main() {
       soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     }
 
-    _showGoalOverlay();
+    _showGoalOverlay(scorerName);
     _spawnConfetti(scoringTeam);
     _spawnGoalExplosion(goalPos, scoringTeam);
 
@@ -1282,6 +2028,7 @@ async function main() {
   const SCORE_GOAL_WIDTH = 10;
   const SCORE_GOAL_HEIGHT = 3;
   const SCORE_FIELD_HALF = 50;
+  const BALL_OUT_OF_BOUNDS_BUFFER = 1.0;
 
   const scoreEl = document.createElement('div');
   scoreEl.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);font-size:28px;font-weight:bold;padding:8px 28px;border-radius:10px;z-index:200;font-family:sans-serif;pointer-events:none;letter-spacing:4px;';
@@ -1377,9 +2124,26 @@ async function main() {
       });
     }
 
-    // After 4 seconds reveal the Play Again button
-    setTimeout(() => {
-      playAgainBtn.classList.remove('hidden');
+    // After 4 seconds reveal the Play Again button (or adventure/tournament result)
+    setTimeout(async () => {
+      if (sessionStorage.getItem('tournamentId') && sessionStorage.getItem('tournamentMatchId')) {
+        // Tournament game over — show bracket and ready/eliminated screen
+        await handleTournamentGameOver(winningTeam, localPlayerTeam);
+      } else if (adventureMode) {
+        const advState = (() => { try { return JSON.parse(sessionStorage.getItem('adventureState') || 'null'); } catch { return null; } })();
+        const playerWon = winningTeam === localPlayerTeam;
+        const result = winningTeam === null ? 'draw' : playerWon ? 'win' : 'loss';
+
+        if (playerWon && advState?.charKey) {
+          try { await unlockCharacterFree(`char_${advState.charKey}`); } catch { /* best-effort */ }
+        }
+
+        sessionStorage.setItem('adventureResult', result);
+        sessionStorage.setItem('skipToGame', '1');
+        location.reload();
+      } else {
+        playAgainBtn.classList.remove('hidden');
+      }
     }, 4000);
   }
 
@@ -1409,8 +2173,9 @@ async function main() {
     const pos = soccerBall.getPosition();
     if (!pos) return;
 
-    const outZ = pos.z > SCORE_FIELD_HALF || pos.z < -SCORE_FIELD_HALF;
-    const outX = Math.abs(pos.x) > SCORE_FIELD_X_HALF;
+    const outZ = pos.z > SCORE_FIELD_HALF + BALL_OUT_OF_BOUNDS_BUFFER ||
+                 pos.z < -SCORE_FIELD_HALF - BALL_OUT_OF_BOUNDS_BUFFER;
+    const outX = Math.abs(pos.x) > SCORE_FIELD_X_HALF + BALL_OUT_OF_BOUNDS_BUFFER;
     if (!outX && !outZ) return;
 
     const inX = Math.abs(pos.x) <= SCORE_GOAL_WIDTH / 2;
@@ -1420,23 +2185,28 @@ async function main() {
     // Goal scored?
     if (inX && inY && pos.z > SCORE_FIELD_HALF && vel.z > 0) {
       // Red goal is on the +Z end, so scoring there awards the blue/home score.
+      // Credit the last home (blue) player to touch the ball regardless of who shot it last.
       score.home++;
       updateScoreUI();
       goalCooldown = now + 7000;
       const goalPos = { x: 0, y: 1.5, z: SCORE_FIELD_HALF };
-      const didTouch = soccerBall.lastTouchedTeam;
-      triggerGoalCelebration('home', goalPos, () => {
-        if (didTouch === 'home') recordGoal(playerName).catch(() => {});
+      const scorerName = soccerBall.lastTouchedByTeam.home || 'Blue team';
+      triggerGoalCelebration('home', goalPos, scorerName, () => {
+        if (localPlayerTeam === 'home' && scorerName === playerName) recordGoal(playerName).catch(() => {});
       });
       return;
     }
     if (inX && inY && pos.z < -SCORE_FIELD_HALF && vel.z < 0) {
       // Blue goal is on the -Z end, so scoring there awards the red/away score.
+      // Credit the last away (red) player to touch the ball regardless of who shot it last.
       score.away++;
       updateScoreUI();
       goalCooldown = now + 7000;
       const goalPos = { x: 0, y: 1.5, z: -SCORE_FIELD_HALF };
-      triggerGoalCelebration('away', goalPos, null);
+      const scorerName = soccerBall.lastTouchedByTeam.away || 'Red team';
+      triggerGoalCelebration('away', goalPos, scorerName, () => {
+        if (localPlayerTeam === 'away' && scorerName === playerName) recordGoal(playerName).catch(() => {});
+      });
       return;
     }
 
@@ -1472,6 +2242,211 @@ async function main() {
   }
 
   // Apply a set piece locally (runs on host via triggerSetPiece and on clients via network message).
+  function findRightHandBone(model) {
+    let bone = null;
+    model.traverse((obj) => {
+      if (bone) return;
+      const n = obj.name.toLowerCase();
+      if (obj.isBone && (n.includes('righthand') || n.includes('right_hand') || n.includes('r_hand') || n.includes('handright'))) {
+        bone = obj;
+      }
+    });
+    // Fallback: any bone with "hand" and "r" or "right"
+    if (!bone) {
+      model.traverse((obj) => {
+        if (bone) return;
+        const n = obj.name.toLowerCase();
+        if (obj.isBone && n.includes('hand') && (n.startsWith('r') || n.includes('_r'))) {
+          bone = obj;
+        }
+      });
+    }
+    return bone;
+  }
+
+  function startThrowInHolding() {
+    clearThrowIn();
+    throwInState.holding = true;
+    throwInState.thrown = false;
+
+    // Find hand bone inside the player model
+    if (playerModel) {
+      throwInState.handBone = findRightHandBone(playerModel);
+    }
+
+    // Create the throw-in button
+    const btn = document.createElement('button');
+    btn.id = 'throw-in-btn';
+    btn.textContent = 'THROW IN';
+    btn.style.cssText = [
+      'position:fixed',
+      'top:50%',
+      'left:50%',
+      'transform:translate(-50%,-50%)',
+      'z-index:500',
+      'padding:16px 36px',
+      'font-size:20px',
+      'font-weight:bold',
+      'background:rgba(255,220,0,0.92)',
+      'color:#222',
+      'border:3px solid #c8a000',
+      'border-radius:12px',
+      'cursor:pointer',
+      'letter-spacing:2px',
+      'pointer-events:auto',
+      'box-shadow:0 4px 16px rgba(0,0,0,0.5)',
+    ].join(';');
+
+    btn.addEventListener('click', executeThrowIn);
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); executeThrowIn(); }, { passive: false });
+
+    document.body.appendChild(btn);
+    throwInState.button = btn;
+  }
+
+  function executeThrowIn() {
+    if (!throwInState.holding || throwInState.thrown) return;
+    throwInState.thrown = true;
+
+    // Play the throw-in animation
+    if (playerControls) {
+      playerControls.playAction('throwIn');
+    }
+
+    // After ~0.6s (mid-animation), launch the ball forward
+    setTimeout(() => {
+      throwInState.holding = false;
+
+      if (soccerBall?.body && playerModel) {
+        const rot = playerModel.rotation.y;
+        const THROW_SPEED = 14;
+        const THROW_UP = 5;
+        soccerBall.body.setLinvel({
+          x: Math.sin(rot) * THROW_SPEED,
+          y: THROW_UP,
+          z: Math.cos(rot) * THROW_SPEED,
+        }, true);
+        soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
+
+      // Remove button
+      clearThrowInButton();
+    }, 600);
+  }
+
+  function clearThrowInButton() {
+    if (throwInState.button) {
+      throwInState.button.removeEventListener('click', executeThrowIn);
+      throwInState.button.remove();
+      throwInState.button = null;
+    }
+  }
+
+  function clearThrowIn() {
+    throwInState.holding = false;
+    throwInState.thrown = false;
+    throwInState.handBone = null;
+    clearThrowInButton();
+  }
+
+  function startBotThrowIn(ai) {
+    if (!multiplayer.isHost) return;
+    botThrowInState.active = true;
+    botThrowInState.ai = ai;
+    botThrowInState.holding = true;
+    botThrowInState.thrown = false;
+    botThrowInState.handBone = findRightHandBone(ai.model);
+
+    // Freeze the bot so it doesn't kick the ball during the animation
+    ai.kickAnimating = true;
+
+    // Face toward the field (inward from sideline)
+    const sp = setPieceManager?.active;
+    if (sp && ai.model) {
+      // Turn to face inward (away from the sideline)
+      ai.model.rotation.y = Math.atan2(-Math.sign(sp.ballFixedPos.x), 0);
+    }
+
+    // Play throw-in animation
+    const actions = ai.model?.userData?.actions;
+    if (actions?.throwIn) {
+      const current = ai.model.userData.currentAction;
+      actions[current]?.fadeOut(0.15);
+      actions.throwIn.reset().fadeIn(0.15).play();
+      ai.model.userData.currentAction = 'throwIn';
+    }
+
+    setTimeout(() => {
+      executeBotThrowIn(ai);
+    }, 600);
+  }
+
+  function executeBotThrowIn(ai) {
+    if (!botThrowInState.holding) return;
+    botThrowInState.holding = false;
+    botThrowInState.thrown = true;
+
+    const sp = setPieceManager?.active;
+    if (!sp || !soccerBall?.body || !ai.body) {
+      ai.kickAnimating = false;
+      return;
+    }
+
+    const aiPos = ai.body.translation();
+    const takingTeam = sp.teamTaking;
+
+    // Find closest teammate to throw to
+    let closestTeammate = null;
+    let closestDist = Infinity;
+
+    for (const tm of (aiPlayers[takingTeam] ?? [])) {
+      if (tm === ai || !tm.body) continue;
+      const tmT = tm.body.translation();
+      const d = Math.hypot(tmT.x - aiPos.x, tmT.z - aiPos.z);
+      if (d < closestDist) { closestDist = d; closestTeammate = tmT; }
+    }
+    if (localPlayerTeam === takingTeam && playerControls?.body) {
+      const lt = playerControls.body.translation();
+      const d = Math.hypot(lt.x - aiPos.x, lt.z - aiPos.z);
+      if (d < closestDist) { closestDist = d; closestTeammate = lt; }
+    }
+    for (const [, p] of Object.entries(otherPlayers)) {
+      if (p.team !== takingTeam || !p.model) continue;
+      const d = Math.hypot(p.model.position.x - aiPos.x, p.model.position.z - aiPos.z);
+      if (d < closestDist) { closestDist = d; closestTeammate = p.model.position; }
+    }
+
+    const THROW_SPEED = 14;
+    const THROW_UP = 5;
+    let dirX, dirZ;
+    if (closestTeammate) {
+      const raw = new THREE.Vector3(closestTeammate.x - aiPos.x, 0, closestTeammate.z - aiPos.z);
+      if (raw.length() > 0.01) raw.normalize();
+      dirX = raw.x;
+      dirZ = raw.z;
+      if (ai.model) ai.model.rotation.y = Math.atan2(raw.x, raw.z);
+    } else {
+      const rot = ai.model?.rotation.y ?? 0;
+      dirX = Math.sin(rot);
+      dirZ = Math.cos(rot);
+    }
+
+    soccerBall.body.setLinvel({ x: dirX * THROW_SPEED, y: THROW_UP, z: dirZ * THROW_SPEED }, true);
+    soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+
+    // Unfreeze the bot after the throw
+    setTimeout(() => { ai.kickAnimating = false; }, 300);
+  }
+
+  function clearBotThrowIn() {
+    if (botThrowInState.ai) botThrowInState.ai.kickAnimating = false;
+    botThrowInState.active = false;
+    botThrowInState.ai = null;
+    botThrowInState.handBone = null;
+    botThrowInState.holding = false;
+    botThrowInState.thrown = false;
+  }
+
   function applySetPiece({ spType, teamTaking, ballFixedPos, zone, exclusionZone, takerNetworkId }) {
     if (!setPieceManager) return;
 
@@ -1490,14 +2465,14 @@ async function main() {
       const sy = 1.5;
       let spawnX = ballFixedPos.x;
       let spawnZ = ballFixedPos.z;
-      const OFFSET = 1.5;
+      const OFFSET = 3.0;
       if (spType === 'throwIn') {
         spawnX = ballFixedPos.x + Math.sign(ballFixedPos.x) * OFFSET;
       } else if (spType === 'cornerKick') {
         spawnX = ballFixedPos.x + Math.sign(ballFixedPos.x) * OFFSET;
         spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * OFFSET;
       } else if (spType === 'goalKick') {
-        spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * OFFSET;
+        spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * 3;
       }
       playerControls.body.setTranslation({ x: spawnX, y: sy, z: spawnZ }, true);
       playerControls.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -1508,6 +2483,11 @@ async function main() {
         playerControls.playerY = sy;
         playerControls.playerZ = spawnZ;
         playerControls.lastPosition.set(spawnX, sy, spawnZ);
+      }
+
+      // For throw-ins: attach ball to player's hand and show the throw button
+      if (spType === 'throwIn') {
+        startThrowInHolding();
       }
     } else if (multiplayer.isHost) {
       // Host is not the taker — teleport the AI taker body
@@ -1524,14 +2504,14 @@ async function main() {
         const sy = 1.5;
         let spawnX = ballFixedPos.x;
         let spawnZ = ballFixedPos.z;
-        const OFFSET = 1.5;
+        const OFFSET = 3.0;
         if (spType === 'throwIn') {
           spawnX = ballFixedPos.x + Math.sign(ballFixedPos.x) * OFFSET;
         } else if (spType === 'cornerKick') {
           spawnX = ballFixedPos.x + Math.sign(ballFixedPos.x) * OFFSET;
           spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * OFFSET;
         } else if (spType === 'goalKick') {
-          spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * OFFSET;
+          spawnZ = ballFixedPos.z + Math.sign(ballFixedPos.z) * 3;
         }
         takerAIBody.setTranslation({ x: spawnX, y: sy, z: spawnZ }, true);
         takerAIBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -1540,6 +2520,26 @@ async function main() {
     }
 
     setPieceManager.trigger(spType, teamTaking, ballFixedPos, zone, takerNetworkId, exclusionZone);
+
+    // Immediately eject any player already inside the zones at set piece creation.
+    if (multiplayer.isHost) {
+      const takerTeam = teamTaking;
+      const ejOtherBodies = [];
+      const ejOpposingBodies = [];
+      if (playerControls?.body) {
+        ejOtherBodies.push(playerControls.body);
+        if (localPlayerTeam !== takerTeam) ejOpposingBodies.push(playerControls.body);
+      }
+      for (const team of ['home', 'away']) {
+        for (const ai of (aiPlayers[team] ?? [])) {
+          if (ai.body && ai.networkId !== takerNetworkId) {
+            ejOtherBodies.push(ai.body);
+            ejOpposingBodies.push(ai.body);
+          }
+        }
+      }
+      setPieceManager.ejectBodiesNow(ejOtherBodies, ejOpposingBodies);
+    }
   }
 
   // Load additional level data (destructible props, etc.)
@@ -1631,19 +2631,29 @@ async function main() {
   scene.add(playerModel);
   document.body.appendChild(player.nameLabel);
   window.playerModel = playerModel;
-  audioManager.playBGS('Forest Day/Forest Day.ogg');
+  window.audioManager = audioManager;
+  // Music starts on first user interaction so the browser allows it
+  const _startMusic = () => { audioManager.startMusic(); };
+  document.addEventListener('keydown', _startMusic, { once: true });
+  document.addEventListener('mousedown', _startMusic, { once: true });
+  document.addEventListener('touchstart', _startMusic, { once: true });
 
-  window.localHealth = 100;
-
-  const healthFill = document.getElementById('health-fill');
-  function updateHealthUI() {
-    if (healthFill) {
-      healthFill.style.width = `${window.localHealth}%`;
+  const sprintFill = document.getElementById('sprint-fill');
+  function updateSprintUI() {
+    if (sprintFill) {
+      const sprintPercent = playerControls?.getSprintPercent?.() ?? 0;
+      sprintFill.style.width = `${sprintPercent}%`;
+      // Color: cyan at full, orange at mid, red when critically low
+      if (sprintPercent > 50) {
+        sprintFill.style.background = '#27d9ff';
+      } else if (sprintPercent > 20) {
+        sprintFill.style.background = '#ffaa00';
+      } else {
+        sprintFill.style.background = '#ff3333';
+      }
     }
   }
-  updateHealthUI();
-
-  let playerDead = false;
+  updateSprintUI();
 
   const projectiles = [];
 
@@ -1666,7 +2676,8 @@ async function main() {
     spawnProjectile,
     projectiles,
     audioManager,
-    spawnPosition: initialSpawn
+    spawnPosition: initialSpawn,
+    playerName
   });
   window.playerControls = playerControls;
 
@@ -1692,12 +2703,14 @@ async function main() {
     const color = team === 'home' ? 0x3399ff : 0xff3322;
     const spacing = 4;
     const spawnX = (index - (MIN_PLAYERS_PER_TEAM - 1) / 2) * spacing;
+    const botModel = (adventureMode && adventureCharModel && team === 'away') ? adventureCharModel : '/models/old_man.fbx';
     const ai = new AIPlayer(scene, rapierWorld, {
       spawnX,
       spawnZ,
       targetGoalZ,
       color,
-      name: `Computer ${team === 'home' ? 'Home' : 'Away'} ${index + 1}`
+      name: `Computer ${team === 'home' ? 'Home' : 'Away'} ${index + 1}`,
+      model: botModel,
     });
     ai.team = team;
     ai.networkId = `ai-${team}-${index}`;
@@ -1731,6 +2744,13 @@ async function main() {
 
   function countNeededAIByTeam() {
     const realCounts = countRealPlayersByTeam();
+    if (adventureMode) {
+      const config = adventureRoundConfig || getAdventureRoundConfig(0);
+      return {
+        home: Math.max(0, config.playerTeamSize - realCounts.home),
+        away: Math.max(0, config.enemyBots - realCounts.away)
+      };
+    }
     return {
       home: Math.max(0, MIN_PLAYERS_PER_TEAM - realCounts.home),
       away: Math.max(0, MIN_PLAYERS_PER_TEAM - realCounts.away)
@@ -1955,8 +2975,7 @@ async function main() {
   }
 
   function respawnPlayer() {
-    window.localHealth = 100;
-    updateHealthUI();
+    updateSprintUI();
     const spawn = getTeamSpawnPosition(localPlayerTeam);
     playerModel.position.set(spawn.x, spawn.y, spawn.z);
     playerControls.playerX = spawn.x;
@@ -1970,7 +2989,6 @@ async function main() {
     }
     playerControls.velocity.set(0, 0, 0);
     playerControls.enabled = true;
-    playerDead = false;
     const actions = playerModel.userData.actions;
     const current = playerModel.userData.currentAction;
     actions?.[current]?.fadeOut(0.2);
@@ -1985,18 +3003,22 @@ async function main() {
     shoot: () => playerControls.triggerFire()
   });
 
-  const rollButton = document.getElementById('roll-button');
-  if (rollButton) {
-    const doRoll = (e) => {
+  const bindActionButton = (id, action) => {
+    const button = document.getElementById(id);
+    if (!button) return;
+    const handler = (e) => {
       e.preventDefault();
-      if (!playerControls.enabled || playerControls.isInWater || playerControls.currentSpecialAction) return;
-      playerControls.slideMomentum.copy(playerControls.lastMoveDirection).multiplyScalar(1.4);
-      playerControls.playAction('runningKick');
-      playerControls.audioManager?.playAttack();
+      action();
     };
-    rollButton.addEventListener('touchstart', doRoll, { passive: false });
-    rollButton.addEventListener('mousedown', doRoll);
-  }
+    button.addEventListener('touchstart', handler, { passive: false });
+    button.addEventListener('mousedown', handler);
+  };
+
+  bindActionButton('roll-button', () => playerControls.triggerRoll());
+  bindActionButton('slide-button', () => playerControls.triggerSlide());
+  bindActionButton('sprint-button', () => playerControls.triggerSprint());
+  bindActionButton('lob-button', () => playerControls.playAction('farKick'));
+  bindActionButton('bicycle-button', () => playerControls.playAction('bicycleKick'));
 
   let localStream = null;
   let micActive = false;
@@ -2033,9 +3055,7 @@ async function main() {
   const settingsBtn = document.getElementById('settings-button');
   const overlay = document.getElementById('settings-overlay');
   const nameInput = document.getElementById('name-input');
-  const saveBtn = document.getElementById('save-settings');
   const characterSelect = document.getElementById('character-select');
-  const toggleBtn = document.getElementById("toggle-console");
   const consoleDiv = document.getElementById("console-log");
 
   function swapPlayerCharacter(newModelPath, teamColor = null) {
@@ -2097,87 +3117,146 @@ async function main() {
   }
   populateCharacterSelect();
 
-  settingsBtn.addEventListener('click', () => {
-    nameInput.value = playerName;
-    characterSelect.value = characterModel;
-    overlay.style.display = 'flex';
+  // In-game audio sliders
+  const musicSlider = document.getElementById('music-volume-slider');
+  const sfxSlider = document.getElementById('sfx-volume-slider');
+  if (musicSlider) {
+    musicSlider.value = audioManager.musicVolume;
+    musicSlider.addEventListener('input', () => audioManager.setMusicVolume(parseFloat(musicSlider.value)));
+  }
+  if (sfxSlider) {
+    sfxSlider.value = audioManager.sfxVolume;
+    sfxSlider.addEventListener('input', () => audioManager.setSfxVolume(parseFloat(sfxSlider.value)));
+  }
+
+  // Side tab switching
+  document.querySelectorAll('.side-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.side-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.side-tab-content').forEach(c => (c.style.display = 'none'));
+      btn.classList.add('active');
+      const tab = document.getElementById(`tab-${btn.dataset.tab}`);
+      if (tab) tab.style.display = 'block';
+      if (btn.dataset.tab === 'multiplayer') {
+        refreshMultiplayerTab();
+      }
+    });
   });
 
-  saveBtn.addEventListener('click', () => {
-    const trimmedName = nameInput.value.trim();
-    if (trimmedName) {
-      playerName = trimmedName;
-      if (player?.nameLabel) {
-        player.nameLabel.innerText = playerName;
+  // Leaderboard rank cache: name -> rank
+  let _lbRankCache = {};
+  let _lbRankLoaded = false;
+  async function ensureLbRanks() {
+    if (_lbRankLoaded) return;
+    try {
+      const rows = await getLeaderboard();
+      rows.forEach((row, i) => { _lbRankCache[row.name] = i + 1; });
+      _lbRankLoaded = true;
+    } catch (e) { /* ignore */ }
+  }
+
+  function pingClass(ms) {
+    if (ms == null) return '';
+    if (ms < 80) return 'ping-good';
+    if (ms < 180) return 'ping-ok';
+    return 'ping-bad';
+  }
+
+  async function refreshMultiplayerTab() {
+    const container = document.getElementById('teams-table-container');
+    if (!container) return;
+    await ensureLbRanks();
+
+    const localPing = multiplayer?.lastPingMs ?? null;
+
+    // Build data for each team
+    const teamDefs = [
+      { key: 'home', label: 'Blue Team', cls: 'home' },
+      { key: 'away', label: 'Red Team', cls: 'away' },
+    ];
+
+    container.innerHTML = '';
+
+    for (const { key, label, cls } of teamDefs) {
+      const section = document.createElement('div');
+      section.className = 'teams-section';
+
+      const header = document.createElement('div');
+      header.className = `teams-section-header ${cls}`;
+      header.textContent = label;
+      section.appendChild(header);
+
+      const table = document.createElement('table');
+      table.className = 'teams-table';
+      table.innerHTML = '<thead><tr><th>Player</th><th>Rank</th><th>Goals</th><th>Ping</th></tr></thead>';
+      const tbody = document.createElement('tbody');
+
+      // Local player row (if on this team)
+      if (localPlayerTeam === key) {
+        const rank = _lbRankCache[playerName];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${playerName} <span style="font-size:10px;color:#aaa">(you)</span></td>
+          <td class="player-rank">${rank ? `#${rank}` : '—'}</td>
+          <td>—</td>
+          <td class="${pingClass(localPing)}">${localPing != null ? `${localPing}ms` : '—'}</td>
+        `;
+        tbody.appendChild(tr);
       }
-    }
-    setCookie("playerName", playerName);
 
-    const selectedModel = characterSelect.value;
-    if (selectedModel && selectedModel !== characterModel) {
-      characterModel = selectedModel;
-      swapPlayerCharacter(characterModel);
-      const sessionUser = getSession();
-      if (sessionUser) updateUserCharacter(sessionUser, characterModel);
-    }
-    setCookie("characterModel", characterModel);
+      // Remote human players on this team
+      for (const [pid, info] of Object.entries(otherPlayers)) {
+        if ((playerTeams[pid] ?? info.team) !== key) continue;
+        const name = info.name || pid;
+        const rank = _lbRankCache[name];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${name}</td>
+          <td class="player-rank">${rank ? `#${rank}` : '—'}</td>
+          <td>—</td>
+          <td>—</td>
+        `;
+        tbody.appendChild(tr);
+      }
 
-    overlay.style.display = 'none';
+      // AI players on this team
+      (aiPlayers[key] || []).forEach((ai, i) => {
+        const name = ai.name || `Bot ${i + 1}`;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${name}</td>
+          <td class="player-rank">—</td>
+          <td>—</td>
+          <td class="ping-bot">Bot</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      section.appendChild(table);
+      container.appendChild(section);
+    }
+  }
+
+  settingsBtn.addEventListener('click', () => {
+    overlay.style.display = 'flex';
+    if (musicSlider) musicSlider.value = audioManager.musicVolume;
+    if (sfxSlider) sfxSlider.value = audioManager.sfxVolume;
+    // Default to Audio tab
+    document.querySelectorAll('.side-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.side-tab-content').forEach(c => (c.style.display = 'none'));
+    const audioBtn = document.querySelector('.side-tab-btn[data-tab="audio"]');
+    const audioTab = document.getElementById('tab-audio');
+    if (audioBtn) audioBtn.classList.add('active');
+    if (audioTab) audioTab.style.display = 'block';
   });
 
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) overlay.style.display = 'none';
   });
 
-  // Tab switching
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => (c.style.display = 'none'));
-      btn.classList.add('active');
-      const tab = document.getElementById(`tab-${btn.dataset.tab}`);
-      if (tab) tab.style.display = 'block';
-      if (btn.dataset.tab === 'leaderboard') {
-        refreshLeaderboard();
-      }
-    });
-  });
-
-  async function refreshLeaderboard() {
-    const el = document.getElementById('leaderboard-list');
-    if (!el) return;
-    el.innerHTML = '<em>Loading...</em>';
-    try {
-      const rows = await getLeaderboard();
-      if (rows.length === 0) {
-        el.innerHTML = '<em>No scores yet.</em>';
-        return;
-      }
-      const table = document.createElement('table');
-      table.innerHTML = '<thead><tr><th>#</th><th>Player</th><th>Goals</th><th>W</th><th>D</th><th>L</th></tr></thead>';
-      const tbody = document.createElement('tbody');
-      rows.forEach((row, i) => {
-        const tr = document.createElement('tr');
-        [i + 1, row.name, row.goals || 0, row.wins || 0, row.draws || 0, row.losses || 0].forEach(val => {
-          const td = document.createElement('td');
-          td.textContent = val;
-          tr.appendChild(td);
-        });
-        tbody.appendChild(tr);
-      });
-      table.appendChild(tbody);
-      el.innerHTML = '';
-      el.appendChild(table);
-    } catch (err) {
-      el.innerHTML = '<em>Failed to load leaderboard.</em>';
-      console.error('Leaderboard error:', err);
-    }
-  }
-
-  toggleBtn.addEventListener("click", () => {
-    const visible = consoleDiv.style.display === "block";
-    consoleDiv.style.display = visible ? "none" : "block";
-    toggleBtn.textContent = visible ? "Show Console" : "Hide Console";
+  document.getElementById('leave-game-btn').addEventListener('click', () => {
+    window.location.reload();
   });
 
   (function() {
@@ -2268,7 +3347,8 @@ async function main() {
           playerControls.body.linvel(),
           0.3,
           0.6,
-          spLocked && spTeam === localPlayerTeam ? null : localPlayerTeam
+          spLocked && spTeam === localPlayerTeam ? null : localPlayerTeam,
+          playerName
         );
       }
       Object.entries(aiPlayers).forEach(([team, players]) => {
@@ -2279,7 +3359,8 @@ async function main() {
             ai.body.linvel(),
             0.3,
             0.6,
-            spLocked && spTeam === team ? null : team
+            spLocked && spTeam === team ? null : team,
+            ai.name || 'Computer'
           );
         });
       });
@@ -2309,20 +3390,7 @@ async function main() {
       lastControlSend = now;
     }
 
-    updateHealthUI();
-    if (window.localHealth <= 0 && !playerDead) {
-      playerDead = true;
-      playerControls.enabled = false;
-      const actions = playerModel.userData.actions;
-      const current = playerModel.userData.currentAction;
-      const die = actions?.die;
-      if (die) {
-        actions[current]?.fadeOut(0.2);
-        die.reset().fadeIn(0.2).play();
-        playerModel.userData.currentAction = 'die';
-      }
-      showGameOver();
-    }
+    updateSprintUI();
 
     const mixerDelta = mixerClock.getDelta();
 
@@ -2391,6 +3459,14 @@ async function main() {
             humanTeammates.push(new THREE.Vector3(lt.x, lt.y, lt.z));
           }
 
+          // During a corner kick, non-taker bots position near the attacking goal.
+          let cornerKickGoalZ = null;
+          if (sp?.type === 'cornerKick' && sp.teamTaking === team && ai !== ballChaser) {
+            // The goal being attacked is opposite to the corner's z side.
+            // ballFixedPos.z tells us which end the corner is at; bots attack the same end.
+            cornerKickGoalZ = sp.ballFixedPos.z > 0 ? 50 : -50;
+          }
+
           ai.update(frameDelta, soccerBall, {
             pursueBall: !ballChaser || ai === ballChaser,
             formationIndex: index,
@@ -2399,7 +3475,8 @@ async function main() {
             chaserPosition: ballChaserPosition,
             teammates: players,
             opponents,
-            humanTeammates
+            humanTeammates,
+            cornerKickGoalZ
           });
         } else {
           ai.model.userData.mixer?.update(frameDelta);
@@ -2430,7 +3507,8 @@ async function main() {
 
       // Split locally-simulated bodies into two groups:
       // - otherBodies: all non-taker bodies pushed out of the small taker zone
-      // - opposingBodies: only opposing team bodies pushed out of the larger exclusion zone
+      // - opposingBodies: non-taker bodies pushed out of the larger exclusion zone
+      //   (opposing team human player + all non-taker AI bots from both teams)
       const opposingTeam = sp.teamTaking === 'home' ? 'away' : 'home';
       const otherBodies = [];
       const opposingBodies = [];
@@ -2444,15 +3522,74 @@ async function main() {
         for (const ai of (aiPlayers[team] ?? [])) {
           if (ai.body && ai.body !== takerBody) {
             otherBodies.push(ai.body);
-            if (team === opposingTeam) opposingBodies.push(ai.body);
+            // All AI bots (both teams) stay out of the exclusion zone
+            opposingBodies.push(ai.body);
           }
         }
       }
 
       const ended = setPieceManager.update(soccerBall, takerBody, otherBodies, opposingBodies);
-      if (ended && multiplayer.isHost) {
-        multiplayer.send({ type: 'setPieceClear' });
+      if (ended) {
+        clearThrowIn();
+        clearBotThrowIn();
+        if (multiplayer.isHost) {
+          multiplayer.send({ type: 'setPieceClear' });
+        }
       }
+
+      // While player is holding ball for throw-in, pin ball to hand bone each frame
+      if (throwInState.holding && soccerBall?.body) {
+        const _handPos = new THREE.Vector3();
+        if (throwInState.handBone) {
+          throwInState.handBone.getWorldPosition(_handPos);
+        } else if (playerModel) {
+          // Fallback: slightly in front and up from player
+          const rot = playerModel.rotation.y;
+          _handPos.set(
+            playerModel.position.x + Math.sin(rot) * 0.5,
+            playerModel.position.y + 1.4,
+            playerModel.position.z + Math.cos(rot) * 0.5
+          );
+        }
+        soccerBall.body.setTranslation({ x: _handPos.x, y: _handPos.y, z: _handPos.z }, true);
+        soccerBall.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
+
+      // Trigger bot throw-in once the set piece ball lock releases and taker is an AI
+      if (!ended && multiplayer.isHost && sp && sp.type === 'throwIn' && !sp.ballLocked
+          && !botThrowInState.active && sp.takerNetworkId !== myId) {
+        let takerAI = null;
+        outer2: for (const team of ['home', 'away']) {
+          for (const ai of (aiPlayers[team] ?? [])) {
+            if (ai.networkId === sp.takerNetworkId) { takerAI = ai; break outer2; }
+          }
+        }
+        if (takerAI) startBotThrowIn(takerAI);
+      }
+
+      // Pin ball to bot's hand bone while bot is holding it
+      if (botThrowInState.holding && soccerBall?.body) {
+        const _handPos = new THREE.Vector3();
+        const botAI = botThrowInState.ai;
+        if (botThrowInState.handBone) {
+          botThrowInState.handBone.getWorldPosition(_handPos);
+        } else if (botAI?.model) {
+          const rot = botAI.model.rotation.y;
+          _handPos.set(
+            botAI.model.position.x + Math.sin(rot) * 0.5,
+            botAI.model.position.y + 1.4,
+            botAI.model.position.z + Math.cos(rot) * 0.5
+          );
+        }
+        soccerBall.body.setTranslation({ x: _handPos.x, y: _handPos.y, z: _handPos.z }, true);
+        soccerBall.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
+    } else {
+      // Set piece not active; clear throw-in state if it lingered
+      if (throwInState.holding || throwInState.button) clearThrowIn();
+      if (botThrowInState.active) clearBotThrowIn();
     }
 
     multiplayer.send({
@@ -2534,7 +3671,7 @@ async function main() {
       camera.lookAt(ballPos);
     }
 
-    updateGrass(performance.now() / 1000);
+    updateGrass(clock.getElapsedTime());
     renderer.render(scene, camera);
   }
 

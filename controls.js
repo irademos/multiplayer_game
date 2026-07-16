@@ -7,13 +7,21 @@ import { getSpawnPosition } from './spawnUtils.js';
 // Movement constants
 const SPEED = 5;
 const SWIM_SPEED = 2;
+const SPRINT_BASE_MULTIPLIER = 1.01;
+const SPRINT_MAX_MULTIPLIER = 2.5;
+const SPRINT_FREQUENCY_WINDOW_MS = 1300; // window to count presses
+const SPRINT_MAX_PRESSES = 13;            // presses in window for max speed
+const SPRINT_DURATION_MS = 220;          // how long each press keeps sprint active
+const SPRINT_MAX_STAMINA = 80;
+const SPRINT_DRAIN_RATE = 20;            // stamina per second while sprinting
+const SPRINT_REGEN_RATE = 5;             // stamina per second while not sprinting
 const JUMP_FORCE = 5;
 const PLAYER_RADIUS = 0.3;
 const PLAYER_HALF_HEIGHT = 0.6;
 const FLOAT_IDLE_DISPLAY_OFFSET = 0.2;
 
 export class PlayerControls {
-  constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager, spawnPosition }) {
+  constructor({ scene, camera, playerModel, renderer, multiplayer, spawnProjectile, projectiles, audioManager, spawnPosition, playerName }) {
     this.yaw = 0;
     this.pitch = 0;
     this.pointerLocked = false;
@@ -23,6 +31,7 @@ export class PlayerControls {
     this.playerModel = playerModel;
     this.camera = camera;
     this.multiplayer = multiplayer;
+    this.playerName = playerName;
     this.lastPosition = new THREE.Vector3();
     this.wasMoving = false;
     this.isMoving = false;
@@ -54,6 +63,10 @@ export class PlayerControls {
     this.currentSpecialAction = null;
     this.runningKickTimer = null;
     this.runningKickOriginalY = 0;
+    this.sprintEndTime = 0;
+    this.sprintPressTimestamps = []; // rolling window of recent sprint presses
+    this.sprintStamina = SPRINT_MAX_STAMINA;
+    this.lastSprintUpdateTime = performance.now();
     
     // Mobile control variables
     this.joystick = null;
@@ -92,12 +105,16 @@ export class PlayerControls {
       world.createCollider(colDesc, this.body);
     }
 
-    // Set camera to third-person perspective
-    this.camera.position.set(this.playerX, this.playerY + 2, this.playerZ + 5);
+    // Face toward center of field: if player is in -z half, yaw = π (face +z)
+    this.yaw = this.playerZ < 0 ? Math.PI : 0;
+
+    // Camera offset in local space (behind player, applied after yaw rotation)
+    this.cameraOffset = new THREE.Vector3(0, 1, 5);
+
+    // Set camera to third-person perspective, behind the player facing center
+    const initZOff = 5 * Math.cos(this.yaw); // +5 when facing -z, -5 when facing +z
+    this.camera.position.set(this.playerX, this.playerY + 2, this.playerZ + initZOff);
     this.camera.lookAt(this.playerX, this.playerY + 1, this.playerZ);
-    // Store the initial camera offset (relative to player's target position)
-    this.cameraOffset = new THREE.Vector3();
-    this.cameraOffset.copy(this.camera.position).sub(new THREE.Vector3(this.playerX, this.playerY + 1, this.playerZ));
 
     // Initialize controls based on device
     this.initializeControls();
@@ -182,6 +199,7 @@ export class PlayerControls {
       if (this.canJump && this.body) {
         this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
         this.canJump = false;
+        setTimeout(() => this._trySoccerHeader(), 350);
       }
       event.preventDefault();
     });
@@ -293,8 +311,33 @@ export class PlayerControls {
         if (!this.enabled || this.isInWater) return;
         this.slideMomentum.set(0, 0, 0);
         this.playAction('mmaKick');
+        this.audioManager?.playAttack();
         event.preventDefault();
       });
+    }
+
+    // Lob button (touchstart for mobile; mousedown handled in app.js)
+    const lobBtn = document.getElementById('lob-button');
+    if (lobBtn) {
+      lobBtn.addEventListener('touchstart', (event) => {
+        if (!this.enabled || this.isInWater) return;
+        this.slideMomentum.set(0, 0, 0);
+        this.playAction('farKick');
+        this.audioManager?.playAttack?.();
+        event.preventDefault();
+      }, { passive: false });
+    }
+
+    // Bicycle button (touchstart for mobile; mousedown handled in app.js)
+    const bicycleBtn = document.getElementById('bicycle-button');
+    if (bicycleBtn) {
+      bicycleBtn.addEventListener('touchstart', (event) => {
+        if (!this.enabled || this.isInWater) return;
+        this.slideMomentum.set(0, 0, 0);
+        this.playAction('bicycleKick');
+        this.audioManager?.playAttack?.();
+        event.preventDefault();
+      }, { passive: false });
     }
 
     // Punch button
@@ -307,6 +350,7 @@ export class PlayerControls {
       punchButton.addEventListener('touchstart', (event) => {
         if (!this.enabled || this.isInWater) return;
         this.playAction('mutantPunch');
+        this.audioManager?.playPunch();
         event.preventDefault();
       });
     }
@@ -319,15 +363,7 @@ export class PlayerControls {
       slideButton.innerText = 'SLIDE';
       actionContainer.appendChild(slideButton);
       slideButton.addEventListener('touchstart', (event) => {
-        if (!this.enabled || this.isInWater || this.currentSpecialAction) return;
-        const vel = this.body?.linvel();
-        const hSpeed = vel ? Math.hypot(vel.x, vel.z) : 0;
-        const speedRatio = Math.min(hSpeed / SPEED, 1);
-        const magnitude = 0.8 + speedRatio * 1.8;
-        this.slideMomentumDecay = 0.880 + speedRatio * 0.060;
-        this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(magnitude);
-        this.playAction('slide');
-        this.audioManager?.playAttack();
+        this.triggerSlide();
         event.preventDefault();
       });
     }
@@ -367,6 +403,7 @@ export class PlayerControls {
           this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
           this.canJump = false;
           this.hasDoubleJumped = false;
+          setTimeout(() => this._trySoccerHeader(), 350);
         } else if (!this.hasDoubleJumped && this.body) {
           this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
           this.hasDoubleJumped = true;
@@ -378,27 +415,28 @@ export class PlayerControls {
           this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
         }
         this.playAction('mutantPunch');
-        this.audioManager?.playAttack();
+        this.audioManager?.playPunch();
       } else if (key === 'e') {
         if (this.isInWater) return;
         this.slideMomentum.set(0, 0, 0);
         this.playAction('mmaKick');
         this.audioManager?.playAttack();
-      } else if (key === 'r') {
+      } else if (key === 'f') {
         if (this.isInWater) return;
-        this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(1.4);
-        this.playAction('runningKick');
-        this.audioManager?.playAttack();
+        this.slideMomentum.set(0, 0, 0);
+        this.playAction('farKick');
+        this.audioManager?.playAttack?.();
+      } else if (key === 'v') {
+        if (this.isInWater) return;
+        this.slideMomentum.set(0, 0, 0);
+        this.playAction('bicycleKick');
+        this.audioManager?.playAttack?.();
+      } else if (key === 'r') {
+        this.triggerRoll();
       } else if (key === 'z') {
-        if (this.isInWater || this.currentSpecialAction) return;
-        const vel = this.body?.linvel();
-        const hSpeed = vel ? Math.hypot(vel.x, vel.z) : 0;
-        const speedRatio = Math.min(hSpeed / SPEED, 1);
-        const magnitude = 0.8 + speedRatio * 1.8;
-        this.slideMomentumDecay = 0.880 + speedRatio * 0.060;
-        this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(magnitude);
-        this.playAction('slide');
-        this.audioManager?.playAttack();
+        this.triggerSlide();
+      } else if (key === 'shift') {
+        this.triggerSprint();
       } else if (key === 'g') {
         if (this.grabbedTarget) {
           this.releaseGrab();
@@ -465,16 +503,20 @@ export class PlayerControls {
     const action = actions[actionName];
     actions[current]?.fadeOut(0.1);
     action.reset().fadeIn(0.1).play();
-    action.setEffectiveTimeScale(['mmaKick', 'hurricaneKick', 'runningKick'].includes(actionName) ? 2 : 1);
+    action.setEffectiveTimeScale(['mmaKick', 'hurricaneKick', 'runningKick', 'bicycleKick', 'farKick'].includes(actionName) ? 2 : 1);
     this.playerModel.userData.currentAction = actionName;
     this.currentSpecialAction = actionName;
 
-    if (["mutantPunch", "hurricaneKick", "mmaKick", "runningKick", "slide"].includes(actionName)) {
+    if (["mutantPunch", "hurricaneKick", "mmaKick", "runningKick", "slide", "farKick", "bicycleKick"].includes(actionName)) {
       this.playerModel.userData.attack = {
         name: actionName,
         start: Date.now(),
         hasHit: false,
       };
+    }
+
+    if (actionName === 'bicycleKick') {
+      setTimeout(() => this._applyBicycleKickForce(), 450);
     }
 
     if (actionName !== 'slide') {
@@ -487,6 +529,47 @@ export class PlayerControls {
       };
       mixer.addEventListener("finished", onFinished);
     }
+  }
+
+  _applyBicycleKickForce() {
+    if (!window.soccerBall?.body || !this.playerModel) return;
+    const ballPos = window.soccerBall.getPosition();
+    if (!ballPos) return;
+    const playerPos = this.playerModel.position;
+    const headPos = new THREE.Vector3(playerPos.x, playerPos.y + 1.8, playerPos.z);
+    const ballVec = new THREE.Vector3(ballPos.x, ballPos.y, ballPos.z);
+    if (headPos.distanceTo(ballVec) > 2.5) return;
+    // Kick ball backward (opposite of player facing) and upward
+    const facing = new THREE.Vector3(
+      Math.sin(this.playerModel.rotation.y),
+      0,
+      Math.cos(this.playerModel.rotation.y)
+    );
+    const force = 0.7;
+    window.soccerBall.applyImpulse({ x: -facing.x * force, y: 0.35, z: -facing.z * force });
+    window.soccerBall.lastTouchedTeam = window.localPlayerTeam || 'home';
+    window.soccerBall.lastTouchedName = this.playerName;
+    this.audioManager?.playBallKick?.();
+  }
+
+  _trySoccerHeader() {
+    if (!window.soccerBall?.body || !this.playerModel) return;
+    const ballPos = window.soccerBall.getPosition();
+    if (!ballPos) return;
+    const playerPos = this.playerModel.position;
+    const headPos = new THREE.Vector3(playerPos.x, playerPos.y + 1.7, playerPos.z);
+    const ballVec = new THREE.Vector3(ballPos.x, ballPos.y, ballPos.z);
+    if (headPos.distanceTo(ballVec) > 1.8) return;
+    const facing = new THREE.Vector3(
+      Math.sin(this.playerModel.rotation.y),
+      -0.15,
+      Math.cos(this.playerModel.rotation.y)
+    ).normalize();
+    const force = 0.5;
+    window.soccerBall.applyImpulse({ x: facing.x * force, y: facing.y * force, z: facing.z * force });
+    window.soccerBall.lastTouchedTeam = window.localPlayerTeam || 'home';
+    window.soccerBall.lastTouchedName = this.playerName;
+    this.audioManager?.playBallKick?.();
   }
 
   applyKnockback(impulse) {
@@ -589,7 +672,7 @@ export class PlayerControls {
       t.y = groundExpectedY;
     }
     const moveDirection = new THREE.Vector3(0, 0, 0);
-    const movementLocked = ['mutantPunch', 'mmaKick', 'runningKick', 'slide'].includes(this.currentSpecialAction);
+    const movementLocked = ['mutantPunch', 'mmaKick', 'runningKick', 'slide', 'farKick', 'bicycleKick'].includes(this.currentSpecialAction);
     if (!movementLocked) {
       if (this.isMobile) {
         if (this.joystickForce > 0.1) {
@@ -655,7 +738,7 @@ export class PlayerControls {
         this.playerModel.userData.currentAction = 'idle';
       }
     } else {
-      const speed = this.isInWater ? SWIM_SPEED : SPEED;
+      const speed = this.getCurrentSpeed();
       this.body.setLinvel({ x: movement.x * speed, y: vel.y, z: movement.z * speed }, true);
       }
     const newX = t.x;
@@ -874,6 +957,68 @@ export class PlayerControls {
   
   getPlayerModel() {
     return this.playerModel;
+  }
+
+  triggerRoll() {
+    if (!this.enabled || this.isInWater || this.currentSpecialAction) return;
+    this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(1.4);
+    this.playAction('runningKick');
+    this.audioManager?.playRoll();
+  }
+
+  triggerSlide() {
+    if (!this.enabled || this.isInWater || this.currentSpecialAction) return;
+    const vel = this.body?.linvel();
+    const hSpeed = vel ? Math.hypot(vel.x, vel.z) : 0;
+    const speedRatio = Math.min(hSpeed / SPEED, 1);
+    const magnitude = 0.8 + speedRatio * 1.8;
+    this.slideMomentumDecay = 0.880 + speedRatio * 0.060;
+    this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(magnitude);
+    this.playAction('slide');
+    this.audioManager?.playSlide();
+  }
+
+  triggerSprint() {
+    if (!this.enabled || this.isInWater) return;
+    if (this.sprintStamina <= 0) return;
+    const now = performance.now();
+    // Purge presses outside the rolling window
+    this.sprintPressTimestamps = this.sprintPressTimestamps.filter(t => now - t < SPRINT_FREQUENCY_WINDOW_MS);
+    this.sprintPressTimestamps.push(now);
+    this.sprintEndTime = now + SPRINT_DURATION_MS;
+  }
+
+  _updateSprintStamina() {
+    const now = performance.now();
+    const dt = (now - this.lastSprintUpdateTime) / 1000;
+    this.lastSprintUpdateTime = now;
+    if (this.isSprinting()) {
+      this.sprintStamina = Math.max(0, this.sprintStamina - SPRINT_DRAIN_RATE * dt);
+      if (this.sprintStamina === 0) this.sprintEndTime = 0; // cut sprint immediately
+    } else {
+      this.sprintStamina = Math.min(SPRINT_MAX_STAMINA, this.sprintStamina + SPRINT_REGEN_RATE * dt);
+    }
+  }
+
+  isSprinting() {
+    return performance.now() < this.sprintEndTime;
+  }
+
+  _getSprintFrequencyMultiplier() {
+    const now = performance.now();
+    const recent = this.sprintPressTimestamps.filter(t => now - t < SPRINT_FREQUENCY_WINDOW_MS).length;
+    const ratio = Math.min(1, recent / SPRINT_MAX_PRESSES);
+    return SPRINT_BASE_MULTIPLIER + ratio * (SPRINT_MAX_MULTIPLIER - SPRINT_BASE_MULTIPLIER);
+  }
+
+  getSprintPercent() {
+    return (this.sprintStamina / SPRINT_MAX_STAMINA) * 100;
+  }
+
+  getCurrentSpeed() {
+    this._updateSprintStamina();
+    const baseSpeed = this.isInWater ? SWIM_SPEED : SPEED;
+    return this.isSprinting() ? baseSpeed * this._getSprintFrequencyMultiplier() : baseSpeed;
   }
 
   /**

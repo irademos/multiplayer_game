@@ -16,11 +16,15 @@
     <div class="crosshair"></div>
   </div>
   <div id="interaction-tooltip" class="interaction-tooltip"></div>
-  <div id="health-bar"><div id="health-fill"></div></div>
+  <div id="sprint-bar"><div id="sprint-fill"></div></div>
   <div id="action-buttons">
     <button id="mobile-action-toggle" class="action-button mobile-only" aria-expanded="false" aria-label="Toggle actions">⋯</button>
     <button id="voice-button" class="action-button mobile-action">Unmute</button>
     <button id="roll-button" class="action-button mobile-action">ROLL</button>
+    <button id="slide-button" class="action-button mobile-action">SLIDE</button>
+    <button id="sprint-button" class="action-button mobile-action">SPRINT</button>
+    <button id="lob-button" class="action-button mobile-action">LOB</button>
+    <button id="bicycle-button" class="action-button mobile-action">BICYCLE</button>
   </div>
   
   <!-- Follow Ball Camera Button -->
@@ -32,44 +36,45 @@
   <!-- Settings Overlay -->
   <div id="settings-overlay">
     <div id="settings-panel">
-      <label for="name-input">Name:</label>
-      <input type="text" id="name-input" />
-      <label for="character-select">Character:</label>
-      <select id="character-select"></select>
-      <button id="save-settings">Save</button>
-
-      <button id="toggle-console">Show Console</button>
-
-      <div id="console-log" style="display: none; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.7); color: #0f0; padding: 10px; font-family: monospace; font-size: 12px; margin-top: 10px;"></div>
-
-      <hr />
-
-      <div id="settings-tabs">
-        <button class="tab-btn active" data-tab="multiplayer">Multiplayer</button>
-        <button class="tab-btn" data-tab="leaderboard">Leaderboard</button>
+      <div id="settings-side-tabs">
+        <button class="side-tab-btn active" data-tab="audio">Audio</button>
+        <button class="side-tab-btn" data-tab="multiplayer">Multiplayer</button>
+        <button class="side-tab-btn" data-tab="game">Game</button>
       </div>
+      <div id="settings-tab-body">
+        <div id="tab-audio" class="side-tab-content">
+          <div class="audio-settings-section">
+            <label class="audio-settings-label" for="music-volume-slider">🎵 Music Volume</label>
+            <input type="range" id="music-volume-slider" min="0" max="1" step="0.05" />
+            <label class="audio-settings-label" for="sfx-volume-slider">🔊 SFX Volume</label>
+            <input type="range" id="sfx-volume-slider" min="0" max="1" step="0.05" />
+          </div>
+        </div>
 
-      <div id="tab-multiplayer" class="tab-content">
-        <h3>Connected Players</h3>
-        <ul id="connected-players-list"></ul>
+        <div id="tab-multiplayer" class="side-tab-content" style="display:none">
+          <div id="teams-table-container"></div>
+        </div>
 
-        <h3>Connection Issues</h3>
-        <ul id="connection-errors-list"></ul>
-
-        <h3>Ping (ms)</h3>
-        <div id="ping-display">-</div>
-      </div>
-
-      <div id="tab-leaderboard" class="tab-content" style="display:none">
-        <h3>Leaderboard</h3>
-        <div id="leaderboard-list"><em>Loading...</em></div>
+        <div id="tab-game" class="side-tab-content" style="display:none">
+          <div class="audio-settings-section">
+            <button id="leave-game-btn" class="arcade-btn arcade-btn-red">Leave Game</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════
+  <!-- Hidden elements kept for JS compatibility -->
+  <input type="text" id="name-input" style="display:none" />
+  <select id="character-select" style="display:none"></select>
+  <div id="console-log" style="display:none"></div>
+  <ul id="connected-players-list" style="display:none"></ul>
+  <ul id="connection-errors-list" style="display:none"></ul>
+  <div id="ping-display" style="display:none"></div>
+
+  <!-- ══════════════════════════════
        ARCADE LOGIN OVERLAY
-  ════════════════════════════════════════════════ -->
+  ════════════════════════════════ -->
   <div id="login-overlay" class="arcade-overlay">
 
     <!-- ── Welcome Back screen ── -->
@@ -135,15 +140,15 @@
 
       <div class="arcade-btn-row">
         <button class="arcade-btn arcade-btn-green" id="btn-signup">SIGN UP</button>
-        <button class="arcade-btn arcade-btn-dim" id="btn-back-to-login">◀ BACK</button>
+        <button class="arcade-btn arcade-btn-dim" id="btn-back-to-login">◄ BACK</button>
       </div>
     </div>
 
   </div>
 
-  <!-- ══════════════════════════════════════════════
+  <!-- ══════════════════════════════
        DASHBOARD OVERLAY
-  ════════════════════════════════════════════════ -->
+  ════════════════════════════════ -->
   <div id="dashboard-overlay" class="arcade-overlay hidden">
     <div class="arcade-panel dashboard-panel">
       <div class="arcade-title">GOAL QUEST</div>
@@ -152,18 +157,37 @@
         <span id="dashboard-online-num">0</span> ONLINE
       </div>
       <div class="dashboard-btn-group">
-        <button class="arcade-btn arcade-btn-green dashboard-big-btn" id="btn-play-online">
-          ▶ PLAY ONLINE
-        </button>
-        <div class="dashboard-btn-desc">JOIN OTHER PLAYERS</div>
-        <button class="arcade-btn arcade-btn-yellow dashboard-big-btn" id="btn-play-bots">
-          ▶ PLAY VS BOTS
-        </button>
-        <div class="dashboard-btn-desc">PRIVATE — NO RANDOMS</div>
+        <div class="dashboard-mode-grid">
+          <div class="dashboard-mode-card">
+            <button class="arcade-btn arcade-btn-green dashboard-big-btn" id="btn-play-online">
+              ▶ PLAY ONLINE
+            </button>
+            <div class="dashboard-btn-desc">JOIN OTHER PLAYERS</div>
+          </div>
+          <div class="dashboard-mode-card">
+            <button class="arcade-btn arcade-btn-yellow dashboard-big-btn" id="btn-play-bots">
+              ▶ PLAY VS BOTS
+            </button>
+            <div class="dashboard-btn-desc">PRIVATE — NO RANDOMS</div>
+          </div>
+          <div class="dashboard-mode-card">
+            <button class="arcade-btn arcade-btn-purple dashboard-big-btn" id="btn-adventure-mode">
+              ⚔️ ADVENTURE MODE
+            </button>
+            <div class="dashboard-btn-desc">UNLOCK NEW CHARACTERS</div>
+          </div>
+          <div class="dashboard-mode-card">
+            <button class="arcade-btn arcade-btn-orange dashboard-big-btn" id="btn-tournament-mode">
+              🏆 TOURNAMENT MODE
+            </button>
+            <div class="dashboard-btn-desc">COMPETE DAILY FOR GLORY</div>
+          </div>
+        </div>
         <div class="dashboard-secondary-btns">
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-stats">📊 MY STATS</button>
           <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-leaderboard-dash">🏆 LEADERBOARD</button>
-          <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn" id="btn-profile">👤 PROFILE</button>
+          <button class="arcade-btn arcade-btn-yellow dashboard-secondary-btn" id="btn-open-shop">🛍 SHOP</button>
+          <button class="arcade-btn arcade-btn-dim dashboard-secondary-btn dashboard-icon-btn" id="btn-profile" aria-label="Settings">⚙️</button>
         </div>
       </div>
     </div>
@@ -205,7 +229,7 @@
       <button class="arcade-btn arcade-btn-yellow bots-settings-start-btn" id="bots-settings-start">
         ▶ START GAME
       </button>
-      <button class="arcade-btn arcade-btn-dim bots-settings-back-btn" id="bots-settings-back">◀ BACK</button>
+      <button class="arcade-btn arcade-btn-dim bots-settings-back-btn" id="bots-settings-back">◄ BACK</button>
     </div>
   </div>
 
@@ -214,7 +238,7 @@
     <div class="arcade-panel stats-panel">
       <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">MY STATS</div>
       <div id="stats-content"><em>Loading...</em></div>
-      <button class="arcade-btn arcade-btn-dim" id="stats-overlay-close">◀ BACK</button>
+      <button class="arcade-btn arcade-btn-dim" id="stats-overlay-close">◄ BACK</button>
     </div>
   </div>
 
@@ -223,14 +247,14 @@
     <div class="arcade-panel leaderboard-dash-panel">
       <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">🏆 LEADERBOARD</div>
       <div id="leaderboard-dash-content"><em>Loading...</em></div>
-      <button class="arcade-btn arcade-btn-dim" id="leaderboard-dash-overlay-close">◀ BACK</button>
+      <button class="arcade-btn arcade-btn-dim" id="leaderboard-dash-overlay-close">◄ BACK</button>
     </div>
   </div>
 
   <!-- Profile Overlay -->
   <div id="profile-overlay" class="arcade-overlay hidden">
     <div class="arcade-panel profile-panel">
-      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">👤 PROFILE</div>
+      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">⚙️ SETTINGS</div>
       <div class="profile-section">
         <div class="profile-label">DISPLAY NAME</div>
         <div class="profile-name-row">
@@ -240,17 +264,34 @@
         <div class="arcade-error hidden" id="profile-name-error"></div>
         <div class="profile-name-ok hidden" id="profile-name-ok">✔ NAME UPDATED!</div>
       </div>
-      <div class="profile-section">
-        <div class="profile-label">CHARACTER</div>
-        <button class="arcade-btn arcade-btn-dim profile-char-btn" id="btn-profile-char">CHANGE CHARACTER</button>
+      <div class="profile-section profile-audio-section">
+        <div class="dashboard-audio-row">
+          <span class="dashboard-audio-label">🎵 MUSIC</span>
+          <input type="range" id="dash-music-volume" min="0" max="1" step="0.05" class="dashboard-audio-slider" />
+        </div>
+        <div class="dashboard-audio-row">
+          <span class="dashboard-audio-label">🔊 SFX</span>
+          <input type="range" id="dash-sfx-volume" min="0" max="1" step="0.05" class="dashboard-audio-slider" />
+        </div>
       </div>
-      <div class="profile-section">
-        <button class="arcade-btn arcade-btn-yellow profile-shop-btn" id="btn-open-shop">🛒 SHOP</button>
+      <div class="profile-section profile-character-section">
+        <div class="profile-character-picker" id="profile-character-picker">
+          <button class="char-arrow profile-char-arrow" id="profile-char-left" aria-label="Previous character">◀</button>
+          <div class="char-display profile-char-display">
+            <div class="char-emoji" id="profile-char-emoji"></div>
+            <div class="char-lock-info hidden" id="profile-char-lock-info">
+              <div class="char-lock-icon">🔒</div>
+            </div>
+            <div class="profile-char-save-status" id="profile-char-save-status"></div>
+          </div>
+          <button class="arcade-btn arcade-btn-yellow profile-char-buy hidden" id="profile-char-buy">🪙 0 — UNLOCK</button>
+          <button class="char-arrow profile-char-arrow" id="profile-char-right" aria-label="Next character">▶</button>
+        </div>
       </div>
       <div class="profile-section">
         <button class="arcade-btn arcade-btn-dim" id="btn-adv-settings-open">⚙ ADVANCED SETTINGS</button>
       </div>
-      <button class="arcade-btn arcade-btn-dim" id="btn-profile-close">◀ BACK</button>
+      <button class="arcade-btn arcade-btn-dim" id="btn-profile-close">◄ BACK</button>
     </div>
   </div>
 
@@ -288,7 +329,7 @@
         <button class="arcade-btn arcade-btn-red" id="btn-adv-delete-account">🗑 DELETE ACCOUNT</button>
       </div>
 
-      <button class="arcade-btn arcade-btn-dim" id="btn-adv-settings-close">◀ BACK</button>
+      <button class="arcade-btn arcade-btn-dim" id="btn-adv-settings-close">◄ BACK</button>
     </div>
   </div>
 
@@ -308,7 +349,7 @@
   <!-- Shop Overlay -->
   <div id="shop-overlay" class="arcade-overlay hidden">
     <div class="arcade-panel shop-panel">
-      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">🛒 SHOP</div>
+      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">🛍 SHOP</div>
       <div class="shop-coins-row">
         <span class="shop-coins-label">YOUR COINS:</span>
         <span class="shop-coins-val" id="shop-coins-display">🪙 ...</span>
@@ -316,13 +357,13 @@
       <div class="shop-items" id="shop-items-list">
         <!-- populated by JS -->
       </div>
-      <button class="arcade-btn arcade-btn-dim" id="btn-shop-close">◀ BACK</button>
+      <button class="arcade-btn arcade-btn-dim" id="btn-shop-close">◄ BACK</button>
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════
+  <!-- ══════════════════════════════
        GAME OVER OVERLAY
-  ════════════════════════════════════════════════ -->
+  ════════════════════════════════ -->
   <!-- Game Over Overlay -->
   <div id="game-over-overlay" class="hidden">
     <div id="game-over-message">GAME OVER</div>
@@ -340,6 +381,100 @@
   <div id="win-overlay" class="hidden">
     <div id="win-message"></div>
     <button id="play-again-btn" class="hidden">BACK TO MENU</button>
+  </div>
+
+  <!-- Adventure Mode Pre-Round Overlay -->
+  <div id="adventure-round-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel adventure-panel">
+      <div class="arcade-title" style="font-size:clamp(12px,2.5vw,16px);color:#cc44ff">⚔️ ADVENTURE MODE</div>
+      <div class="adventure-round-label" id="adv-round-label">ROUND 1 / 7</div>
+      <div class="adventure-vs-block">
+        <div class="adventure-vs-emoji" id="adv-enemy-emoji"></div>
+        <div class="adventure-vs-name" id="adv-enemy-name"></div>
+        <div class="adventure-vs-desc">BOTS (1) VS YOU (1)</div>
+        <div class="adventure-vs-hint">WIN TO UNLOCK THIS CHARACTER!</div>
+      </div>
+      <button class="arcade-btn arcade-btn-green" id="adv-start-round">▶ START ROUND</button>
+      <button class="arcade-btn arcade-btn-dim" id="adv-quit-pre">◄ BACK TO MENU</button>
+    </div>
+  </div>
+
+  <!-- Adventure Mode Result Overlay (Win) -->
+  <div id="adventure-win-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel adventure-panel">
+      <div class="arcade-title" style="font-size:clamp(12px,2.5vw,16px);color:#44ff88">🏆 VICTORY!</div>
+      <div class="adventure-result-text" id="adv-win-text"></div>
+      <div class="adventure-unlocked-block" id="adv-unlocked-block">
+        <div class="adventure-unlocked-emoji" id="adv-unlocked-emoji"></div>
+        <div class="adventure-unlocked-label">UNLOCKED!</div>
+      </div>
+      <div class="adventure-result-buttons">
+        <button class="arcade-btn arcade-btn-green" id="adv-next-round">▶ NEXT ROUND</button>
+        <button class="arcade-btn arcade-btn-dim" id="adv-win-quit">🏠 DASHBOARD</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Adventure Mode Result Overlay (Lose) -->
+  <div id="adventure-lose-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel adventure-panel">
+      <div class="arcade-title" style="font-size:clamp(12px,2.5vw,16px);color:#ff4444">💀 DEFEATED!</div>
+      <div class="adventure-result-text">YOU LOST — TRY AGAIN FROM<br>THE PREVIOUS ROUND.</div>
+      <div class="adventure-result-buttons">
+        <button class="arcade-btn arcade-btn-yellow" id="adv-try-again">↺ TRY AGAIN</button>
+        <button class="arcade-btn arcade-btn-dim" id="adv-lose-quit">🏠 DASHBOARD</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════
+       TOURNAMENT OVERLAY
+  ════════════════════════════════ -->
+  <div id="tournament-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel tournament-panel">
+      <div class="arcade-title" style="font-size: clamp(14px,3vw,20px)">🏆 TOURNAMENTS</div>
+      <div class="tournament-subtitle">DAILY TOURNAMENTS AT 12:30 PM &amp; 8:30 PM ET</div>
+      <div id="tournament-list" class="tournament-list">
+        <em>Loading...</em>
+      </div>
+      <button class="arcade-btn arcade-btn-dim" id="tournament-close">◄ BACK</button>
+    </div>
+  </div>
+
+  <!-- Tournament Bracket Overlay -->
+  <div id="tournament-bracket-overlay" class="arcade-overlay hidden">
+    <div class="arcade-panel tournament-bracket-panel">
+      <div class="arcade-title" style="font-size: clamp(12px,2.5vw,16px)">🏆 TOURNAMENT BRACKET</div>
+      <div id="bracket-status-msg" class="bracket-status-msg"></div>
+      <div id="bracket-countdown-row" class="bracket-countdown-row hidden">
+        <span id="bracket-countdown-label">Joining in</span>
+        <span id="bracket-countdown" class="bracket-countdown-num">2:00</span>
+      </div>
+      <div id="bracket-players-row" class="bracket-players-row hidden">
+        <span id="bracket-players-label"></span>
+      </div>
+      <div id="tournament-bracket-view" class="tournament-bracket-view"></div>
+      <div class="bracket-action-row">
+        <button class="arcade-btn arcade-btn-green hidden" id="bracket-ready-btn">✓ READY FOR NEXT MATCH</button>
+        <button class="arcade-btn arcade-btn-dim hidden" id="bracket-dashboard-btn">🏠 BACK TO MENU</button>
+        <button class="arcade-btn arcade-btn-dim hidden" id="bracket-close-btn">✕ CLOSE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tournament Notification Popup -->
+  <div id="tournament-notification" class="tournament-notification hidden">
+    <div class="tournament-notif-inner">
+      <div class="tournament-notif-icon">🏆</div>
+      <div class="tournament-notif-body">
+        <div class="tournament-notif-title">TOURNAMENT STARTING!</div>
+        <div class="tournament-notif-name" id="tournament-notif-name"></div>
+      </div>
+      <div class="tournament-notif-btns">
+        <button class="arcade-btn arcade-btn-green tournament-notif-join" id="tournament-notif-join">JOIN</button>
+        <button class="arcade-btn arcade-btn-dim tournament-notif-dismiss" id="tournament-notif-dismiss">✕</button>
+      </div>
+    </div>
   </div>
 
   <script src="app.js" type="module"></script>

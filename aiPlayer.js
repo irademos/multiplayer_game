@@ -26,13 +26,14 @@ const HUMAN_PASS_PREFER_RANGE = 35; // prefer human teammates within this distan
 const OPPONENT_AVOID_RADIUS = 6;    // dribble-steering repulsion distance
 
 export class AIPlayer {
-  constructor(scene, rapierWorld, { spawnX = 0, spawnZ = 35, targetGoalZ = -50, color = 0xff3322, name = 'Computer' } = {}) {
+  constructor(scene, rapierWorld, { spawnX = 0, spawnZ = 35, targetGoalZ = -50, color = 0xff3322, name = 'Computer', model = '/models/old_man.fbx' } = {}) {
     this.scene = scene;
     this.rapierWorld = rapierWorld;
     this.targetGoalZ = targetGoalZ;
     this.ownGoalZ = -targetGoalZ;
+    this.name = name;
 
-    this.character = new PlayerCharacter(name, '/models/old_man.fbx', color);
+    this.character = new PlayerCharacter(name, model, color);
     this.model = this.character.model;
     scene.add(this.model);
     document.body.appendChild(this.character.nameLabel);
@@ -41,6 +42,8 @@ export class AIPlayer {
     this.kickAnimating = false;
     this.dribbling = false;
     this.dribbleDecideTime = 0;
+    this.dribbleDir = null;       // cached dribble direction vector
+    this.dribbleAdjustTime = 0;   // last time dribble direction was re-evaluated
 
     const spawnY = getTerrainHeight(spawnX, spawnZ) + GROUND_OFFSET + 0.5;
     this.model.position.set(spawnX, spawnY + PLAYER_MODEL_HEIGHT_OFFSET, spawnZ);
@@ -75,6 +78,20 @@ export class AIPlayer {
     return ballPos.clone().add(backingOffset);
   }
 
+  _getCornerKickPosition(formationIndex, formationCount, goalZ) {
+    // Spread non-taker bots around the goal mouth during a corner kick.
+    const count = Math.max(1, formationCount);
+    const index = Math.max(0, Math.min(count - 1, formationIndex));
+    // Positions spread along X from -10 to +10, at varying depths in front of goal
+    const xSlots = [-9, -5, -1, 3, 7, 11];
+    const zDepths = [5, 7, 9, 6, 8, 10]; // distance in front of goal line
+    const slot = index % xSlots.length;
+    const x = xSlots[slot];
+    const zSign = goalZ < 0 ? -1 : 1;
+    const z = goalZ - zSign * zDepths[slot];
+    return new THREE.Vector3(x, 0, z);
+  }
+
   _getFormationPosition(ballPos, formationIndex, formationCount, chaserIndex, chaserPosition) {
     const count = Math.max(1, formationCount);
     const index = Math.max(0, Math.min(count - 1, formationIndex));
@@ -83,9 +100,6 @@ export class AIPlayer {
     const minZ = Math.min(this.ownGoalZ + attackDir * FORMATION_BACK_MARGIN, this.targetGoalZ - attackDir * FORMATION_FRONT_MARGIN);
     const maxZ = Math.max(this.ownGoalZ + attackDir * FORMATION_BACK_MARGIN, this.targetGoalZ - attackDir * FORMATION_FRONT_MARGIN);
 
-    // Support players move with the play instead of parking on static field
-    // thirds. Use the ball/chaser as the moving anchor, then keep each role a
-    // few yards ahead or behind that anchor along the attacking direction.
     const anchorX = chaserPosition
       ? THREE.MathUtils.lerp(chaserPosition.x, ballPos.x, FORMATION_ANCHOR_BALL_BLEND)
       : ballPos.x;
@@ -133,7 +147,7 @@ export class AIPlayer {
     }
   }
 
-  update(delta, soccerBall, { pursueBall = true, formationIndex = 0, formationCount = 1, chaserIndex = null, chaserPosition = null, teammates = [], opponents = [], humanTeammates = [] } = {}) {
+  update(delta, soccerBall, { pursueBall = true, formationIndex = 0, formationCount = 1, chaserIndex = null, chaserPosition = null, teammates = [], opponents = [], humanTeammates = [], cornerKickGoalZ = null } = {}) {
     if (!this.body) return;
 
     const mixer = this.model.userData.mixer;
@@ -171,6 +185,7 @@ export class AIPlayer {
     if (pursueBall && distToBall < KICK_RANGE * 2.5 && now - this.dribbleDecideTime > DRIBBLE_DURATION) {
       this.dribbling = Math.random() < 0.5;
       this.dribbleDecideTime = now;
+      this.dribbleDir = null; // force direction re-evaluation at start of each dribble
     }
 
     if (distToBall < KICK_RANGE && now - this.lastKickTime > KICK_COOLDOWN && !this.dribbling) {
@@ -242,6 +257,7 @@ export class AIPlayer {
           { x: goalDir.x * KICK_IMPULSE, y: goalDir.y * KICK_IMPULSE, z: goalDir.z * KICK_IMPULSE },
           true
         );
+        window.audioManager?.playBallKick();
       }, KICK_REGISTER_DELAY);
 
       setTimeout(() => { this.kickAnimating = false; }, 900);
@@ -251,43 +267,78 @@ export class AIPlayer {
     // Dribble: push ball toward goal while avoiding opponents and staying in bounds
     let targetPos;
     if (pursueBall && this.dribbling && distToBall < KICK_RANGE * 3) {
-      // Base direction: toward opposing goal
-      const dribbleDir = new THREE.Vector3(
-        -ballPos.x * 0.05,
-        0,
-        this.targetGoalZ < 0 ? -1 : 1
-      );
+      const DRIBBLE_ADJUST_INTERVAL = 500; // re-evaluate direction every 500 ms
 
-      // Steer away from nearby opponents
-      const opponentPositions = opponents.map(op => {
-        if (op && op.x !== undefined) return new THREE.Vector3(op.x, op.y, op.z);
-        if (op?.body) { const ot = op.body.translation(); return new THREE.Vector3(ot.x, ot.y, ot.z); }
-        return null;
-      }).filter(Boolean);
+      if (!this.dribbleDir || now - this.dribbleAdjustTime > DRIBBLE_ADJUST_INTERVAL) {
+        // Collect opponent positions
+        const opponentPositions = opponents.map(op => {
+          if (op && op.x !== undefined) return new THREE.Vector3(op.x, op.y, op.z);
+          if (op?.body) { const ot = op.body.translation(); return new THREE.Vector3(ot.x, ot.y, ot.z); }
+          return null;
+        }).filter(Boolean);
 
-      for (const opPos of opponentPositions) {
-        const toOp = new THREE.Vector3().subVectors(ballPos, opPos);
-        toOp.y = 0;
-        const dist = toOp.length();
-        if (dist < OPPONENT_AVOID_RADIUS && dist > 0.01) {
-          // Push dribble direction away from opponent, weighted by proximity
-          dribbleDir.addScaledVector(toOp.normalize(), (OPPONENT_AVOID_RADIUS - dist) / OPPONENT_AVOID_RADIUS * 1.5);
+        const goalZ = this.targetGoalZ;
+        const GOAL_WEIGHT = 3.0;
+        const OPPONENT_WEIGHT = 2.0;
+        const BOUNDS_WEIGHT = 5.0;
+        const LOOK_AHEAD = 4;
+
+        let bestScore = Infinity;
+        let bestDir = null;
+
+        const candidateCount = 16;
+        for (let i = 0; i < candidateCount; i++) {
+          const angle = (i / candidateCount) * Math.PI * 2;
+          const dx = Math.sin(angle);
+          const dz = Math.cos(angle);
+
+          const futureX = ballPos.x + dx * LOOK_AHEAD;
+          const futureZ = ballPos.z + dz * LOOK_AHEAD;
+
+          const boundsOverX = Math.max(0, Math.abs(futureX) - FIELD_X_HALF);
+          const boundsOverZ = Math.max(0, Math.abs(futureZ) - FIELD_Z_HALF);
+          const boundsPenalty = (boundsOverX + boundsOverZ) * BOUNDS_WEIGHT;
+
+          let opPenalty = 0;
+          for (const opPos of opponentPositions) {
+            const futureToOp = new THREE.Vector3(futureX - opPos.x, 0, futureZ - opPos.z);
+            const d = futureToOp.length();
+            if (d < OPPONENT_AVOID_RADIUS) {
+              opPenalty += (OPPONENT_AVOID_RADIUS - d) / OPPONENT_AVOID_RADIUS * OPPONENT_WEIGHT;
+            }
+          }
+
+          const currentDistToGoal = Math.abs(ballPos.z - goalZ);
+          const futureDistToGoal = Math.abs(futureZ - goalZ);
+          const goalProgress = (currentDistToGoal - futureDistToGoal) / LOOK_AHEAD;
+          const goalBonus = goalProgress * GOAL_WEIGHT;
+
+          const score = boundsPenalty + opPenalty - goalBonus;
+
+          if (score < bestScore) {
+            bestScore = score;
+            bestDir = new THREE.Vector3(dx, 0, dz);
+          }
         }
+
+        this.dribbleDir = bestDir || new THREE.Vector3(0, 0, this.targetGoalZ < 0 ? -1 : 1);
+        this.dribbleAdjustTime = now;
       }
 
-      dribbleDir.normalize();
-
-      // Clamp destination to keep ball in bounds
-      const nextBallX = THREE.MathUtils.clamp(ballPos.x + dribbleDir.x * 2, -FIELD_X_HALF, FIELD_X_HALF);
-      const nextBallZ = THREE.MathUtils.clamp(ballPos.z + dribbleDir.z * 2, -FIELD_Z_HALF, FIELD_Z_HALF);
+      const nextBallX = THREE.MathUtils.clamp(ballPos.x + this.dribbleDir.x * 2, -FIELD_X_HALF, FIELD_X_HALF);
+      const nextBallZ = THREE.MathUtils.clamp(ballPos.z + this.dribbleDir.z * 2, -FIELD_Z_HALF, FIELD_Z_HALF);
       const clampedDir = new THREE.Vector3(nextBallX - ballPos.x, 0, nextBallZ - ballPos.z).normalize();
 
-      // Aim to run through the ball from behind the clamped direction
       targetPos = ballPos.clone().sub(clampedDir.clone().multiplyScalar(0.4));
     } else {
-      targetPos = pursueBall
-        ? this._getBallPressurePosition(ballPos)
-        : this._getFormationPosition(ballPos, formationIndex, formationCount, chaserIndex, chaserPosition);
+      if (!pursueBall && cornerKickGoalZ !== null) {
+        targetPos = this._getCornerKickPosition(formationIndex, formationCount, cornerKickGoalZ);
+        targetPos.y = ballPos.y;
+      } else {
+        targetPos = pursueBall
+          ? this._getBallPressurePosition(ballPos)
+          : this._getFormationPosition(ballPos, formationIndex, formationCount, chaserIndex, chaserPosition);
+      }
     }
 
     const moveDir = new THREE.Vector3(targetPos.x - t.x, 0, targetPos.z - t.z);

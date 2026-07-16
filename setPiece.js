@@ -2,6 +2,31 @@ import * as THREE from 'three';
 
 const FIELD_HALF_X = 30;
 const FIELD_HALF_Z = 50;
+const FIELD_IN_PLAY_BUFFER = 1.0;
+const FIELD_OUT_OF_BOUNDS_BUFFER = 1.0;
+
+function isCircleZone(zone) {
+  return zone?.shape === 'circle';
+}
+
+function isInsideZone(x, z, zone) {
+  if (isCircleZone(zone)) {
+    const dx = x - zone.x;
+    const dz = z - zone.z;
+    return dx * dx + dz * dz <= zone.radius * zone.radius;
+  }
+  return x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ;
+}
+
+function isWellInsideField(x, z) {
+  return Math.abs(x) < FIELD_HALF_X - FIELD_IN_PLAY_BUFFER &&
+         Math.abs(z) < FIELD_HALF_Z - FIELD_IN_PLAY_BUFFER;
+}
+
+function isWellOutOfField(x, z) {
+  return Math.abs(x) > FIELD_HALF_X + FIELD_OUT_OF_BOUNDS_BUFFER ||
+         Math.abs(z) > FIELD_HALF_Z + FIELD_OUT_OF_BOUNDS_BUFFER;
+}
 
 const SET_PIECE_LABELS = {
   throwIn: 'THROW-IN',
@@ -85,11 +110,11 @@ export class SetPieceManager {
       // Check end conditions after lock released
       const bp = soccerBall.getPosition();
       if (bp) {
-        const inField = Math.abs(bp.x) < FIELD_HALF_X && Math.abs(bp.z) < FIELD_HALF_Z;
-        const inZone = bp.x >= a.zone.minX && bp.x <= a.zone.maxX &&
-                       bp.z >= a.zone.minZ && bp.z <= a.zone.maxZ;
+        const inField = isWellInsideField(bp.x, bp.z);
+        const inZone = isInsideZone(bp.x, bp.z, a.zone);
+        const wellOutOfField = isWellOutOfField(bp.x, bp.z);
 
-        if (!inZone && !inField) {
+        if (!inZone && wellOutOfField) {
           soccerBall.body.setTranslation(a.ballFixedPos, true);
           soccerBall.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
           soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
@@ -107,7 +132,7 @@ export class SetPieceManager {
       if (body) this._pushOutOfZone(body, a.zone);
     }
 
-    // Push opposing team bodies out of the larger exclusion zone
+    // Push non-taker bodies (both teams' bots + opposing human) out of the larger exclusion zone
     if (a.exclusionZone) {
       for (const body of opposingBodies) {
         if (body) this._pushOutOfZone(body, a.exclusionZone);
@@ -140,6 +165,10 @@ export class SetPieceManager {
   // ─── private ──────────────────────────────────────────────────────────────
 
   _buildZoneVisual(zone) {
+    if (isCircleZone(zone)) {
+      this._buildCircleZoneVisual(zone, 0xffff00, 0.18, 0.02);
+      return;
+    }
     const { minX, maxX, minZ, maxZ } = zone;
     const cx = (minX + maxX) / 2;
     const cz = (minZ + maxZ) / 2;
@@ -173,6 +202,10 @@ export class SetPieceManager {
   }
 
   _buildExclusionZoneVisual(zone) {
+    if (isCircleZone(zone)) {
+      this._buildCircleZoneVisual(zone, 0xff2200, 0.12, 0.015);
+      return;
+    }
     const { minX, maxX, minZ, maxZ } = zone;
     const cx = (minX + maxX) / 2;
     const cz = (minZ + maxZ) / 2;
@@ -203,6 +236,32 @@ export class SetPieceManager {
     edges.position.set(cx, y + boxH / 2, cz);
     this.scene.add(edges);
     this._zoneMeshes.push(edges);
+  }
+
+
+  _buildCircleZoneVisual(zone, color, opacity, y) {
+    const floorGeo = new THREE.CircleGeometry(zone.radius, 48);
+    const floorMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(zone.x, y, zone.z);
+    this.scene.add(floor);
+    this._zoneMeshes.push(floor);
+
+    const ringGeo = new THREE.RingGeometry(zone.radius - 0.05, zone.radius + 0.05, 64);
+    const ringMat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(zone.x, y + 0.01, zone.z);
+    this.scene.add(ring);
+    this._zoneMeshes.push(ring);
+
   }
 
   _createLabel() {
@@ -240,6 +299,10 @@ export class SetPieceManager {
   }
 
   _constrainToZone(body, zone) {
+    if (isCircleZone(zone)) {
+      this._constrainToCircleZone(body, zone);
+      return;
+    }
     const t = body.translation();
     let nx = t.x;
     let nz = t.z;
@@ -259,9 +322,54 @@ export class SetPieceManager {
     }
   }
 
+
+  _constrainToCircleZone(body, zone) {
+    const t = body.translation();
+    const dx = t.x - zone.x;
+    const dz = t.z - zone.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist <= zone.radius) return;
+
+    const nx = dist > 0.001 ? dx / dist : 1;
+    const nz = dist > 0.001 ? dz / dist : 0;
+    const v = body.linvel();
+    const outwardVel = v.x * nx + v.z * nz;
+    body.setTranslation({
+      x: zone.x + nx * zone.radius,
+      y: t.y,
+      z: zone.z + nz * zone.radius,
+    }, true);
+    if (outwardVel > 0) {
+      body.setLinvel({
+        x: v.x - outwardVel * nx,
+        y: v.y,
+        z: v.z - outwardVel * nz,
+      }, true);
+    }
+  }
+
+  // Immediately eject all bodies from their respective zones (call once on set piece creation).
+  ejectBodiesNow(otherBodies = [], opposingBodies = []) {
+    if (!this.active) return;
+    const a = this.active;
+    for (const body of otherBodies) {
+      if (body) this._pushOutOfZone(body, a.zone);
+    }
+    if (a.exclusionZone) {
+      for (const body of opposingBodies) {
+        if (body) this._pushOutOfZone(body, a.exclusionZone);
+      }
+    }
+  }
+
   _pushOutOfZone(body, zone) {
+    if (isCircleZone(zone)) {
+      this._pushOutOfCircleZone(body, zone);
+      return;
+    }
     const t = body.translation();
     const pad = 0.5;
+    const margin = 0.1;
     const expanded = {
       minX: zone.minX - pad,
       maxX: zone.maxX + pad,
@@ -274,26 +382,73 @@ export class SetPieceManager {
       t.z < expanded.minZ || t.z > expanded.maxZ
     ) return; // already outside
 
-    // Find nearest face to escape through
+    // Candidate escape positions ordered by distance to nearest face.
+    // We prefer faces whose exit position lands inside the field.
     const dLeft  = t.x - expanded.minX;
     const dRight = expanded.maxX - t.x;
     const dFront = t.z - expanded.minZ;
     const dBack  = expanded.maxZ - t.z;
-    const minD = Math.min(dLeft, dRight, dFront, dBack);
-    const v = body.linvel();
 
-    if (minD === dLeft) {
-      body.setTranslation({ x: expanded.minX - 0.1, y: t.y, z: t.z }, true);
-      if (v.x > 0) body.setLinvel({ x: 0, y: v.y, z: v.z }, true);
-    } else if (minD === dRight) {
-      body.setTranslation({ x: expanded.maxX + 0.1, y: t.y, z: t.z }, true);
-      if (v.x < 0) body.setLinvel({ x: 0, y: v.y, z: v.z }, true);
-    } else if (minD === dFront) {
-      body.setTranslation({ x: t.x, y: t.y, z: expanded.minZ - 0.1 }, true);
-      if (v.z > 0) body.setLinvel({ x: v.x, y: v.y, z: 0 }, true);
-    } else {
-      body.setTranslation({ x: t.x, y: t.y, z: expanded.maxZ + 0.1 }, true);
-      if (v.z < 0) body.setLinvel({ x: v.x, y: v.y, z: 0 }, true);
+    const candidates = [
+      { d: dLeft,  nx: expanded.minX - margin, nz: t.z,               vMask: { x: 0, z: null } },
+      { d: dRight, nx: expanded.maxX + margin, nz: t.z,               vMask: { x: 0, z: null } },
+      { d: dFront, nx: t.x,                   nz: expanded.minZ - margin, vMask: { x: null, z: 0 } },
+      { d: dBack,  nx: t.x,                   nz: expanded.maxZ + margin, vMask: { x: null, z: 0 } },
+    ].sort((a, b) => a.d - b.d);
+
+    const inField = (x, z) =>
+      Math.abs(x) < FIELD_HALF_X - margin && Math.abs(z) < FIELD_HALF_Z - margin;
+
+    // Pick the nearest face that keeps the player on the field; fall back to
+    // nearest face overall (clamped to field bounds) if none is fully in-bounds.
+    let chosen = candidates.find(c => inField(c.nx, c.nz)) ?? candidates[0];
+
+    // Clamp to field so the player is never ejected out of bounds.
+    const safeX = Math.max(-(FIELD_HALF_X - margin), Math.min(FIELD_HALF_X - margin, chosen.nx));
+    const safeZ = Math.max(-(FIELD_HALF_Z - margin), Math.min(FIELD_HALF_Z - margin, chosen.nz));
+
+    body.setTranslation({ x: safeX, y: t.y, z: safeZ }, true);
+    const v = body.linvel();
+    body.setLinvel({
+      x: chosen.vMask.x === 0 ? 0 : v.x,
+      y: v.y,
+      z: chosen.vMask.z === 0 ? 0 : v.z,
+    }, true);
+  }
+
+  _pushOutOfCircleZone(body, zone) {
+    const t = body.translation();
+    const pad = 0.5;
+    const margin = 0.1;
+    const radius = zone.radius + pad;
+    const dx = t.x - zone.x;
+    const dz = t.z - zone.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist > radius) return;
+
+    let nx = dist > 0.001 ? dx / dist : 1;
+    let nz = dist > 0.001 ? dz / dist : 0;
+    let safeX = zone.x + nx * (radius + margin);
+    let safeZ = zone.z + nz * (radius + margin);
+
+    if (Math.abs(safeX) >= FIELD_HALF_X - margin || Math.abs(safeZ) >= FIELD_HALF_Z - margin) {
+      nx = -Math.sign(zone.x || safeX || 1);
+      nz = -Math.sign(zone.z || safeZ || 1);
+      const len = Math.sqrt(nx * nx + nz * nz) || 1;
+      nx /= len;
+      nz /= len;
+      safeX = zone.x + nx * (radius + margin);
+      safeZ = zone.z + nz * (radius + margin);
+    }
+
+    safeX = Math.max(-(FIELD_HALF_X - margin), Math.min(FIELD_HALF_X - margin, safeX));
+    safeZ = Math.max(-(FIELD_HALF_Z - margin), Math.min(FIELD_HALF_Z - margin, safeZ));
+    body.setTranslation({ x: safeX, y: t.y, z: safeZ }, true);
+
+    const v = body.linvel();
+    const outwardVel = v.x * nx + v.z * nz;
+    if (outwardVel < 0) {
+      body.setLinvel({ x: v.x - outwardVel * nx, y: v.y, z: v.z - outwardVel * nz }, true);
     }
   }
 }
@@ -350,15 +505,19 @@ export function buildSetPieceParams(ballOutPos, lastTouchedTeam) {
       const teamTaking = defendingTeam === 'home' ? 'away' : 'home';
       const cornerX = xSign * FIELD_HALF_X;
       const cornerZ = zSign * FIELD_HALF_Z;
-      const ballFixedPos = { x: cornerX, y: fieldY, z: cornerZ };
+      const cornerInset = 0.0;
+      const ballFixedPos = {
+        x: cornerX - xSign * cornerInset,
+        y: fieldY,
+        z: cornerZ - zSign * cornerInset,
+      };
 
-      // Zone is outside the field; the corner of the zone sits on the field corner
-      const extent = 3.5;
+      // Use a circular corner area that is nudged onto the field instead of a box outside it.
       const zone = {
-        minX: xSign > 0 ? cornerX : cornerX - extent,
-        maxX: xSign > 0 ? cornerX + extent : cornerX,
-        minZ: zSign > 0 ? cornerZ : cornerZ - extent,
-        maxZ: zSign > 0 ? cornerZ + extent : cornerZ,
+        shape: 'circle',
+        x: cornerX + xSign * 1.0,
+        z: cornerZ + zSign * 1.0,
+        radius: 3.0,
       };
       // Opposing team must stay 9 units from the corner (on the field side)
       const exExtent = 9;

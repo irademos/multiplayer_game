@@ -1,6 +1,8 @@
 import { db } from './firebase-init.js';
 import { ref, get, runTransaction } from 'firebase/database';
 
+export const GOAL_COIN_REWARD = 5;
+
 function sanitizeName(name) {
   return name.replace(/[.#$[\]/]/g, '_').slice(0, 50);
 }
@@ -10,13 +12,13 @@ export async function recordGoal(playerName) {
   const playerRef = ref(db, `leaderboard/${key}`);
   await runTransaction(playerRef, (current) => {
     if (current === null) {
-      return { name: playerName, goals: 1, wins: 0, draws: 0, losses: 0, coins: 5 };
+      return { name: playerName, goals: 1, wins: 0, draws: 0, losses: 0, coins: GOAL_COIN_REWARD };
     }
     return {
       ...current,
       name: playerName,
       goals: (current.goals || 0) + 1,
-      coins: (current.coins || 0) + 5,
+      coins: (current.coins || 0) + GOAL_COIN_REWARD,
     };
   });
 }

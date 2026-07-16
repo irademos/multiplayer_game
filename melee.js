@@ -4,7 +4,9 @@ const ATTACKS = {
   mutantPunch: { damage: 10, range: 1.5, hitTime: 300, hitWindow: 300 },
   hurricaneKick: { damage: 15, range: 2.0, hitTime: 200, hitWindow: 200 },
   mmaKick: { damage: 12, range: 1.7, hitTime: 175, hitWindow: 150 },
-  slide: { damage: 0, range: 1.8, hitTime: 50, hitWindow: 3000, ballForce: 0.55 }
+  slide: { damage: 0, range: 1.8, hitTime: 50, hitWindow: 3000, ballForce: 0.55 },
+  farKick: { damage: 8, range: 1.9, hitTime: 250, hitWindow: 200, ballForce: 0.9, lob: true },
+  bicycleKick: { damage: 10, range: 2.2, hitTime: 450, hitWindow: 300 },
 };
 
 export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) {
@@ -22,12 +24,14 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) 
     const elapsed = now - info.start;
     if (elapsed >= cfg.hitTime && elapsed <= cfg.hitTime + cfg.hitWindow && !info.hasHit) {
       let hit = false;
+      let playerHit = false;
       if (cfg.damage > 0) {
         for (const target of players) {
           if (target === attacker) continue;
           const dist = attacker.model.position.distanceTo(target.model.position);
           if (dist <= cfg.range) {
             hit = true;
+            playerHit = true;
             if (target.id === 'local') {
               window.localHealth = Math.max(0, window.localHealth - cfg.damage);
               if (window.playerControls) {
@@ -57,10 +61,19 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) 
             const dir = new THREE.Vector3()
               .subVectors(ballVec, attacker.model.position)
               .normalize();
-            dir.y = Math.max(dir.y, 0.2);
-            dir.normalize();
-            const force = cfg.ballForce ?? 0.3;
-            window.soccerBall.applyImpulse({ x: dir.x * force, y: dir.y * force, z: dir.z * force });
+            let impulse;
+            if (cfg.lob) {
+              // Lob: steep upward arc, short horizontal distance
+              const lobForce = cfg.ballForce ?? 0.9;
+              impulse = { x: dir.x * lobForce * 0.25, y: lobForce * 0.4, z: dir.z * lobForce * 0.25 };
+            } else {
+              dir.y = Math.max(dir.y, 0.2);
+              dir.normalize();
+              const force = cfg.ballForce ?? 0.3;
+              impulse = { x: dir.x * force, y: dir.y * force, z: dir.z * force };
+            }
+            window.soccerBall.applyImpulse(impulse);
+            audioManager?.playBallKick();
           }
         }
       }
@@ -83,8 +96,10 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) 
         }
       }
 
+      if (playerHit) {
+        audioManager?.playSFX('SFX/Footsteps/Dirt/Dirt Run 1.ogg', 0.6);
+      }
       if (hit) {
-        audioManager?.playSFX('SFX/Attacks/Sword Attacks Hits and Blocks/Sword Impact Hit 1.ogg', 0.6);
         info.hasHit = true;
       }
     }

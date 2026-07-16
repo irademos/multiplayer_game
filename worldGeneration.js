@@ -366,6 +366,7 @@ function createGrassBladesOnField(scene) {
 }
 
 export function generateSoccerField(scene, rapierWorld) {
+  // Flat base ground panels (field lines sit on these)
   const grassMat = new THREE.MeshStandardMaterial({ color: 0x2d8a2d, roughness: 0.95 });
   const grassAlt = new THREE.MeshStandardMaterial({ color: 0x267a26, roughness: 0.95 });
 
