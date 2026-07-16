@@ -273,10 +273,7 @@ function createGrassBladesOnField(scene) {
     uniforms,
     vertexShader: /* glsl */`
       attribute mat4 instanceMatrix;
-      attribute vec2 uv;
 
-      uniform mat4 projectionMatrix;
-      uniform mat4 modelViewMatrix;
       uniform float time;
 
       varying float vUvY;
