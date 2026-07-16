@@ -177,10 +177,26 @@ function addGoal(scene, zSign, rapierWorld, color = 0xffffff) {
 
   // Back net
   buildNetGrid(GOAL_WIDTH, GOAL_HEIGHT, 0, 0, zSign * GOAL_DEPTH);
-  // Left side net
-  buildNetGrid(GOAL_DEPTH, GOAL_HEIGHT, -GOAL_WIDTH / 2, 0, 0, zSign > 0 ? -Math.PI / 2 : Math.PI / 2);
-  // Right side net
-  buildNetGrid(GOAL_DEPTH, GOAL_HEIGHT, GOAL_WIDTH / 2, 0, 0, zSign > 0 ? Math.PI / 2 : -Math.PI / 2);
+
+  // Side nets — built directly in ZY plane so no rotation is needed
+  for (const xPost of [-GOAL_WIDTH / 2, GOAL_WIDTH / 2]) {
+    const cols = Math.round(GOAL_DEPTH / cellSize);
+    const rows = Math.round(GOAL_HEIGHT / cellSize);
+    const positions = [];
+    // Horizontal lines (along Z)
+    for (let r = 0; r <= rows; r++) {
+      const y = (r / rows) * GOAL_HEIGHT;
+      positions.push(xPost, y, 0, xPost, y, zSign * GOAL_DEPTH);
+    }
+    // Vertical lines (along Y)
+    for (let c = 0; c <= cols; c++) {
+      const z = (c / cols) * zSign * GOAL_DEPTH;
+      positions.push(xPost, 0, z, xPost, GOAL_HEIGHT, z);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    netGroup.add(new THREE.LineSegments(geo, lineMat));
+  }
   // Top net
   {
     const cols = Math.round(GOAL_WIDTH / cellSize);
