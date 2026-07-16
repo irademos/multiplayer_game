@@ -505,7 +505,7 @@ export function buildSetPieceParams(ballOutPos, lastTouchedTeam) {
       const teamTaking = defendingTeam === 'home' ? 'away' : 'home';
       const cornerX = xSign * FIELD_HALF_X;
       const cornerZ = zSign * FIELD_HALF_Z;
-      const cornerInset = 0.8;
+      const cornerInset = 0.0;
       const ballFixedPos = {
         x: cornerX - xSign * cornerInset,
         y: fieldY,
@@ -515,8 +515,8 @@ export function buildSetPieceParams(ballOutPos, lastTouchedTeam) {
       // Use a circular corner area that is nudged onto the field instead of a box outside it.
       const zone = {
         shape: 'circle',
-        x: cornerX - xSign * 0.5,
-        z: cornerZ - zSign * 0.5,
+        x: cornerX + xSign * 1.0,
+        z: cornerZ + zSign * 1.0,
         radius: 3.0,
       };
       // Opposing team must stay 9 units from the corner (on the field side)

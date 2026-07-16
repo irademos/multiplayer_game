@@ -2465,7 +2465,7 @@ async function main() {
       const sy = 1.5;
       let spawnX = ballFixedPos.x;
       let spawnZ = ballFixedPos.z;
-      const OFFSET = 1.5;
+      const OFFSET = 3.0;
       if (spType === 'throwIn') {
         spawnX = ballFixedPos.x + Math.sign(ballFixedPos.x) * OFFSET;
       } else if (spType === 'cornerKick') {
@@ -2504,7 +2504,7 @@ async function main() {
         const sy = 1.5;
         let spawnX = ballFixedPos.x;
         let spawnZ = ballFixedPos.z;
-        const OFFSET = 1.5;
+        const OFFSET = 3.0;
         if (spType === 'throwIn') {
           spawnX = ballFixedPos.x + Math.sign(ballFixedPos.x) * OFFSET;
         } else if (spType === 'cornerKick') {
