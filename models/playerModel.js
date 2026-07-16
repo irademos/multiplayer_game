@@ -145,6 +145,8 @@ export function createPlayerModel(
 
           const model = fbx;
 
+          const brightness = config.brightness ?? 1.0;
+
           try {
             const lightsToRemove = [];
 
@@ -219,8 +221,6 @@ export function createPlayerModel(
             });
           }
 
-
-          const brightness = config.brightness ?? 1.0;
 
           // Scale and center the model so it rotates around its midpoint
           const scale = config.scale ?? 1;
