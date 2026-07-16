@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { SkeletonUtils } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 const DEFAULT_WORLD_SEED = 0x5f3759df;
 let currentWorldSeed = DEFAULT_WORLD_SEED;
@@ -508,6 +507,26 @@ export async function addSceneryProps(scene) {
   }
 }
 
+function cloneSkinnedModel(source) {
+  const clone = source.clone(true);
+  // Remap SkinnedMesh bones to the cloned skeleton so animations work independently
+  const sourceBones = [];
+  const cloneBones = [];
+  source.traverse(n => { if (n.isBone) sourceBones.push(n); });
+  clone.traverse(n => { if (n.isBone) cloneBones.push(n); });
+  clone.traverse(n => {
+    if (n.isSkinnedMesh) {
+      const remapped = n.skeleton.bones.map(b => {
+        const idx = sourceBones.indexOf(b);
+        return idx !== -1 ? cloneBones[idx] : b;
+      });
+      n.skeleton = new THREE.Skeleton(remapped, n.skeleton.boneInverses);
+      n.bind(n.skeleton);
+    }
+  });
+  return clone;
+}
+
 export async function addFans(scene) {
   const fanPositions = [
     // Left sideline
@@ -535,7 +554,7 @@ export async function addFans(scene) {
   const animName = 'Wizard_Gnome_Armature|idle';
 
   for (const pos of fanPositions) {
-    const model = SkeletonUtils.clone(gltf.scene);
+    const model = cloneSkinnedModel(gltf.scene);
     model.position.set(pos.x, 0, pos.z);
     model.scale.setScalar(fanScale);
     model.rotation.y = Math.atan2(-pos.x, -pos.z);
