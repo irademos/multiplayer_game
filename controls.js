@@ -413,6 +413,8 @@ export class PlayerControls {
         if (this.isInWater) return;
         if (this.isMoving) {
           this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
+        } else {
+          this.slideMomentum.set(0, 0, 0);
         }
         this.playAction('mutantPunch');
         this.audioManager?.playPunch();
@@ -525,6 +527,7 @@ export class PlayerControls {
         if (e.action === action) {
           mixer.removeEventListener("finished", onFinished);
           this.currentSpecialAction = null;
+          this.slideMomentum.set(0, 0, 0);
         }
       };
       mixer.addEventListener("finished", onFinished);
