@@ -491,7 +491,7 @@ export async function addSceneryProps(scene) {
   ];
 
   // Lamppost positions along the long sides and ends of the field
-  const lamppostScale = 5;
+  const lamppostScale = 1.5;
   const lampLightHeight = 9; // approximate height of the lamp head at scale 5
   const lampposts = [
     // Left sideline (x negative)
@@ -545,7 +545,7 @@ export async function addSceneryProps(scene) {
       scene.add(clone);
     }
 
-    const light = new THREE.PointLight(0xffd580, 2.5, 45, 2);
+    const light = new THREE.PointLight(0xffd580, 500, 70, 2);
     light.position.set(lp.x, lampLightHeight, lp.z);
     scene.add(light);
   }

@@ -2743,6 +2743,15 @@ async function main() {
   dirLight.castShadow = true;
   dirLight.shadow.bias = -0.0005;
   dirLight.shadow.mapSize.set(4096, 4096);
+
+  dirLight.shadow.camera.left = -80;
+  dirLight.shadow.camera.right = 80;
+  dirLight.shadow.camera.top = 80;
+  dirLight.shadow.camera.bottom = -80;
+  dirLight.shadow.camera.near = 1;
+  dirLight.shadow.camera.far = 200;
+
+  dirLight.target.position.set(0, 0, 0);
   scene.add(dirLight);
 
 
