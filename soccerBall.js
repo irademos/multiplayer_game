@@ -59,7 +59,7 @@ export class SoccerBall {
     const colDesc = RAPIER.ColliderDesc.ball(ballRadius)
       .setRestitution(0.7)
       .setFriction(0.4)
-      .setDensity(0.3);
+      .setDensity(0.28);
     this.rapierWorld.createCollider(colDesc, this.body);
 
     if (this.rbToMesh) {
