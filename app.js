@@ -1711,7 +1711,10 @@ async function main() {
   };
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x87CEEB);
+  const cubeLoader = new THREE.CubeTextureLoader();
+  cubeLoader.setPath('/assets/skybox/');
+  const skyboxTexture = cubeLoader.load(['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png']);
+  scene.background = skyboxTexture;
 
   // ── Rainbow trail system ───────────────────────────────────────────────────
   const TRAIL_COLORS = [0xff0000, 0xff7700, 0xffee00, 0x00ee00, 0x0088ff, 0x8800ff];
@@ -2551,16 +2554,22 @@ async function main() {
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   document.getElementById('game-container').appendChild(renderer.domElement);
 
   const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-  scene.add(ambientLight);
+  scene.fog = new THREE.Fog(0x87cfff, 80, 220);
+
+  const hemiLight = new THREE.HemisphereLight(0xbde8ff, 0x405020, 1.2);
+  scene.add(hemiLight);
 
   const dirLight = new THREE.DirectionalLight(0xffffff, 1);
   dirLight.position.set(5, 10, 5);
   dirLight.castShadow = true;
+  dirLight.shadow.bias = -0.0005;
+  dirLight.shadow.mapSize.set(4096, 4096);
   scene.add(dirLight);
 
 
