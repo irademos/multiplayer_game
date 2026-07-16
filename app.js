@@ -3857,7 +3857,7 @@ async function main() {
       const toBall = new THREE.Vector3(ballPos.x - playerPos.x, 0, ballPos.z - playerPos.z);
       const horizDist = toBall.length();
 
-      const camHeight = 7;
+      const camHeight = 2.5;
       const camBack = 5;
       const behindDir = horizDist > 0.1
         ? toBall.clone().normalize().negate()
