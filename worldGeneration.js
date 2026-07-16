@@ -490,6 +490,20 @@ export async function addSceneryProps(scene) {
     { url: '/assets/props/medieval_building_005.glb',   x:  55, z:  72, s: building5_scale,   r: -0.8 },
   ];
 
+  // Lamppost positions along the long sides and ends of the field
+  const lamppostScale = 5;
+  const lampLightHeight = 9; // approximate height of the lamp head at scale 5
+  const lampposts = [
+    // Left sideline (x negative)
+    { x: -36, z: -38 }, { x: -36, z: -19 }, { x: -36, z:  0 }, { x: -36, z:  19 }, { x: -36, z:  38 },
+    // Right sideline (x positive)
+    { x:  36, z: -38 }, { x:  36, z: -19 }, { x:  36, z:  0 }, { x:  36, z:  19 }, { x:  36, z:  38 },
+    // North end (z negative)
+    { x: -15, z: -56 }, { x:  15, z: -56 },
+    // South end (z positive)
+    { x: -15, z:  56 }, { x:  15, z:  56 },
+  ];
+
   const cache = new Map();
   for (const p of placements) {
     if (!cache.has(p.url)) {
@@ -509,6 +523,31 @@ export async function addSceneryProps(scene) {
       if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }
     });
     scene.add(clone);
+  }
+
+  // Load and place lampposts, one PointLight per post
+  let lampGltf;
+  try {
+    lampGltf = await loadGLTF('/assets/props/low-poly_lamppost.glb');
+  } catch (e) {
+    console.warn('addSceneryProps: failed to load lamppost', e);
+    lampGltf = null;
+  }
+
+  for (const lp of lampposts) {
+    if (lampGltf) {
+      const clone = lampGltf.scene.clone(true);
+      clone.position.set(lp.x, 0, lp.z);
+      clone.scale.setScalar(lamppostScale);
+      clone.traverse(child => {
+        if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }
+      });
+      scene.add(clone);
+    }
+
+    const light = new THREE.PointLight(0xffd580, 2.5, 45, 2);
+    light.position.set(lp.x, lampLightHeight, lp.z);
+    scene.add(light);
   }
 }
 
