@@ -633,14 +633,14 @@ function buildMountainMesh(rng, baseWidth, baseDepth, peakHeight, segments) {
 export function createMountainRing(scene) {
   const rng = getSeededRandom('mountainRing');
 
-  const RING_RADIUS = 175;      // distance from world centre
+  const RING_RADIUS = 140;      // distance from world centre
   const MOUNTAIN_COUNT = 28;    // number of peaks in the ring
-  const BASE_W_MIN = 30;
-  const BASE_W_MAX = 60;
-  const BASE_D_MIN = 20;
-  const BASE_D_MAX = 40;
-  const HEIGHT_MIN = 35;
-  const HEIGHT_MAX = 80;
+  const BASE_W_MIN = 22;
+  const BASE_W_MAX = 42;
+  const BASE_D_MIN = 15;
+  const BASE_D_MAX = 28;
+  const HEIGHT_MIN = 24;
+  const HEIGHT_MAX = 55;
   const SEGMENTS = 7;           // low segment count = faceted low-poly look
 
   // Snow-capped stone palette
@@ -679,7 +679,7 @@ export function createMountainRing(scene) {
       flatShading: true,
     });
     const meshSnow = new THREE.Mesh(geoSnow, matSnow);
-    meshSnow.position.set(cx, ph - snowBase * 0.05, cz);
+    meshSnow.position.set(cx, ph - snowBase, cz);
     meshSnow.rotation.y = meshRock.rotation.y + (rng() - 0.5) * 0.4;
     meshSnow.castShadow = true;
     scene.add(meshSnow);
