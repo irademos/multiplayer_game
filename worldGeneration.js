@@ -268,13 +268,26 @@ function createGrassBladesOnField(scene) {
   geo.setIndex([0, 1, 2]);
 
   const COUNT = 40000;
+  const STRIPE_DEPTH = FIELD_LENGTH / 10; // matches stripeCount in generateSoccerField
 
-  // Per-instance color variation
+  // Generate positions first so color can be stripe-aligned
+  const bladeX = new Float32Array(COUNT);
+  const bladeZ = new Float32Array(COUNT);
+  for (let i = 0; i < COUNT; i++) {
+    bladeX[i] = (rng() - 0.5) * FIELD_WIDTH;
+    bladeZ[i] = (rng() - 0.5) * FIELD_LENGTH;
+  }
+
+  // Per-instance color — base hue follows the field stripe the blade sits in
   const colorData = new Float32Array(COUNT * 3);
   for (let i = 0; i < COUNT; i++) {
-    colorData[i * 3 + 0] = 0.2  + rng() * 0.08;
-    colorData[i * 3 + 1] = 0.45 + rng() * 0.15;
-    colorData[i * 3 + 2] = 0.12 + rng() * 0.05;
+    const stripeIdx = Math.floor((bladeZ[i] + FIELD_LENGTH / 2) / STRIPE_DEPTH) % 2;
+    // Light stripe matches 0x2d8a2d, dark stripe matches 0x267a26
+    const rBase = stripeIdx === 0 ? 0.18 : 0.15;
+    const gBase = stripeIdx === 0 ? 0.52 : 0.46;
+    colorData[i * 3 + 0] = rBase + rng() * 0.06;
+    colorData[i * 3 + 1] = gBase + rng() * 0.10;
+    colorData[i * 3 + 2] = 0.12  + rng() * 0.05;
   }
   geo.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(colorData, 3));
 
@@ -341,11 +354,7 @@ function createGrassBladesOnField(scene) {
 
   const dummy = new THREE.Object3D();
   for (let i = 0; i < COUNT; i++) {
-    dummy.position.set(
-      (rng() - 0.5) * FIELD_WIDTH,
-      0,
-      (rng() - 0.5) * FIELD_LENGTH,
-    );
+    dummy.position.set(bladeX[i], 0, bladeZ[i]);
     // random yaw + small random lean
     dummy.rotation.set(
       (rng() - 0.5) * 0.3,
