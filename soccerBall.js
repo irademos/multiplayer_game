@@ -12,6 +12,7 @@ export class SoccerBall {
     this.body = null;
     this.lastTouchedTeam = null; // 'home' | 'away' | null
     this.lastTouchedName = null;
+    this.lastTouchedByTeam = { home: null, away: null }; // last name per team
   }
 
   create(x = 0, y = 1, z = 0, sizeMultiplier = 1.0) {
@@ -112,6 +113,7 @@ export class SoccerBall {
     if (team) {
       this.lastTouchedTeam = team;
       this.lastTouchedName = playerName;
+      this.lastTouchedByTeam[team] = playerName;
     }
 
     const nx = dx / dist;
@@ -142,5 +144,6 @@ export class SoccerBall {
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.lastTouchedTeam = null;
     this.lastTouchedName = null;
+    this.lastTouchedByTeam = { home: null, away: null };
   }
 }
