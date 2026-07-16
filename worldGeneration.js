@@ -144,15 +144,60 @@ function addGoal(scene, zSign, rapierWorld, color = 0xffffff) {
     );
   }
 
-  // Net (back plane)
-  const netMat = new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
-  const net = new THREE.Mesh(
-    new THREE.PlaneGeometry(GOAL_WIDTH, GOAL_HEIGHT),
-    netMat
-  );
-  net.position.set(0, GOAL_HEIGHT / 2, zPos + zSign * GOAL_DEPTH);
-  net.rotation.y = zSign > 0 ? 0 : Math.PI;
-  scene.add(net);
+  // Net — white mesh grid (back plane + side planes + top plane)
+  const netGroup = new THREE.Group();
+  netGroup.position.set(0, 0, zPos);
+  scene.add(netGroup);
+
+  const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
+  const cellSize = 0.4;
+
+  function buildNetGrid(width, height, offsetX, offsetY, offsetZ, rotY = 0) {
+    const cols = Math.round(width / cellSize);
+    const rows = Math.round(height / cellSize);
+    const positions = [];
+
+    // Horizontal lines
+    for (let r = 0; r <= rows; r++) {
+      const y = (r / rows) * height + offsetY;
+      positions.push(-width / 2 + offsetX, y, offsetZ, width / 2 + offsetX, y, offsetZ);
+    }
+    // Vertical lines
+    for (let c = 0; c <= cols; c++) {
+      const x = (c / cols) * width - width / 2 + offsetX;
+      positions.push(x, offsetY, offsetZ, x, offsetY + height, offsetZ);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    const lines = new THREE.LineSegments(geo, lineMat);
+    if (rotY) lines.rotation.y = rotY;
+    netGroup.add(lines);
+  }
+
+  // Back net
+  buildNetGrid(GOAL_WIDTH, GOAL_HEIGHT, 0, 0, zSign * GOAL_DEPTH);
+  // Left side net
+  buildNetGrid(GOAL_DEPTH, GOAL_HEIGHT, -GOAL_WIDTH / 2, 0, 0, zSign > 0 ? -Math.PI / 2 : Math.PI / 2);
+  // Right side net
+  buildNetGrid(GOAL_DEPTH, GOAL_HEIGHT, GOAL_WIDTH / 2, 0, 0, zSign > 0 ? Math.PI / 2 : -Math.PI / 2);
+  // Top net
+  {
+    const cols = Math.round(GOAL_WIDTH / cellSize);
+    const rows = Math.round(GOAL_DEPTH / cellSize);
+    const positions = [];
+    for (let r = 0; r <= rows; r++) {
+      const z = (r / rows) * zSign * GOAL_DEPTH;
+      positions.push(-GOAL_WIDTH / 2, GOAL_HEIGHT, z, GOAL_WIDTH / 2, GOAL_HEIGHT, z);
+    }
+    for (let c = 0; c <= cols; c++) {
+      const x = (c / cols) * GOAL_WIDTH - GOAL_WIDTH / 2;
+      positions.push(x, GOAL_HEIGHT, 0, x, GOAL_HEIGHT, zSign * GOAL_DEPTH);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    netGroup.add(new THREE.LineSegments(geo, lineMat));
+  }
 }
 
 function addFieldLine(scene, x, z, width, depth, y = 0.01, color = 0xffffff) {
