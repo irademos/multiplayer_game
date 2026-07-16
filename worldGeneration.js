@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { SkeletonUtils } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 const DEFAULT_WORLD_SEED = 0x5f3759df;
 let currentWorldSeed = DEFAULT_WORLD_SEED;
@@ -46,39 +48,8 @@ export function setWorldSeed(seed) {
   currentWorldSeed = normalizeSeed(seed);
 }
 
-export function createClouds(scene) {
-  const rng = getSeededRandom("clouds");
-
-  const cloudMaterial = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    opacity: 0.95,
-    transparent: true,
-    roughness: 0.9,
-    metalness: 0.0,
-    emissive: 0xcccccc,
-    emissiveIntensity: 0.2,
-  });
-
-  for (let i = 0; i < 20; i++) {
-    const cloudGroup = new THREE.Group();
-    const puffCount = 3 + Math.floor(rng() * 5);
-    for (let j = 0; j < puffCount; j++) {
-      const puffSize = 2 + rng() * 3;
-      const puffGeometry = new THREE.SphereGeometry(puffSize, 7, 7);
-      const puff = new THREE.Mesh(puffGeometry, cloudMaterial);
-      puff.position.x = (rng() - 0.5) * 5;
-      puff.position.y = (rng() - 0.5) * 2;
-      puff.position.z = (rng() - 0.5) * 5;
-      cloudGroup.add(puff);
-    }
-    const angle = rng() * Math.PI * 2;
-    const distance = 20 + rng() * 60;
-    cloudGroup.position.x = Math.cos(angle) * distance;
-    cloudGroup.position.z = Math.sin(angle) * distance;
-    cloudGroup.position.y = 20 + rng() * 15;
-    cloudGroup.rotation.y = rng() * Math.PI * 2;
-    scene.add(cloudGroup);
-  }
+export function createClouds(_scene) {
+  // clouds removed
 }
 
 export const MOON_RADIUS = 70;
@@ -464,21 +435,119 @@ export function generateSoccerField(scene, rapierWorld) {
   addGoal(scene,  1, rapierWorld, RED);
   addGoal(scene, -1, rapierWorld, BLUE);
 
-  // Stands (4 sides)
-  const standGap = 4;
-  // Long sides — split each into a blue half (−Z, blue team's side) and a red half (+Z, red team's side)
-  const longStandLen = FIELD_LENGTH + 4;
-  const halfStandLen = longStandLen / 2;
-  const halfStandZ   = longStandLen / 4;
-  for (const [cx, rotY] of [
-    [ FIELD_WIDTH / 2 + standGap + STAND_DEPTH / 2,  Math.PI / 2],
-    [-(FIELD_WIDTH / 2 + standGap + STAND_DEPTH / 2), -Math.PI / 2],
-  ]) {
-    addStand(scene, rapierWorld, cx, -halfStandZ, rotY, halfStandLen, STAND_DEPTH, STAND_HEIGHT, BLUE);
-    addStand(scene, rapierWorld, cx,  halfStandZ, rotY, halfStandLen, STAND_DEPTH, STAND_HEIGHT, RED);
+}
+const _sceneryLoader = new GLTFLoader();
+
+function loadGLTF(url) {
+  return new Promise((resolve, reject) => _sceneryLoader.load(url, resolve, undefined, reject));
+}
+
+export async function addSceneryProps(scene) {
+  // field: X -30..+30, Z -50..+50; props placed outside this boundary
+  const placements = [
+    // ── Left side (x negative) ──
+    { url: '/assets/props/coconut_tree.glb',            x: -55, z: -30, s: 6,   r: 0.5  },
+    { url: '/assets/props/coconut_tree.glb',            x: -62, z:   5, s: 7,   r: 1.2  },
+    { url: '/assets/props/coconut_tree.glb',            x: -56, z:  35, s: 5.5, r: 2.1  },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x: -68, z: -20, s: 5,   r: 0.3  },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x: -72, z:  22, s: 6,   r: 1.8  },
+    { url: '/assets/props/fantasy_house.glb',           x: -78, z: -12, s: 7,   r: 0.8  },
+    { url: '/assets/props/fantasy_house.glb',           x: -82, z:  30, s: 7,   r: -0.3 },
+    { url: '/assets/props/medieval_building_002.glb',   x: -88, z:   0, s: 7,   r: -0.5 },
+    { url: '/assets/props/medieval_building_004.glb',   x: -90, z: -35, s: 7,   r: 0.5  },
+
+    // ── Right side (x positive) ──
+    { url: '/assets/props/coconut_tree.glb',            x:  57, z: -25, s: 6.5, r: 2.5  },
+    { url: '/assets/props/coconut_tree.glb',            x:  60, z:  15, s: 5,   r: 0.8  },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x:  70, z: -35, s: 5.5, r: 2.0  },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x:  74, z:  28, s: 6,   r: 0.5  },
+    { url: '/assets/props/fantasy_house (1).glb',       x:  80, z:   8, s: 7,   r: -0.8 },
+    { url: '/assets/props/fantasy_house (1).glb',       x:  85, z: -22, s: 7,   r: 0.4  },
+    { url: '/assets/props/medieval_building_004.glb',   x:  90, z:  22, s: 7,   r: -1.0 },
+    { url: '/assets/props/medieval_building_005.glb',   x:  88, z: -50, s: 7,   r: 0.7  },
+
+    // ── North end (z negative) ──
+    { url: '/assets/props/coconut_tree.glb',            x: -20, z: -72, s: 6,   r: 1.0  },
+    { url: '/assets/props/coconut_tree.glb',            x:  25, z: -76, s: 5.5, r: 2.8  },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x: -42, z: -78, s: 5,   r: 1.5  },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x:  38, z: -70, s: 5.5, r: 0.9  },
+    { url: '/assets/props/fantasy_house.glb',           x:  15, z: -68, s: 7,   r: 1.2  },
+    { url: '/assets/props/medieval_building_005.glb',   x:   0, z: -85, s: 7,   r: 0.0  },
+    { url: '/assets/props/medieval_building_002.glb',   x: -50, z: -70, s: 7,   r: 1.0  },
+
+    // ── South end (z positive) ──
+    { url: '/assets/props/coconut_tree.glb',            x: -15, z:  70, s: 6,   r: 3.0  },
+    { url: '/assets/props/coconut_tree.glb',            x:  30, z:  72, s: 7,   r: 0.6  },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x: -40, z:  80, s: 5,   r: 1.2  },
+    { url: '/assets/props/stylized_pine_tree_tree.glb', x:  45, z:  75, s: 6,   r: 2.5  },
+    { url: '/assets/props/fantasy_house (1).glb',       x: -28, z:  70, s: 7,   r: 2.0  },
+    { url: '/assets/props/fantasy_house (1).glb',       x:  20, z:  80, s: 7,   r: -0.5 },
+    { url: '/assets/props/medieval_building_002.glb',   x:   0, z:  88, s: 7,   r: 0.0  },
+    { url: '/assets/props/medieval_building_005.glb',   x:  55, z:  72, s: 7,   r: -0.8 },
+  ];
+
+  const cache = new Map();
+  for (const p of placements) {
+    if (!cache.has(p.url)) {
+      try {
+        const gltf = await loadGLTF(p.url);
+        cache.set(p.url, gltf.scene);
+      } catch (e) {
+        console.warn('addSceneryProps: failed to load', p.url, e);
+        continue;
+      }
+    }
+    const clone = cache.get(p.url).clone(true);
+    clone.position.set(p.x, 0, p.z);
+    clone.rotation.y = p.r;
+    clone.scale.setScalar(p.s);
+    clone.traverse(child => {
+      if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }
+    });
+    scene.add(clone);
   }
-  // Short ends
-  const shortStandLen = FIELD_WIDTH + (STAND_DEPTH + standGap) * 2 + 4;
-  addStand(scene, rapierWorld, 0, FIELD_LENGTH / 2 + standGap + STAND_DEPTH / 2, 0, shortStandLen, STAND_DEPTH, STAND_HEIGHT);
-  addStand(scene, rapierWorld, 0, -(FIELD_LENGTH / 2 + standGap + STAND_DEPTH / 2), Math.PI, shortStandLen, STAND_DEPTH, STAND_HEIGHT, BLUE);
+}
+
+export async function addFans(scene) {
+  const fanPositions = [
+    // Left sideline
+    { x: -36, z: -30 }, { x: -38, z: -10 }, { x: -36, z:  10 },
+    { x: -38, z:  30 }, { x: -40, z:  -45 }, { x: -36, z:  45 },
+    // Right sideline
+    { x:  36, z: -25 }, { x:  38, z:   5  }, { x:  36, z:  25 },
+    { x:  38, z: -45 }, { x:  36, z:  45  }, { x:  40, z: -10 },
+    // Behind goals (north)
+    { x: -15, z: -55 }, { x:   0, z: -57 }, { x:  15, z: -55 },
+    // Behind goals (south)
+    { x: -15, z:  55 }, { x:   0, z:  57 }, { x:  15, z:  55 },
+  ];
+
+  const mixers = [];
+  let gltf;
+  try {
+    gltf = await loadGLTF('/models/fans/the_green_wizard_gnome_n64_style.glb');
+  } catch (e) {
+    console.warn('addFans: failed to load fan model', e);
+    return mixers;
+  }
+
+  const fanScale = 0.02;
+  const animName = 'Wizard_Gnome_Armature|idle';
+
+  for (const pos of fanPositions) {
+    const model = SkeletonUtils.clone(gltf.scene);
+    model.position.set(pos.x, 0, pos.z);
+    model.scale.setScalar(fanScale);
+    model.rotation.y = Math.atan2(-pos.x, -pos.z);
+    model.traverse(child => { if (child.isMesh) child.castShadow = true; });
+    scene.add(model);
+
+    if (gltf.animations && gltf.animations.length > 0) {
+      const mixer = new THREE.AnimationMixer(model);
+      const clip = THREE.AnimationClip.findByName(gltf.animations, animName) ?? gltf.animations[0];
+      mixer.clipAction(clip).play();
+      mixers.push(mixer);
+    }
+  }
+  return mixers;
 }
