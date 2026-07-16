@@ -1,7 +1,9 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 
 const BALL_RADIUS = 0.28;
+const _ballLoader = new GLTFLoader();
 
 export class SoccerBall {
   constructor(scene, rapierWorld, rbToMesh) {
@@ -17,39 +19,25 @@ export class SoccerBall {
 
   create(x = 0, y = 1, z = 0, sizeMultiplier = 1.0) {
     const ballRadius = BALL_RADIUS * sizeMultiplier;
-    // Build a simple black-and-white soccer ball using canvas texture
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 256, 256);
-    ctx.fillStyle = '#111111';
-    // Pentagon-ish patches
-    const patches = [
-      [128, 128], [128, 60], [60, 100], [196, 100],
-      [80, 180], [176, 180]
-    ];
-    for (const [px, py] of patches) {
-      ctx.beginPath();
-      for (let i = 0; i < 5; i++) {
-        const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
-        const r = 28;
-        const cx = px + Math.cos(a) * r;
-        const cy = py + Math.sin(a) * r;
-        i === 0 ? ctx.moveTo(cx, cy) : ctx.lineTo(cx, cy);
-      }
-      ctx.closePath();
-      ctx.fill();
-    }
-    const texture = new THREE.CanvasTexture(canvas);
 
-    const geo = new THREE.SphereGeometry(ballRadius, 16, 16);
-    const mat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6 });
-    this.mesh = new THREE.Mesh(geo, mat);
-    this.mesh.castShadow = true;
+    // Placeholder invisible mesh so physics can attach immediately;
+    // replaced by the GLB model once loaded.
+    this.mesh = new THREE.Object3D();
     this.mesh.position.set(x, y, z);
     this.scene.add(this.mesh);
+
+    _ballLoader.load('/assets/props/soccer_ball.glb', (gltf) => {
+      const model = gltf.scene;
+      // Scale the GLB so it matches the physics collider radius
+      const box = new THREE.Box3().setFromObject(model);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale = (ballRadius * 2) / maxDim;
+      model.scale.setScalar(scale);
+      model.traverse(child => { if (child.isMesh) child.castShadow = true; });
+      this.mesh.add(model);
+    });
 
     this.ballRadius = ballRadius;
 
