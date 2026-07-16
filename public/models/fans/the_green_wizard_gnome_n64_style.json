@@ -1,4 +1,4 @@
 {
   "scale": 0.02,
-  "animation": "Wizard_Gnome_Armature|idle"
+  "animations": ["Wizard_Gnome_Armature|idle","Wizard_Gnome_Armature|Curse","Wizard_Gnome_Armature|disagree","Wizard_Gnome_Armature|Fall","Wizard_Gnome_Armature|Walking"]
 }
