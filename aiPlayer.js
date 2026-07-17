@@ -24,6 +24,15 @@ const FIELD_X_HALF = 28;   // stay a couple metres from the sideline
 const FIELD_Z_HALF = 48;   // stay a couple metres from the goal-line
 const HUMAN_PASS_PREFER_RANGE = 35; // prefer human teammates within this distance
 const OPPONENT_AVOID_RADIUS = 6;    // dribble-steering repulsion distance
+const LOB_CHANCE = 0.25;
+const SLIDE_TACKLE_CHANCE = 0.3;
+const SLIDE_TACKLE_COOLDOWN = 2500;
+const SLIDE_TACKLE_RANGE = 3.5;
+const SLIDE_TACKLE_DURATION = 1200;
+const AERIAL_HEIGHT_THRESHOLD = 1.2; // ball must be this far above player to try aerial
+const ROLL_CHANCE = 0.15;
+const ROLL_COOLDOWN = 4000;
+const ROLL_DURATION = 800;
 
 export class AIPlayer {
   constructor(scene, rapierWorld, { spawnX = 0, spawnZ = 35, targetGoalZ = -50, color = 0xff3322, name = 'Computer', model = '/models/old_man.fbx' } = {}) {
@@ -44,6 +53,11 @@ export class AIPlayer {
     this.dribbleDecideTime = 0;
     this.dribbleDir = null;       // cached dribble direction vector
     this.dribbleAdjustTime = 0;   // last time dribble direction was re-evaluated
+    this.slideAnimating = false;
+    this.slideVel = null;
+    this.lastSlideTackleTime = 0;
+    this.rolling = false;
+    this.lastRollTime = 0;
 
     const spawnY = getTerrainHeight(spawnX, spawnZ) + GROUND_OFFSET + 0.5;
     this.model.position.set(spawnX, spawnY + PLAYER_MODEL_HEIGHT_OFFSET, spawnZ);
@@ -67,9 +81,84 @@ export class AIPlayer {
     if (current === actionName) return;
     actions[current]?.fadeOut(0.15);
     const action = actions[actionName].reset().fadeIn(0.15);
-    action.setEffectiveTimeScale(['mmaKick', 'hurricaneKick', 'runningKick'].includes(actionName) ? 2 : 1);
+    action.setEffectiveTimeScale(['mmaKick', 'hurricaneKick', 'runningKick', 'farKick', 'bicycleKick'].includes(actionName) ? 2 : 1);
     action.play();
     this.model.userData.currentAction = actionName;
+  }
+
+  _doAerialHeader(ballPos, myPos, soccerBall, now, vel) {
+    this.lastKickTime = now;
+    this.kickAnimating = true;
+
+    const faceDir = new THREE.Vector3().subVectors(ballPos, myPos);
+    faceDir.y = 0;
+    if (faceDir.length() > 0.01) this.model.rotation.y = Math.atan2(faceDir.x, faceDir.z);
+
+    this._playAction('jump');
+    this.body.setLinvel({ x: 0, y: vel.y, z: 0 }, true);
+
+    setTimeout(() => {
+      const dir = new THREE.Vector3(
+        -ballPos.x * 0.05 + (Math.random() * 2 - 1) * KICK_AIM_SPREAD,
+        -0.15,
+        this.targetGoalZ < 0 ? -1 : 1
+      ).normalize();
+      soccerBall.body.applyImpulse(
+        { x: dir.x * KICK_IMPULSE * 1.5, y: dir.y * KICK_IMPULSE, z: dir.z * KICK_IMPULSE * 1.5 },
+        true
+      );
+      window.audioManager?.playBallKick();
+    }, KICK_REGISTER_DELAY);
+
+    setTimeout(() => { this.kickAnimating = false; }, 800);
+  }
+
+  _doBicycleKick(ballPos, myPos, soccerBall, now, vel) {
+    this.lastKickTime = now;
+    this.kickAnimating = true;
+
+    // Face away from goal so the backward bicycle kick goes toward it
+    const awayZ = this.targetGoalZ < 0 ? 1 : -1;
+    this.model.rotation.y = Math.atan2(0, awayZ);
+
+    this._playAction('bicycleKick');
+    this.body.setLinvel({ x: 0, y: vel.y, z: 0 }, true);
+
+    setTimeout(() => {
+      const dir = new THREE.Vector3(
+        -ballPos.x * 0.05 + (Math.random() * 2 - 1) * KICK_AIM_SPREAD,
+        0.35,
+        this.targetGoalZ < 0 ? -1 : 1
+      ).normalize();
+      soccerBall.body.applyImpulse(
+        { x: dir.x * KICK_IMPULSE * 2, y: dir.y * KICK_IMPULSE * 2, z: dir.z * KICK_IMPULSE * 2 },
+        true
+      );
+      window.audioManager?.playBallKick();
+    }, 450);
+
+    setTimeout(() => { this.kickAnimating = false; }, 1000);
+  }
+
+  _doSlideTackle(ballPos, myPos, now, vel) {
+    this.lastSlideTackleTime = now;
+    this.slideAnimating = true;
+
+    const slideDir = new THREE.Vector3().subVectors(ballPos, myPos);
+    slideDir.y = 0;
+    if (slideDir.length() > 0.01) {
+      slideDir.normalize();
+      this.model.rotation.y = Math.atan2(slideDir.x, slideDir.z);
+    }
+
+    this.slideVel = { x: slideDir.x * AI_SPEED * 1.8, z: slideDir.z * AI_SPEED * 1.8 };
+    this._playAction('slide');
+    this.body.setLinvel({ x: this.slideVel.x, y: vel.y, z: this.slideVel.z }, true);
+
+    setTimeout(() => {
+      this.slideAnimating = false;
+      this.slideVel = null;
+    }, SLIDE_TACKLE_DURATION);
   }
 
   _getBallPressurePosition(ballPos) {
@@ -181,11 +270,42 @@ export class AIPlayer {
       return;
     }
 
+    if (this.slideAnimating) {
+      if (this.slideVel) this.body.setLinvel({ x: this.slideVel.x, y: vel.y, z: this.slideVel.z }, true);
+      return;
+    }
+
     // Decide dribble vs kick when near ball and cooldown is up
     if (pursueBall && distToBall < KICK_RANGE * 2.5 && now - this.dribbleDecideTime > DRIBBLE_DURATION) {
       this.dribbling = Math.random() < 0.5;
       this.dribbleDecideTime = now;
       this.dribbleDir = null; // force direction re-evaluation at start of each dribble
+    }
+
+    // Try aerial move if ball is high above the player
+    const ballHeight = ballPos.y - t.y;
+    if (ballHeight > AERIAL_HEIGHT_THRESHOLD && distToBall < KICK_RANGE * 1.5 && now - this.lastKickTime > KICK_COOLDOWN) {
+      if (Math.random() < 0.5) {
+        this._doAerialHeader(ballPos, myPos, soccerBall, now, vel);
+      } else {
+        this._doBicycleKick(ballPos, myPos, soccerBall, now, vel);
+      }
+      return;
+    }
+
+    // Slide tackle when an opponent is close and random chance fires
+    if (pursueBall && distToBall < SLIDE_TACKLE_RANGE && now - this.lastSlideTackleTime > SLIDE_TACKLE_COOLDOWN && !this.dribbling) {
+      const hasNearbyOpponent = opponents.some(op => {
+        if (!op) return false;
+        const opPos = op.body
+          ? (() => { const ot = op.body.translation(); return new THREE.Vector3(ot.x, ot.y, ot.z); })()
+          : new THREE.Vector3(op.x, op.y, op.z);
+        return myPos.distanceTo(opPos) < OPPONENT_AVOID_RADIUS;
+      });
+      if (hasNearbyOpponent && Math.random() < SLIDE_TACKLE_CHANCE) {
+        this._doSlideTackle(ballPos, myPos, now, vel);
+        return;
+      }
     }
 
     if (distToBall < KICK_RANGE && now - this.lastKickTime > KICK_COOLDOWN && !this.dribbling) {
@@ -249,12 +369,15 @@ export class AIPlayer {
         this.model.rotation.y = Math.atan2(faceDir.x, faceDir.z);
       }
 
-      this._playAction('mmaKick');
+      // Sometimes lob the ball instead of a ground kick
+      const useLob = !passTarget && Math.random() < LOB_CHANCE;
+      this._playAction(useLob ? 'farKick' : 'mmaKick');
       this.body.setLinvel({ x: 0, y: vel.y, z: 0 }, true);
 
       setTimeout(() => {
+        const yForce = useLob ? 0.55 : goalDir.y * KICK_IMPULSE;
         soccerBall.body.applyImpulse(
-          { x: goalDir.x * KICK_IMPULSE, y: goalDir.y * KICK_IMPULSE, z: goalDir.z * KICK_IMPULSE },
+          { x: goalDir.x * KICK_IMPULSE, y: yForce, z: goalDir.z * KICK_IMPULSE },
           true
         );
         window.audioManager?.playBallKick();
@@ -348,8 +471,21 @@ export class AIPlayer {
       moveDir.normalize();
       this.body.setLinvel({ x: moveDir.x * AI_SPEED, y: vel.y, z: moveDir.z * AI_SPEED }, true);
       this.model.rotation.y = Math.atan2(moveDir.x, moveDir.z);
-      this._playAction('run');
+
+      // Occasionally roll when chasing the ball from a distance
+      if (pursueBall && distToBall > KICK_RANGE * 3 && !this.rolling && now - this.lastRollTime > ROLL_COOLDOWN && Math.random() < ROLL_CHANCE) {
+        this.rolling = true;
+        this.lastRollTime = now;
+        this._playAction('runningKick');
+        setTimeout(() => {
+          this.rolling = false;
+          // Animation will fall through to 'run' on next frame
+        }, ROLL_DURATION);
+      } else if (!this.rolling) {
+        this._playAction('run');
+      }
     } else {
+      this.rolling = false;
       this.body.setLinvel({ x: 0, y: vel.y, z: 0 }, true);
       this._playAction('idle');
     }
