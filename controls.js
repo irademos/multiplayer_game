@@ -703,7 +703,7 @@ export class PlayerControls {
       : (() => { const v = new THREE.Vector3(); this.camera.getWorldDirection(v); v.y = 0; v.normalize(); return v; })();
     const rightVector = this.followBallCameraRight
       ? this.followBallCameraRight.clone()
-      : new THREE.Vector3().crossVectors(this.camera.up, cameraDirection).normalize();
+      : new THREE.Vector3().crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0)).normalize();
     const movement = new THREE.Vector3();
     if (!this.isMobile) {
       if (moveDirection.z !== 0) movement.add(cameraDirection.clone().multiplyScalar(moveDirection.z));
