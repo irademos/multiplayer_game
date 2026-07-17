@@ -106,21 +106,7 @@ body {
 }
 
 #jump-button {
-  position: fixed;
-  bottom: 190px;
-  right: 20px;
-  width: 80px;
-  height: 80px;
-  background-color: rgba(255, 255, 255, 0.5);
   border-radius: 50%;
-  display: none;
-  z-index: 1000;
-  touch-action: none;
-  text-align: center;
-  line-height: 80px;
-  font-weight: bold;
-  color: #333;
-  user-select: none;
 }
 
 #action-buttons {
@@ -517,6 +503,11 @@ body {
     bottom: 16px;
     left: 16px;
     gap: 6px;
+    flex-direction: row;
+    flex-wrap: wrap-reverse;
+    /* stop before the joystick: joystick is 120px wide at right:16px, buffer 16px */
+    max-width: calc(100vw - 168px);
+    align-content: flex-end;
   }
 
   #action-buttons .action-button {
@@ -554,15 +545,6 @@ body {
     right: 16px;
   }
 
-  #jump-button {
-    width: 70px;
-    height: 70px;
-    line-height: 70px;
-    font-size: 14px;
-    bottom: 140px;
-    right: 16px;
-  }
-
   .interaction-tooltip.visible {
     pointer-events: auto;
     cursor: pointer;
@@ -575,10 +557,6 @@ body {
     display: block;
   }
 
-  #jump-button {
-    display: block;
-  }
-
   .instructions {
     display: none !important;
   }
@@ -588,20 +566,17 @@ body {
   #joystick-container {
     left: 20px;
     right: auto;
-    bottom: 20px;
-  }
-
-  #jump-button {
-    left: auto;
-    right: 20px;
-    bottom: 20px;
+    bottom: 16px;
   }
 
   #action-buttons {
     left: auto;
-    right: 120px;
-    bottom: 20px;
-    flex-direction: column;
+    right: 16px;
+    bottom: 16px;
+    /* stop before the joystick on the left: joystick right edge ~140px, buffer 16px */
+    max-width: calc(100vw - 172px);
+    flex-direction: row;
+    flex-wrap: wrap-reverse;
   }
 }
 
