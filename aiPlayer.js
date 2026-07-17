@@ -236,7 +236,7 @@ export class AIPlayer {
     }
   }
 
-  update(delta, soccerBall, { pursueBall = true, formationIndex = 0, formationCount = 1, chaserIndex = null, chaserPosition = null, teammates = [], opponents = [], humanTeammates = [], cornerKickGoalZ = null } = {}) {
+  update(delta, soccerBall, { pursueBall = true, formationIndex = 0, formationCount = 1, chaserIndex = null, chaserPosition = null, teammates = [], opponents = [], humanTeammates = [], cornerKickGoalZ = null, isCornerKickTaker = false } = {}) {
     if (!this.body) return;
 
     const mixer = this.model.userData.mixer;
@@ -306,6 +306,38 @@ export class AIPlayer {
         this._doSlideTackle(ballPos, myPos, now, vel);
         return;
       }
+    }
+
+    // Corner kick taker: lob ball toward the center/goal area of the field
+    if (isCornerKickTaker && distToBall < KICK_RANGE && now - this.lastKickTime > KICK_COOLDOWN) {
+      this.lastKickTime = now;
+      this.kickAnimating = true;
+      this.dribbling = false;
+
+      // Face toward the field center from the corner
+      const faceDir = new THREE.Vector3(-ballPos.x, 0, this.targetGoalZ - ballPos.z);
+      if (faceDir.length() > 0.01) faceDir.normalize();
+      this.model.rotation.y = Math.atan2(faceDir.x, faceDir.z);
+
+      this._playAction('farKick');
+      this.body.setLinvel({ x: 0, y: vel.y, z: 0 }, true);
+
+      setTimeout(() => {
+        // Lob toward the goal mouth with slight spread
+        const lobDir = new THREE.Vector3(
+          faceDir.x + (Math.random() * 2 - 1) * KICK_AIM_SPREAD,
+          0,
+          faceDir.z + (Math.random() * 2 - 1) * KICK_AIM_SPREAD
+        ).normalize();
+        soccerBall.body.applyImpulse(
+          { x: lobDir.x * KICK_IMPULSE, y: 0.55, z: lobDir.z * KICK_IMPULSE },
+          true
+        );
+        window.audioManager?.playBallKick();
+      }, KICK_REGISTER_DELAY);
+
+      setTimeout(() => { this.kickAnimating = false; }, 900);
+      return;
     }
 
     if (distToBall < KICK_RANGE && now - this.lastKickTime > KICK_COOLDOWN && !this.dribbling) {
