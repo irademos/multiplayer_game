@@ -2240,9 +2240,10 @@ async function main() {
       // Reset players to their sides
       _resetPlayersToSides();
 
-      // Spawn one defender from the team that conceded near center
+      // Spawn the furthest-forward bot from the team that conceded near center
       const defendingTeam = scoringTeam === 'home' ? 'away' : 'home';
-      const defAI = aiPlayers[defendingTeam]?.[0];
+      const defTeamBots = aiPlayers[defendingTeam] ?? [];
+      const defAI = defTeamBots[defTeamBots.length - 1];
       if (defAI?.body) {
         defAI.body.setTranslation({ x: (Math.random() - 0.5) * 6, y: 1.5, z: (defendingTeam === 'home' ? -3 : 3) }, true);
         defAI.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
