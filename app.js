@@ -1490,6 +1490,8 @@ async function main() {
       player.name = data.name;
       player.modelPath = desiredModel;
       player.team = assignedTeam;
+      player.hasRainbowTrail = !!data.hasRainbowTrail;
+      player.hasTopHat = !!data.hasTopHat;
       if (player.nameLabel) {
         player.nameLabel.innerText = data.name;
       }
@@ -1884,13 +1886,11 @@ async function main() {
   const TRAIL_COLORS = [0xff0000, 0xff7700, 0xffee00, 0x00ee00, 0x0088ff, 0x8800ff];
   const TRAIL_MAX = 24;
   const TRAIL_INTERVAL = 3; // frames between trail points
-  let trailFrameCount = 0;
-  let trailColorIndex = 0;
-  const trailMeshes = [];
 
-  function spawnTrailParticle(position) {
-    const color = TRAIL_COLORS[trailColorIndex % TRAIL_COLORS.length];
-    trailColorIndex++;
+  function _spawnTrailParticle(model, position) {
+    const td = model.userData.trail;
+    const color = TRAIL_COLORS[td.colorIndex % TRAIL_COLORS.length];
+    td.colorIndex++;
     const geo = new THREE.SphereGeometry(0.18, 6, 6);
     const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
     const mesh = new THREE.Mesh(geo, mat);
@@ -1898,29 +1898,33 @@ async function main() {
     mesh.position.y -= 0.1;
     mesh.userData.age = 0;
     scene.add(mesh);
-    trailMeshes.push(mesh);
-    if (trailMeshes.length > TRAIL_MAX) {
-      const old = trailMeshes.shift();
+    td.meshes.push(mesh);
+    if (td.meshes.length > TRAIL_MAX) {
+      const old = td.meshes.shift();
       scene.remove(old);
       old.geometry.dispose();
       old.material.dispose();
     }
   }
 
-  function updateRainbowTrail(playerModel, isMoving) {
-    if (!window.hasRainbowTrail) {
-      if (trailMeshes.length > 0) {
-        trailMeshes.forEach(m => { scene.remove(m); m.geometry.dispose(); m.material.dispose(); });
-        trailMeshes.length = 0;
+  function updateRainbowTrail(model, isMoving, hasTrail) {
+    if (!model.userData.trail) {
+      model.userData.trail = { meshes: [], frameCount: 0, colorIndex: 0 };
+    }
+    const td = model.userData.trail;
+    if (!hasTrail) {
+      if (td.meshes.length > 0) {
+        td.meshes.forEach(m => { scene.remove(m); m.geometry.dispose(); m.material.dispose(); });
+        td.meshes.length = 0;
       }
       return;
     }
-    trailFrameCount++;
-    if (isMoving && trailFrameCount % TRAIL_INTERVAL === 0) {
-      spawnTrailParticle(playerModel.position);
+    td.frameCount++;
+    if (isMoving && td.frameCount % TRAIL_INTERVAL === 0) {
+      _spawnTrailParticle(model, model.position);
     }
-    for (let i = trailMeshes.length - 1; i >= 0; i--) {
-      const m = trailMeshes[i];
+    for (let i = td.meshes.length - 1; i >= 0; i--) {
+      const m = td.meshes[i];
       m.userData.age += 1;
       const life = m.userData.age / TRAIL_MAX;
       m.material.opacity = Math.max(0, 0.9 - life * 0.9);
@@ -1929,7 +1933,7 @@ async function main() {
         scene.remove(m);
         m.geometry.dispose();
         m.material.dispose();
-        trailMeshes.splice(i, 1);
+        td.meshes.splice(i, 1);
       }
     }
   }
@@ -1952,9 +1956,9 @@ async function main() {
     return group;
   }
 
-  function updateTopHat(model) {
+  function updateTopHat(model, hasHat) {
     if (!model) return;
-    if (window.hasTopHat) {
+    if (hasHat) {
       if (!model.userData.topHat) {
         const hat = createTopHatMesh();
         model.add(hat);
@@ -4113,7 +4117,9 @@ async function main() {
       y: playerModel.position.y,
       z: playerModel.position.z,
       rotation: playerModel.rotation.y,
-      action: playerModel.userData.currentAction
+      action: playerModel.userData.currentAction,
+      hasRainbowTrail: !!window.hasRainbowTrail,
+      hasTopHat: !!window.hasTopHat
     });
 
     Object.entries(multiplayer.voiceAudios || {}).forEach(([peerId, { audio }]) => {
@@ -4160,8 +4166,16 @@ async function main() {
 
     _updateConfetti();
     updateDustParticles(frameDelta);
-    if (playerModel) updateRainbowTrail(playerModel, playerControls?.isMoving ?? false);
-    if (playerModel) updateTopHat(playerModel);
+    if (playerModel) updateRainbowTrail(playerModel, playerControls?.isMoving ?? false, !!window.hasRainbowTrail);
+    if (playerModel) updateTopHat(playerModel, !!window.hasTopHat);
+    Object.values(otherPlayers).forEach(({ model, hasRainbowTrail, hasTopHat }) => {
+      if (!model) return;
+      const prev = model.userData._prevPos;
+      const isMoving = prev ? model.position.distanceToSquared(prev) > 0.0001 : false;
+      model.userData._prevPos = model.position.clone();
+      updateRainbowTrail(model, isMoving, hasRainbowTrail);
+      updateTopHat(model, hasTopHat);
+    });
 
     if (followBallCamera && playerModel && soccerBall?.body) {
       const ballRaw = soccerBall.getPosition();
