@@ -193,7 +193,7 @@ export class PlayerControls {
     
     // Jump button event listeners
     document.getElementById('jump-button').addEventListener('touchstart', (event) => {
-      if (!this.enabled || this.isInWater) return;
+      if (!this.enabled || this.isInWater || !window.hasMoveJump) return;
       this.jumpButtonPressed = true;
       if (this.canJump && this.body) {
         const vel = this.body.linvel();
@@ -385,6 +385,7 @@ export class PlayerControls {
           return;
         }
         if (this.isInWater) return;
+        if (!window.hasMoveJump) return;
         if (this.canJump && this.body) {
           const vel = this.body.linvel();
           this.body.setLinvel({ x: vel.x, y: JUMP_FORCE, z: vel.z }, true);
@@ -398,19 +399,24 @@ export class PlayerControls {
         this.audioManager?.playAttack();
       } else if (key === 'f') {
         if (this.isInWater) return;
+        if (!window.hasMoveLob) return;
         this.slideMomentum.set(0, 0, 0);
         this.playAction('farKick');
         this.audioManager?.playAttack?.();
       } else if (key === 'v') {
         if (this.isInWater) return;
+        if (!window.hasMoveBicycle) return;
         this.slideMomentum.set(0, 0, 0);
         this.playAction('bicycleKick');
         this.audioManager?.playAttack?.();
       } else if (key === 'r') {
+        if (!window.hasMoveRoll) return;
         this.triggerRoll();
       } else if (key === 'z') {
+        if (!window.hasMoveSlide) return;
         this.triggerSlide();
       } else if (key === 'shift') {
+        if (!window.hasMoveSprint) return;
         this.triggerSprint();
       } else if (key === 'g') {
         if (this.grabbedTarget) {

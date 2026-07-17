@@ -438,10 +438,62 @@ async function main() {
         emoji: '🌈',
         cost: 100,
       },
+      {
+        key: 'moveRoll',
+        name: 'ROLL',
+        desc: 'ROLL FORWARD TO DODGE\nAND REACH THE BALL!',
+        emoji: '🔄',
+        cost: 25,
+      },
+      {
+        key: 'moveSprint',
+        name: 'SPRINT',
+        desc: 'DASH FASTER THAN YOUR\nOPPONENTS TO THE BALL!',
+        emoji: '💨',
+        cost: 40,
+      },
+      {
+        key: 'moveSlide',
+        name: 'SLIDE',
+        desc: 'SLIDE TACKLE TO STEAL\nTHE BALL FROM ENEMIES!',
+        emoji: '🛝',
+        cost: 100,
+      },
+      {
+        key: 'moveLob',
+        name: 'LOB',
+        desc: 'LAUNCH THE BALL IN A\nHIGH ARC OVER THE FIELD!',
+        emoji: '🏈',
+        cost: 150,
+      },
+      {
+        key: 'moveJump',
+        name: 'JUMP',
+        desc: 'LEAP INTO THE AIR AND\nHEAD THE BALL TO SCORE!',
+        emoji: '⬆️',
+        cost: 250,
+      },
+      {
+        key: 'moveBicycle',
+        name: 'BICYCLE KICK',
+        desc: 'PERFORM A STUNNING\nBICYCLE KICK OVERHEAD!',
+        emoji: '🚲',
+        cost: 500,
+      },
     ];
 
     let playerUpgrades = {};
     let shopCoins = 0;
+
+    function applyUpgradeFlag(key) {
+      if (key === 'rainbowTrail') window.hasRainbowTrail = true;
+      if (key === 'moveRoll') window.hasMoveRoll = true;
+      if (key === 'moveSprint') window.hasMoveSprint = true;
+      if (key === 'moveSlide') window.hasMoveSlide = true;
+      if (key === 'moveLob') window.hasMoveLob = true;
+      if (key === 'moveJump') window.hasMoveJump = true;
+      if (key === 'moveBicycle') window.hasMoveBicycle = true;
+    }
 
     async function openShopOverlay() {
       const shopOverlay = document.getElementById('shop-overlay');
@@ -493,10 +545,7 @@ async function main() {
               playerUpgrades[upgrade.key] = true;
               shopCoins -= upgrade.cost;
               document.getElementById('shop-coins-display').textContent = `🪙 ${shopCoins}`;
-              // If rainbow trail was just purchased, activate it
-              if (upgrade.key === 'rainbowTrail') {
-                window.hasRainbowTrail = true;
-              }
+              applyUpgradeFlag(upgrade.key);
               renderShopItems(listEl);
             } catch (err) {
               if (err.message === 'NOT_ENOUGH_COINS') {
@@ -676,11 +725,11 @@ async function main() {
       }
     });
 
-    // Preload upgrade state so the trail activates on game start if already owned
+    // Preload upgrade state so upgrades activate on game start if already owned
     (async () => {
       try {
         const upgrades = await getUserUpgrades(getSession());
-        if (upgrades?.rainbowTrail) window.hasRainbowTrail = true;
+        if (upgrades) Object.keys(upgrades).forEach(k => { if (upgrades[k]) applyUpgradeFlag(k); });
       } catch { /* ignore */ }
     })();
 
@@ -3393,11 +3442,11 @@ async function main() {
     button.addEventListener('mousedown', handler);
   };
 
-  bindActionButton('roll-button', () => playerControls.triggerRoll());
-  bindActionButton('slide-button', () => playerControls.triggerSlide());
-  bindActionButton('sprint-button', () => playerControls.triggerSprint());
-  bindActionButton('lob-button', () => playerControls.playAction('farKick'));
-  bindActionButton('bicycle-button', () => playerControls.playAction('bicycleKick'));
+  bindActionButton('roll-button', () => { if (window.hasMoveRoll) playerControls.triggerRoll(); });
+  bindActionButton('slide-button', () => { if (window.hasMoveSlide) playerControls.triggerSlide(); });
+  bindActionButton('sprint-button', () => { if (window.hasMoveSprint) playerControls.triggerSprint(); });
+  bindActionButton('lob-button', () => { if (window.hasMoveLob) playerControls.playAction('farKick'); });
+  bindActionButton('bicycle-button', () => { if (window.hasMoveBicycle) playerControls.playAction('bicycleKick'); });
 
   let localStream = null;
   let micActive = false;
