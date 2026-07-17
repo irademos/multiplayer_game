@@ -839,8 +839,8 @@ export class PlayerControls {
     }
 
     const rotateSpeed = 0.03;
-    if (this.keys.has('ArrowLeft')) this.yaw += rotateSpeed;
-    if (this.keys.has('ArrowRight')) this.yaw -= rotateSpeed;
+    if (this.keys.has('ArrowLeft')) this.yaw -= rotateSpeed;
+    if (this.keys.has('ArrowRight')) this.yaw += rotateSpeed;
 
     const maxPitch = Math.PI / 3;   // ~60° upward
     const minPitch = -Math.PI / 8;  // ~30° downward
