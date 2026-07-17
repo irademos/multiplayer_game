@@ -1951,9 +1951,17 @@ async function main() {
     const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.30, 0.03, 16), mat);
     brim.position.y = 0;
     group.add(brim);
-    // Position at head height within the playerGroup
-    group.position.y = 1.48;
     return group;
+  }
+
+  function findHeadBone(model) {
+    let bone = null;
+    model.traverse((obj) => {
+      if (bone) return;
+      const n = obj.name.toLowerCase();
+      if (obj.isBone && n.includes('head')) bone = obj;
+    });
+    return bone;
   }
 
   function updateTopHat(model, hasHat) {
@@ -1961,8 +1969,19 @@ async function main() {
     if (hasHat) {
       if (!model.userData.topHat) {
         const hat = createTopHatMesh();
-        model.add(hat);
+        const headBone = findHeadBone(model);
+        if (headBone) {
+          // Attach to head bone so the hat moves with the head animation
+          headBone.add(hat);
+          // Local offset: sit on top of the head bone
+          hat.position.set(0, 0.18, 0);
+        } else {
+          // Fallback: fixed position on model root
+          model.add(hat);
+          hat.position.y = 1.48;
+        }
         model.userData.topHat = hat;
+        model.userData.topHatParent = headBone || model;
       }
       model.userData.topHat.visible = true;
     } else {
