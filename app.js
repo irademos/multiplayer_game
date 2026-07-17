@@ -486,13 +486,21 @@ async function main() {
     let shopCoins = 0;
 
     function applyUpgradeFlag(key) {
-      if (key === 'rainbowTrail') window.hasRainbowTrail = true;
-      if (key === 'moveRoll') window.hasMoveRoll = true;
-      if (key === 'moveSprint') window.hasMoveSprint = true;
-      if (key === 'moveSlide') window.hasMoveSlide = true;
-      if (key === 'moveLob') window.hasMoveLob = true;
-      if (key === 'moveJump') window.hasMoveJump = true;
-      if (key === 'moveBicycle') window.hasMoveBicycle = true;
+      if (key === 'rainbowTrail') { window.hasRainbowTrail = true; return; }
+      const moveMap = {
+        moveRoll:    ['hasMoveRoll',    'roll-button'],
+        moveSprint:  ['hasMoveSprint',  'sprint-button'],
+        moveSlide:   ['hasMoveSlide',   'slide-button'],
+        moveLob:     ['hasMoveLob',     'lob-button'],
+        moveJump:    ['hasMoveJump',    'jump-button'],
+        moveBicycle: ['hasMoveBicycle', 'bicycle-button'],
+      };
+      const entry = moveMap[key];
+      if (entry) {
+        window[entry[0]] = true;
+        const btn = document.getElementById(entry[1]);
+        if (btn) btn.style.display = '';
+      }
     }
 
     async function openShopOverlay() {
