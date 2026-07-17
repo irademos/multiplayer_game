@@ -301,20 +301,21 @@ export class PlayerControls {
     }
 
     // Kick button
-    if (!document.getElementById('kick-button')) {
-      const kickButton = document.createElement('button');
+    let kickButton = document.getElementById('kick-button');
+    if (!kickButton) {
+      kickButton = document.createElement('button');
       kickButton.id = 'kick-button';
-      kickButton.className = 'action-button mobile-action';
+      kickButton.className = 'action-button mobile-only';
       kickButton.innerText = 'KICK';
       actionContainer.appendChild(kickButton);
-      kickButton.addEventListener('touchstart', (event) => {
-        if (!this.enabled || this.isInWater) return;
-        this.slideMomentum.set(0, 0, 0);
-        this.playAction('mmaKick');
-        this.audioManager?.playAttack();
-        event.preventDefault();
-      });
     }
+    kickButton.addEventListener('touchstart', (event) => {
+      if (!this.enabled || this.isInWater) return;
+      this.slideMomentum.set(0, 0, 0);
+      this.playAction('mmaKick');
+      this.audioManager?.playAttack();
+      event.preventDefault();
+    });
 
     // Lob button (touchstart for mobile; mousedown handled in app.js)
     const lobBtn = document.getElementById('lob-button');
