@@ -24,30 +24,6 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) 
     const elapsed = now - info.start;
     if (elapsed >= cfg.hitTime && elapsed <= cfg.hitTime + cfg.hitWindow && !info.hasHit) {
       let hit = false;
-      let playerHit = false;
-      if (cfg.damage > 0) {
-        for (const target of players) {
-          if (target === attacker) continue;
-          const dist = attacker.model.position.distanceTo(target.model.position);
-          if (dist <= cfg.range) {
-            hit = true;
-            playerHit = true;
-            if (target.id === 'local') {
-              window.localHealth = Math.max(0, window.localHealth - cfg.damage);
-              if (window.playerControls) {
-                const dir = new THREE.Vector3().subVectors(target.model.position, attacker.model.position).normalize();
-                const impulse = dir.multiplyScalar(0.15);
-                window.playerControls.applyKnockback(impulse);
-              }
-            } else {
-              const tp = otherPlayers[target.id];
-              if (tp) {
-                tp.health = Math.max(0, (tp.health || 100) - cfg.damage);
-              }
-            }
-          }
-        }
-      }
 
       if (window.soccerBall?.body) {
         const ballPos = window.soccerBall.getPosition();
@@ -96,9 +72,6 @@ export function updateMeleeAttacks({ playerModel, otherPlayers, audioManager }) 
         }
       }
 
-      if (playerHit) {
-        audioManager?.playSFX('SFX/Footsteps/Dirt/Dirt Run 1.ogg', 0.6);
-      }
       if (hit) {
         info.hasHit = true;
       }
