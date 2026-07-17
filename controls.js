@@ -340,21 +340,6 @@ export class PlayerControls {
       }, { passive: false });
     }
 
-    // Punch button
-    if (!document.getElementById('punch-button')) {
-      const punchButton = document.createElement('button');
-      punchButton.id = 'punch-button';
-      punchButton.className = 'action-button mobile-action';
-      punchButton.innerText = 'PUNCH';
-      actionContainer.appendChild(punchButton);
-      punchButton.addEventListener('touchstart', (event) => {
-        if (!this.enabled || this.isInWater) return;
-        this.playAction('mutantPunch');
-        this.audioManager?.playPunch();
-        event.preventDefault();
-      });
-    }
-
     // Slide button
     if (!document.getElementById('slide-button')) {
       const slideButton = document.createElement('button');
@@ -409,15 +394,6 @@ export class PlayerControls {
           this.hasDoubleJumped = true;
           this.playAction('hurricaneKick');
         }
-      } else if (key === 'q') {
-        if (this.isInWater) return;
-        if (this.isMoving) {
-          this.slideMomentum.copy(this.lastMoveDirection).multiplyScalar(0.5);
-        } else {
-          this.slideMomentum.set(0, 0, 0);
-        }
-        this.playAction('mutantPunch');
-        this.audioManager?.playPunch();
       } else if (key === 'e') {
         if (this.isInWater) return;
         this.slideMomentum.set(0, 0, 0);
