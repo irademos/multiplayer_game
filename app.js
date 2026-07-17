@@ -1971,17 +1971,25 @@ async function main() {
         const hat = createTopHatMesh();
         const headBone = findHeadBone(model);
         if (headBone) {
-          // Attach to head bone so the hat moves with the head animation
           headBone.add(hat);
-          // Local offset: sit on top of the head bone
           hat.position.set(0, 0.18, 0);
         } else {
-          // Fallback: fixed position on model root
+          // Fallback: fixed position on model root; will re-attach once bones load
           model.add(hat);
           hat.position.y = 1.48;
         }
         model.userData.topHat = hat;
         model.userData.topHatParent = headBone || model;
+      } else if (!model.userData.topHatParent?.isBone) {
+        // Hat was attached with fallback — try again now that bones may have loaded
+        const headBone = findHeadBone(model);
+        if (headBone) {
+          const hat = model.userData.topHat;
+          model.userData.topHatParent.remove(hat);
+          headBone.add(hat);
+          hat.position.set(0, 0.18, 0);
+          model.userData.topHatParent = headBone;
+        }
       }
       model.userData.topHat.visible = true;
     } else {
