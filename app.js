@@ -480,6 +480,13 @@ async function main() {
         emoji: '🚲',
         cost: 500,
       },
+      {
+        key: 'topHat',
+        name: 'TOP HAT',
+        desc: 'WEAR A DAPPER TOP HAT\nON YOUR HEAD!',
+        emoji: '🎩',
+        cost: 1000,
+      },
     ];
 
     let playerUpgrades = {};
@@ -487,6 +494,7 @@ async function main() {
 
     function applyUpgradeFlag(key) {
       if (key === 'rainbowTrail') { window.hasRainbowTrail = true; return; }
+      if (key === 'topHat') { window.hasTopHat = true; return; }
       const moveMap = {
         moveRoll:    ['hasMoveRoll',    'roll-button'],
         moveSprint:  ['hasMoveSprint',  'sprint-button'],
@@ -657,6 +665,23 @@ async function main() {
         btn.textContent = '🔒 LOCKED';
         btn.className = 'arcade-btn char-feature-toggle';
       }
+
+      const hasHat = !!upgrades.topHat;
+      const hatRow = document.getElementById('feature-row-topHat');
+      const hatBtn = document.getElementById('btn-toggle-topHat');
+
+      if (hasHat) {
+        hatRow.classList.remove('locked');
+        hatBtn.disabled = false;
+        const hatActive = !!window.hasTopHat;
+        hatBtn.textContent = hatActive ? '✅ ON' : '❌ OFF';
+        hatBtn.className = `arcade-btn char-feature-toggle ${hatActive ? 'on' : 'off'}`;
+      } else {
+        hatRow.classList.add('locked');
+        hatBtn.disabled = true;
+        hatBtn.textContent = '🔒 LOCKED';
+        hatBtn.className = 'arcade-btn char-feature-toggle';
+      }
     }
 
     document.getElementById('btn-char-features-open').addEventListener('click', openCharacterFeatures);
@@ -670,6 +695,14 @@ async function main() {
       window.hasRainbowTrail = !window.hasRainbowTrail;
       const btn = document.getElementById('btn-toggle-rainbowTrail');
       const active = window.hasRainbowTrail;
+      btn.textContent = active ? '✅ ON' : '❌ OFF';
+      btn.className = `arcade-btn char-feature-toggle ${active ? 'on' : 'off'}`;
+    });
+
+    document.getElementById('btn-toggle-topHat').addEventListener('click', () => {
+      window.hasTopHat = !window.hasTopHat;
+      const btn = document.getElementById('btn-toggle-topHat');
+      const active = window.hasTopHat;
       btn.textContent = active ? '✅ ON' : '❌ OFF';
       btn.className = `arcade-btn char-feature-toggle ${active ? 'on' : 'off'}`;
     });
@@ -1897,6 +1930,40 @@ async function main() {
         m.geometry.dispose();
         m.material.dispose();
         trailMeshes.splice(i, 1);
+      }
+    }
+  }
+
+  // ── Top Hat accessory ────────────────────────────────────────────────────────
+  function createTopHatMesh() {
+    const group = new THREE.Group();
+    group.name = 'topHatAccessory';
+    const mat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+    // Crown — slightly tapered cylinder
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 0.28, 16), mat);
+    crown.position.y = 0.155;
+    group.add(crown);
+    // Brim — wide flat disc
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.30, 0.03, 16), mat);
+    brim.position.y = 0;
+    group.add(brim);
+    // Position at head height within the playerGroup
+    group.position.y = 1.48;
+    return group;
+  }
+
+  function updateTopHat(model) {
+    if (!model) return;
+    if (window.hasTopHat) {
+      if (!model.userData.topHat) {
+        const hat = createTopHatMesh();
+        model.add(hat);
+        model.userData.topHat = hat;
+      }
+      model.userData.topHat.visible = true;
+    } else {
+      if (model.userData.topHat) {
+        model.userData.topHat.visible = false;
       }
     }
   }
@@ -4094,6 +4161,7 @@ async function main() {
     _updateConfetti();
     updateDustParticles(frameDelta);
     if (playerModel) updateRainbowTrail(playerModel, playerControls?.isMoving ?? false);
+    if (playerModel) updateTopHat(playerModel);
 
     if (followBallCamera && playerModel && soccerBall?.body) {
       const ballRaw = soccerBall.getPosition();
