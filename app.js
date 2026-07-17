@@ -1962,10 +1962,11 @@ async function main() {
 
   // Throw-in hand-holding state (local player is the taker)
   const throwInState = {
-    holding: false,     // ball is held at player's hand
-    handBone: null,     // THREE.Bone for right hand
-    button: null,       // DOM button element
-    thrown: false,      // animation triggered, waiting for release
+    holding: false,              // ball is held at player's hand
+    handBone: null,              // THREE.Bone for right hand
+    button: null,                // DOM button element
+    thrown: false,               // animation triggered, waiting for release
+    wasFollowBallCamera: false,  // ball camera was active before throw-in
   };
 
   // Bot throw-in state (an AI player is the taker)
@@ -2521,6 +2522,13 @@ async function main() {
     throwInState.holding = true;
     throwInState.thrown = false;
 
+    // Temporarily disable ball camera during throw-in
+    if (followBallCamera) {
+      throwInState.wasFollowBallCamera = true;
+      followBallCamera = false;
+      followBallBtn.classList.remove('active');
+    }
+
     // Find hand bone inside the player model
     if (playerModel) {
       throwInState.handBone = findRightHandBone(playerModel);
@@ -2583,6 +2591,13 @@ async function main() {
 
       // Remove button
       clearThrowInButton();
+
+      // Restore ball camera if it was active before throw-in
+      if (throwInState.wasFollowBallCamera) {
+        throwInState.wasFollowBallCamera = false;
+        followBallCamera = true;
+        followBallBtn.classList.add('active');
+      }
     }, 600);
   }
 
@@ -2595,6 +2610,12 @@ async function main() {
   }
 
   function clearThrowIn() {
+    // Restore ball camera if it was suppressed for the throw-in
+    if (throwInState.wasFollowBallCamera) {
+      throwInState.wasFollowBallCamera = false;
+      followBallCamera = true;
+      followBallBtn.classList.add('active');
+    }
     throwInState.holding = false;
     throwInState.thrown = false;
     throwInState.handBone = null;
