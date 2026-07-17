@@ -59,7 +59,6 @@ export class PlayerControls {
     this.canJump = true;
     this.keysPressed = new Set();
     this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    this.hasDoubleJumped = false;
     this.currentSpecialAction = null;
     this.runningKickTimer = null;
     this.runningKickOriginalY = 0;
@@ -197,7 +196,8 @@ export class PlayerControls {
       if (!this.enabled || this.isInWater) return;
       this.jumpButtonPressed = true;
       if (this.canJump && this.body) {
-        this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
+        const vel = this.body.linvel();
+        this.body.setLinvel({ x: vel.x, y: JUMP_FORCE, z: vel.z }, true);
         this.canJump = false;
         setTimeout(() => this._trySoccerHeader(), 350);
       }
@@ -385,14 +385,10 @@ export class PlayerControls {
         }
         if (this.isInWater) return;
         if (this.canJump && this.body) {
-          this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
+          const vel = this.body.linvel();
+          this.body.setLinvel({ x: vel.x, y: JUMP_FORCE, z: vel.z }, true);
           this.canJump = false;
-          this.hasDoubleJumped = false;
           setTimeout(() => this._trySoccerHeader(), 350);
-        } else if (!this.hasDoubleJumped && this.body) {
-          this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
-          this.hasDoubleJumped = true;
-          this.playAction('hurricaneKick');
         }
       } else if (key === 'e') {
         if (this.isInWater) return;
@@ -625,7 +621,6 @@ export class PlayerControls {
     const grounded = !this.isInWater && t.y <= groundExpectedY + 0.05;
     if (grounded && !this.isInWater) {
       this.canJump = true;
-      this.hasDoubleJumped = false;
     } else {
       this.canJump = false;
     }
@@ -1007,7 +1002,8 @@ export class PlayerControls {
   triggerJump() {
     if (!this.enabled || !this.body) return;
     if (this.canJump) {
-      this.body.applyImpulse({ x: 0, y: JUMP_FORCE, z: 0 }, true);
+      const vel = this.body.linvel();
+      this.body.setLinvel({ x: vel.x, y: JUMP_FORCE, z: vel.z }, true);
       this.canJump = false;
     }
   }
