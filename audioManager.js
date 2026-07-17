@@ -131,4 +131,8 @@ export class AudioManager {
     this.lastFootstep = now;
     this.playSFX(this._random(this.footsteps), 0.4);
   }
+
+  playGateOpen() {
+    this.playSFX('SFX/Doors Gates and Chests/Gate Open.ogg', 0.85);
+  }
 }
