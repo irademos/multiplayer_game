@@ -2010,14 +2010,42 @@ async function main() {
     _goalOverlayEl = el;
   }
 
-  function _showGoalOverlay(scorerName = null, coinReward = GOAL_COIN_REWARD) {
+  function _showGoalOverlay(scorerName = null, coinReward = GOAL_COIN_REWARD, startCoins = null, isLocalScorer = false) {
     _ensureGoalOverlay();
     const scorerEl = _goalOverlayEl.querySelector('[data-goal-scorer]');
     if (scorerEl) {
       const name = scorerName || 'Someone';
-      scorerEl.textContent = `${name} scored! +${coinReward} coins`;
+      if (isLocalScorer && startCoins !== null) {
+        _animateCoinReward(scorerEl, `${name} scored!`, startCoins, coinReward);
+      } else {
+        scorerEl.textContent = `${name} scored!`;
+      }
     }
     _goalOverlayEl.style.opacity = '1';
+  }
+
+  function _animateCoinReward(el, prefix, startCoins, totalReward, onDone) {
+    let remaining = totalReward;
+    let current = startCoins;
+    const soundInterval = totalReward <= 5 ? 1 : Math.ceil(totalReward / 5);
+    let tick = 0;
+
+    function step() {
+      if (remaining <= 0) {
+        el.innerHTML = `${prefix} <span style="color:#ffe600;font-size:0.85em">🪙 ${current}</span>`;
+        if (onDone) onDone();
+        return;
+      }
+      el.innerHTML = `${prefix} <span style="color:#ffe600;font-size:0.85em">🪙 ${current} <span style="color:#88ff88">+${remaining}</span></span>`;
+      if (tick % soundInterval === 0 && tick < soundInterval * 5) {
+        audioManager.playGateOpen();
+      }
+      current++;
+      remaining--;
+      tick++;
+      setTimeout(step, 700);
+    }
+    step();
   }
 
   function _hideGoalOverlay() {
@@ -2159,7 +2187,7 @@ async function main() {
     });
   }
 
-  function triggerGoalCelebration(scoringTeam, goalPos, scorerName = null, onComplete) {
+  function triggerGoalCelebration(scoringTeam, goalPos, scorerName = null, isLocalScorer = false, onComplete) {
     goalCelebrationActive = true;
     if (playerControls) playerControls.enabled = false;
     Object.values(aiPlayers).flat().forEach(ai => { ai.frozen = true; });
@@ -2170,7 +2198,15 @@ async function main() {
       soccerBall.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     }
 
-    _showGoalOverlay(scorerName);
+    if (isLocalScorer) {
+      getPlayerStats(playerName).then(stats => {
+        _showGoalOverlay(scorerName, GOAL_COIN_REWARD, stats.coins || 0, true);
+      }).catch(() => {
+        _showGoalOverlay(scorerName, GOAL_COIN_REWARD, 0, true);
+      });
+    } else {
+      _showGoalOverlay(scorerName);
+    }
     _spawnConfetti(scoringTeam);
     _spawnGoalExplosion(goalPos, scoringTeam);
 
@@ -2254,6 +2290,7 @@ async function main() {
 
     // Record game result only when we have the authoritative score (host always does;
     // clients get it synced via joinResponse — late joiners without a sync are skipped).
+    const isLocalWin = winningTeam !== null && winningTeam === localPlayerTeam;
     if (scoreAuthoritative) {
       let result;
       if (winningTeam === null) result = 'draw';
@@ -2262,6 +2299,26 @@ async function main() {
       recordGameResult(playerName, result).catch(() => {});
     }
     winMessage.style.color = color;
+
+    // Show coin reward animation for the local winner
+    let winCoinEl = document.getElementById('win-coin-animation');
+    if (!winCoinEl) {
+      winCoinEl = document.createElement('div');
+      winCoinEl.id = 'win-coin-animation';
+      winCoinEl.style.cssText = 'font-family:Impact,sans-serif;font-size:clamp(20px,4vw,40px);margin-top:12px;text-align:center;color:#fff;text-shadow:2px 2px 0 #000,-2px -2px 0 #000;';
+      winOverlay.insertBefore(winCoinEl, winOverlay.querySelector('#play-again-btn'));
+    }
+    if (isLocalWin) {
+      const WIN_COIN_REWARD = 15;
+      getPlayerStats(playerName).then(stats => {
+        _animateCoinReward(winCoinEl, '+coins!', stats.coins || 0, WIN_COIN_REWARD);
+      }).catch(() => {
+        _animateCoinReward(winCoinEl, '+coins!', 0, WIN_COIN_REWARD);
+      });
+    } else {
+      winCoinEl.textContent = '';
+    }
+
     winOverlay.classList.remove('hidden');
 
     // Freeze all movement
@@ -2367,8 +2424,9 @@ async function main() {
       goalCooldown = now + 7000;
       const goalPos = { x: 0, y: 1.5, z: SCORE_FIELD_HALF };
       const scorerName = soccerBall.lastTouchedByTeam.home || 'Blue team';
-      triggerGoalCelebration('home', goalPos, scorerName, () => {
-        if (localPlayerTeam === 'home' && scorerName === playerName) recordGoal(playerName).catch(() => {});
+      const isLocalScorerHome = localPlayerTeam === 'home' && scorerName === playerName;
+      triggerGoalCelebration('home', goalPos, scorerName, isLocalScorerHome, () => {
+        if (isLocalScorerHome) recordGoal(playerName).catch(() => {});
       });
       return;
     }
@@ -2380,8 +2438,9 @@ async function main() {
       goalCooldown = now + 7000;
       const goalPos = { x: 0, y: 1.5, z: -SCORE_FIELD_HALF };
       const scorerName = soccerBall.lastTouchedByTeam.away || 'Red team';
-      triggerGoalCelebration('away', goalPos, scorerName, () => {
-        if (localPlayerTeam === 'away' && scorerName === playerName) recordGoal(playerName).catch(() => {});
+      const isLocalScorerAway = localPlayerTeam === 'away' && scorerName === playerName;
+      triggerGoalCelebration('away', goalPos, scorerName, isLocalScorerAway, () => {
+        if (isLocalScorerAway) recordGoal(playerName).catch(() => {});
       });
       return;
     }
