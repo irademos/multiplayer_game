@@ -928,6 +928,7 @@ async function main() {
     let unsubBracket = null;
     let joinConfirmed = false;
     let gameStarted = false;
+    let latestBracket = null;
 
     function cleanup() {
       if (joinCountdownTimer) clearInterval(joinCountdownTimer);
@@ -991,6 +992,9 @@ async function main() {
         const joined = match.joinedPlayers || {};
         const joinedCount = realPlayers.filter(p => joined[p]).length;
 
+        // Always keep latestBracket fresh so the timer callback uses up-to-date joinedPlayers
+        latestBracket = tData.bracket;
+
         statusMsg.textContent = `YOUR MATCH: ${myMatchInfo.myTeam.name} vs ${myMatchInfo.opponentTeam.name}`;
         statusMsg.style.color = '#ffcc44';
 
@@ -1012,10 +1016,16 @@ async function main() {
             if (countdownEl) countdownEl.textContent = fmtMs(left);
             if (left <= 0) {
               clearInterval(joinCountdownTimer);
-              // Kick non-joined players and start
-              await kickAndFillBots(tid, matchId, tData.bracket).catch(() => {});
+              // Kick non-joined players and start; use latestBracket so joinedPlayers is current
+              await kickAndFillBots(tid, matchId, latestBracket).catch(() => {});
             }
           }, 500);
+        }
+
+        // Skip the countdown if all real players have already joined
+        if (joinConfirmed && realPlayers.length > 0 && joinedCount >= realPlayers.length) {
+          if (joinCountdownTimer) clearInterval(joinCountdownTimer);
+          await kickAndFillBots(tid, matchId, tData.bracket).catch(() => {});
         }
       }
     });
