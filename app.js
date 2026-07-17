@@ -1985,6 +1985,10 @@ async function main() {
   let _confettiEl = null;
   let _goalOverlayEl = null;
 
+  // Local coin cache — fetched once at game start, incremented locally thereafter
+  let _localCoins = 0;
+  getPlayerStats(playerName).then(s => { _localCoins = s.coins || 0; }).catch(() => {});
+
   function _ensureGoalOverlay() {
     if (_goalOverlayEl) return;
     const el = document.createElement('div');
@@ -2199,11 +2203,8 @@ async function main() {
     }
 
     if (isLocalScorer) {
-      getPlayerStats(playerName).then(stats => {
-        _showGoalOverlay(scorerName, GOAL_COIN_REWARD, stats.coins || 0, true);
-      }).catch(() => {
-        _showGoalOverlay(scorerName, GOAL_COIN_REWARD, 0, true);
-      });
+      _showGoalOverlay(scorerName, GOAL_COIN_REWARD, _localCoins, true);
+      _localCoins += GOAL_COIN_REWARD;
     } else {
       _showGoalOverlay(scorerName);
     }
@@ -2310,11 +2311,8 @@ async function main() {
     }
     if (isLocalWin) {
       const WIN_COIN_REWARD = 15;
-      getPlayerStats(playerName).then(stats => {
-        _animateCoinReward(winCoinEl, '+coins!', stats.coins || 0, WIN_COIN_REWARD);
-      }).catch(() => {
-        _animateCoinReward(winCoinEl, '+coins!', 0, WIN_COIN_REWARD);
-      });
+      _animateCoinReward(winCoinEl, '+coins!', _localCoins, WIN_COIN_REWARD);
+      _localCoins += WIN_COIN_REWARD;
     } else {
       winCoinEl.textContent = '';
     }
