@@ -1977,6 +1977,15 @@ async function main() {
     thrown: false,      // throw has been executed
   };
 
+  // Set piece countdown timer (10 seconds from when the set piece activates)
+  const setPieceTimer = {
+    active: false,
+    startTime: 0,
+    duration: 10000,
+    el: null,           // countdown DOM element
+    fired: false,       // auto-action has been triggered
+  };
+
   // Team management: tracks which team each peer is on ('home' | 'away')
   const playerTeams = {};
   let localPlayerTeam = 'home';
@@ -2690,6 +2699,86 @@ async function main() {
     botThrowInState.thrown = false;
   }
 
+  function startSetPieceTimer() {
+    setPieceTimer.active = true;
+    setPieceTimer.startTime = performance.now();
+    setPieceTimer.fired = false;
+
+    if (!setPieceTimer.el) {
+      const el = document.createElement('div');
+      el.id = 'set-piece-timer';
+      el.style.cssText = [
+        'position:fixed',
+        'top:20%',
+        'left:50%',
+        'transform:translateX(-50%)',
+        'z-index:500',
+        'font-size:36px',
+        'font-weight:bold',
+        'color:#fff',
+        'text-shadow:0 2px 8px rgba(0,0,0,0.8)',
+        'pointer-events:none',
+        'font-family:monospace',
+      ].join(';');
+      document.body.appendChild(el);
+      setPieceTimer.el = el;
+    }
+    setPieceTimer.el.style.display = 'block';
+  }
+
+  function stopSetPieceTimer() {
+    setPieceTimer.active = false;
+    setPieceTimer.fired = false;
+    if (setPieceTimer.el) {
+      setPieceTimer.el.style.display = 'none';
+    }
+  }
+
+  function tickSetPieceTimer() {
+    if (!setPieceTimer.active) return;
+    const elapsed = performance.now() - setPieceTimer.startTime;
+    const remaining = Math.max(0, Math.ceil((setPieceTimer.duration - elapsed) / 1000));
+
+    if (setPieceTimer.el) {
+      setPieceTimer.el.textContent = remaining > 0 ? `⏱ ${remaining}` : '⏱ 0';
+    }
+
+    if (!setPieceTimer.fired && elapsed >= setPieceTimer.duration) {
+      setPieceTimer.fired = true;
+      _autoExecuteSetPiece();
+    }
+  }
+
+  function _autoExecuteSetPiece() {
+    const sp = setPieceManager?.active;
+    if (!sp) return;
+
+    const myId = multiplayer.getId();
+
+    if (sp.type === 'throwIn') {
+      if (throwInState.holding) {
+        executeThrowIn();
+      } else if (multiplayer.isHost && !botThrowInState.active && sp.takerNetworkId !== myId) {
+        let takerAI = null;
+        for (const team of ['home', 'away']) {
+          for (const ai of (aiPlayers[team] ?? [])) {
+            if (ai.networkId === sp.takerNetworkId) { takerAI = ai; break; }
+          }
+          if (takerAI) break;
+        }
+        if (takerAI) startBotThrowIn(takerAI);
+      }
+    } else if (sp.type === 'goalKick' || sp.type === 'cornerKick') {
+      // Apply a kick impulse toward the center of the field
+      if (soccerBall?.body) {
+        const bp = sp.ballFixedPos;
+        const dirX = bp.x === 0 ? 0 : -Math.sign(bp.x) * 0.3;
+        const dirZ = bp.z === 0 ? 0 : -Math.sign(bp.z);
+        soccerBall.body.setLinvel({ x: dirX * 8, y: 4, z: dirZ * 8 }, true);
+      }
+    }
+  }
+
   function applySetPiece({ spType, teamTaking, ballFixedPos, zone, exclusionZone, takerNetworkId }) {
     if (!setPieceManager) return;
 
@@ -2763,6 +2852,9 @@ async function main() {
     }
 
     setPieceManager.trigger(spType, teamTaking, ballFixedPos, zone, takerNetworkId, exclusionZone);
+
+    // Start the 10-second countdown timer
+    startSetPieceTimer();
 
     // Immediately eject any player already inside the zones at set piece creation.
     if (multiplayer.isHost) {
@@ -3733,6 +3825,8 @@ async function main() {
             cornerKickGoalZ = sp.ballFixedPos.z > 0 ? 50 : -50;
           }
 
+          const isCornerKickTaker = sp?.type === 'cornerKick' && ai === ballChaser;
+
           ai.update(frameDelta, soccerBall, {
             pursueBall: !ballChaser || ai === ballChaser,
             formationIndex: index,
@@ -3742,7 +3836,8 @@ async function main() {
             teammates: players,
             opponents,
             humanTeammates,
-            cornerKickGoalZ
+            cornerKickGoalZ,
+            isCornerKickTaker
           });
         } else {
           ai.model.userData.mixer?.update(frameDelta);
@@ -3798,9 +3893,12 @@ async function main() {
       if (ended) {
         clearThrowIn();
         clearBotThrowIn();
+        stopSetPieceTimer();
         if (multiplayer.isHost) {
           multiplayer.send({ type: 'setPieceClear' });
         }
+      } else {
+        tickSetPieceTimer();
       }
 
       // While player is holding ball for throw-in, pin ball to hand bone each frame
@@ -3856,6 +3954,7 @@ async function main() {
       // Set piece not active; clear throw-in state if it lingered
       if (throwInState.holding || throwInState.button) clearThrowIn();
       if (botThrowInState.active) clearBotThrowIn();
+      if (setPieceTimer.active) stopSetPieceTimer();
     }
 
     multiplayer.send({
