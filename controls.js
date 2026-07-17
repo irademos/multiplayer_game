@@ -693,8 +693,8 @@ export class PlayerControls {
       } else {
         if (this.keysPressed.has("w")) moveDirection.z = 1;
         if (this.keysPressed.has("s")) moveDirection.z = -1;
-        if (this.keysPressed.has("a")) moveDirection.x = 1;
-        if (this.keysPressed.has("d")) moveDirection.x = -1;
+        if (this.keysPressed.has("a")) moveDirection.x = -1;
+        if (this.keysPressed.has("d")) moveDirection.x = 1;
       }
     }
     if (!this.isMobile && moveDirection.length() > 0) moveDirection.normalize();
