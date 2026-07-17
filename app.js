@@ -3454,6 +3454,7 @@ async function main() {
   });
 
   document.getElementById('leave-game-btn').addEventListener('click', () => {
+    sessionStorage.setItem('skipToGame', '1');
     window.location.reload();
   });
 
