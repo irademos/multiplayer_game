@@ -1959,7 +1959,7 @@ async function main() {
     model.traverse((obj) => {
       if (bone) return;
       const n = obj.name.toLowerCase();
-      if (obj.isBone && n.includes('head')) bone = obj;
+      if ((obj.isBone || obj.isObject3D) && n.includes('head') && !n.includes('headband')) bone = obj;
     });
     return bone;
   }
