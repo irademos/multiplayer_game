@@ -1975,7 +1975,8 @@ async function main() {
         // Mixamo rigs are in centimeter space (~100x world scale),
         // so scale the hat up and offset above the head bone origin
         hat.scale.setScalar(100);
-        hat.position.set(0, 18, 0);
+        const hp = model.userData.hatPosition ?? { x: 0, y: 18, z: 0 };
+        hat.position.set(hp.x, hp.y, hp.z);
         model.userData.topHat = hat;
       }
       model.userData.topHat.visible = true;
