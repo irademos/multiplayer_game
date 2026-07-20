@@ -1959,7 +1959,7 @@ async function main() {
     model.traverse((obj) => {
       if (bone) return;
       const n = obj.name.toLowerCase();
-      if (obj.isBone && n.includes('head')) bone = obj;
+      if (obj.isBone && n.includes('head') && !n.includes('headtop') && !n.includes('head_end')) bone = obj;
     });
     return bone;
   }
@@ -1968,20 +1968,15 @@ async function main() {
     if (!model) return;
     if (hasHat) {
       if (!model.userData.topHat) {
-        const hat = createTopHatMesh();
         const headBone = findHeadBone(model);
-        if (headBone) {
-          // Attach to head bone so the hat moves with the head animation
-          headBone.add(hat);
-          // Local offset: sit on top of the head bone
-          hat.position.set(0, 0.18, 0);
-        } else {
-          // Fallback: fixed position on model root
-          model.add(hat);
-          hat.position.y = 1.48;
-        }
+        if (!headBone) return; // bones not loaded yet — retry next frame
+        const hat = createTopHatMesh();
+        headBone.add(hat);
+        // Mixamo rigs are in centimeter space (~100x world scale),
+        // so scale the hat up and offset above the head bone origin
+        hat.scale.setScalar(100);
+        hat.position.set(0, 18, 0);
         model.userData.topHat = hat;
-        model.userData.topHatParent = headBone || model;
       }
       model.userData.topHat.visible = true;
     } else {

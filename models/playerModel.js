@@ -145,7 +145,7 @@ export function createPlayerModel(
 
           const model = fbx;
 
-          const brightness = config.brightness ?? 1.0;
+const brightness = config.brightness ?? 1.0;
 
           try {
             const lightsToRemove = [];
