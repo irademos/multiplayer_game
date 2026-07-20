@@ -1977,7 +1977,7 @@ async function main() {
         // at the same size regardless of each player model's scale value.
         const boneWorldScale = new THREE.Vector3();
         headBone.getWorldScale(boneWorldScale);
-        hat.scale.setScalar(100 / boneWorldScale.x);
+        hat.scale.setScalar(1 / boneWorldScale.x);
         const hp = model.userData.hatPosition ?? { x: 0, y: 18, z: 0 };
         hat.position.set(hp.x, hp.y, hp.z);
         model.userData.topHat = hat;
