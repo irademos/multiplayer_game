@@ -238,6 +238,7 @@ const brightness = config.brightness ?? 1.0;
           pivot.add(model);
           playerGroup.add(pivot);
           playerGroup.userData.pivot = pivot;
+          if (config.hat_position) playerGroup.userData.hatPosition = config.hat_position;
 
           const mixer = new THREE.AnimationMixer(model);
           const actions = {};
