@@ -1972,9 +1972,12 @@ async function main() {
         if (!headBone) return; // bones not loaded yet — retry next frame
         const hat = createTopHatMesh();
         headBone.add(hat);
-        // Mixamo rigs are in centimeter space (~100x world scale),
-        // so scale the hat up and offset above the head bone origin
-        hat.scale.setScalar(100);
+        // Mixamo rigs are in centimeter space (~100x world scale).
+        // Divide by the bone's inherited world scale so the hat renders
+        // at the same size regardless of each player model's scale value.
+        const boneWorldScale = new THREE.Vector3();
+        headBone.getWorldScale(boneWorldScale);
+        hat.scale.setScalar(100 / boneWorldScale.x);
         const hp = model.userData.hatPosition ?? { x: 0, y: 18, z: 0 };
         hat.position.set(hp.x, hp.y, hp.z);
         model.userData.topHat = hat;
