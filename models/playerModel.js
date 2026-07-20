@@ -145,12 +145,7 @@ export function createPlayerModel(
 
           const model = fbx;
 
-          // Log skeleton node names to help debug hat attachment
-          const skelNames = [];
-          model.traverse(o => { if (o.isBone || o.name) skelNames.push(`${o.type}:${o.name}`); });
-          console.log('[playerModel] skeleton nodes:', skelNames.filter(n => n.toLowerCase().includes('head') || n.toLowerCase().includes('bone') || n.toLowerCase().includes('neck')));
-
-          const brightness = config.brightness ?? 1.0;
+const brightness = config.brightness ?? 1.0;
 
           try {
             const lightsToRemove = [];

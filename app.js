@@ -1959,7 +1959,7 @@ async function main() {
     model.traverse((obj) => {
       if (bone) return;
       const n = obj.name.toLowerCase();
-      if ((obj.isBone || obj.isObject3D) && n.includes('head') && !n.includes('headband')) bone = obj;
+      if (obj.isBone && n.includes('head') && !n.includes('headtop') && !n.includes('head_end')) bone = obj;
     });
     return bone;
   }
@@ -1972,7 +1972,10 @@ async function main() {
         if (!headBone) return; // bones not loaded yet — retry next frame
         const hat = createTopHatMesh();
         headBone.add(hat);
-        hat.position.set(0, 0.18, 0);
+        // Mixamo rigs are in centimeter space (~100x world scale),
+        // so scale the hat up and offset above the head bone origin
+        hat.scale.setScalar(100);
+        hat.position.set(0, 18, 0);
         model.userData.topHat = hat;
       }
       model.userData.topHat.visible = true;
