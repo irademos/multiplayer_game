@@ -1,5 +1,6 @@
 {
   "scale": 0.007,
   "yOffset": -1.0,
-  "brightness": 1.0
+  "brightness": 1.0,
+  "hat_position": { "x": 0.0, "y": 0.0, "z": 0.0 }
 }
